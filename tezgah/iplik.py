@@ -11,8 +11,11 @@ Saf Python, web bağımlılığı yok. Durum (`Depo`) tek kullanıcılık sunucu
 
 from __future__ import annotations
 
+import copy
 from collections.abc import Callable
 from dataclasses import dataclass, field
+
+from cam.model import CamError
 
 ONERI_EPS = 1e-3  # parametre birimi (mm)
 ONERI_EN_FAZLA = 40  # en fazla v(p) değerlendirmesi
@@ -40,6 +43,10 @@ class Oneri:
     degerlendirme: int
 
 
+class _Butce(Exception):
+    """Değerlendirme hakkı bitti."""
+
+
 def oneri(
     v: Callable[[float], float],
     p0: float,
@@ -48,37 +55,142 @@ def oneri(
     eps: float = ONERI_EPS,
     en_fazla: int = ONERI_EN_FAZLA,
 ) -> Oneri:
-    """v(p0) > 0 iken [pmin, pmax] içinde p0'a en yakın v = 0 sınırını ikiye bölmeyle bulur (K16)."""
-    raise NotImplementedError("SPEC 25: tezgah.iplik.oneri")
+    """v(p0) > 0 iken [pmin, pmax] içinde p0'a en yakın v = 0 sınırını ikiye bölmeyle bulur (K16).
+
+    v = 0 olan her uç için p0 ile o uç arasında ikiye bölünür (|Δp| ≤ eps); sınırlardan p0'a en yakını,
+    v = 0 tarafındaki ucuyla önerilir. Hak (en_fazla) eps'e inmeden biterse öneri yok.
+    """
+    if not (pmin <= p0 <= pmax) or not eps > 0:
+        raise CamError(f"Öneri: p0 aralıkta ve eps > 0 olmalı (p0={p0}, [{pmin}, {pmax}], eps={eps})")
+    sayac = 0
+
+    def deger(p: float) -> float:
+        nonlocal sayac
+        if sayac >= en_fazla:
+            raise _Butce
+        sayac += 1
+        return float(v(p))
+
+    def yok(neden: str) -> Oneri:
+        return Oneri(None, None, neden, sayac)
+
+    try:
+        if deger(p0) <= 0.0:
+            return yok("Bu değerde girişim yok; öneri gerekmiyor")
+        uclar = [u for u in (pmin, pmax) if u != p0 and deger(u) <= 0.0]
+        if not uclar:
+            return yok(f"Aralığın iki ucunda da girişim var [{pmin}, {pmax}]; girişimi sıfırlayan değer yok")
+        adaylar = []
+        for u in sorted(uclar, key=lambda u: abs(u - p0)):
+            a, b = p0, u  # v(a) > 0, v(b) = 0
+            while abs(b - a) > eps:
+                m = 0.5 * (a + b)
+                if deger(m) > 0.0:
+                    a = m
+                else:
+                    b = m
+            adaylar.append(b)
+    except _Butce:
+        return yok(f"{en_fazla} değerlendirmede |Δp| ≤ {eps} sınırına inilemedi")
+    p = min(adaylar, key=lambda b: abs(b - p0))
+    return Oneri(p, 0.0, None, sayac)
+
+
+def _varsayilan() -> dict[str, dict[str, float]]:
+    from tezgah.ornekler_25 import VARSAYILAN
+
+    return copy.deepcopy(VARSAYILAN)
 
 
 @dataclass
 class Depo:
     """Sunucu belleğindeki güncel parametreler: iş adı → {anahtar: değer}.
 
-    `sifirla` örnek değerlerine döndürür.
+    `sifirla` örnek değerlerine döndürür. Hesaplanan `Is` / `Montaj` sözlükleri parametre değerleriyle
+    önbelleğe alınır (aynı değerde yeniden hesap yok).
     """
 
-    parametreler: dict[str, dict[str, float]] = field(default_factory=dict)
+    parametreler: dict[str, dict[str, float]] = field(default_factory=_varsayilan)
+    _onbellek: dict = field(default_factory=dict, repr=False, compare=False)
 
     def sifirla(self) -> None:
-        raise NotImplementedError("SPEC 25: tezgah.iplik.Depo.sifirla")
+        self.parametreler = _varsayilan()
+
+    def _anahtar(self, tur: str, ad: str) -> tuple:
+        return (tur, ad, tuple(sorted((k, tuple(sorted(v.items()))) for k, v in self.parametreler.items())))
+
+    def _bellek(self, tur: str, ad: str, hesap: Callable[[], object]):
+        k = self._anahtar(tur, ad)
+        if k not in self._onbellek:
+            self._onbellek[k] = hesap()
+        return self._onbellek[k]
 
     def torna_isi(self, ad: str):
-        """Güncel parametrelerle `TornaIsi` (tezgah.ornekler_25). Bilinmeyen ad → KeyError."""
-        raise NotImplementedError("SPEC 25: tezgah.iplik.Depo.torna_isi")
+        """Güncel parametrelerle `TornaIsi` (tezgah.ornekler_25, önbellekli). Bilinmeyen ad → KeyError."""
+        from tezgah import ornekler_25 as o
+
+        if ad not in o.TORNA_ISLERI:
+            raise KeyError(f"Bilinmeyen torna işi: '{ad}'")
+        return self._bellek("torna", ad, lambda: getattr(o, ad)(self.parametreler.get(ad)))
 
     def montaj(self, ad: str):
-        """Güncel parametrelerle `MontajTanimi`. Bilinmeyen ad → KeyError."""
-        raise NotImplementedError("SPEC 25: tezgah.iplik.Depo.montaj")
+        """Güncel parametrelerle `MontajTanimi` (önbellekli). Bilinmeyen ad → KeyError."""
+        from tezgah import ornekler_25 as o
+
+        if ad not in o.MONTAJLAR:
+            raise KeyError(f"Bilinmeyen montaj: '{ad}'")
+        return self._bellek("tanim", ad, lambda: getattr(o, ad)(self.parametreler))
+
+    def is_json(self, ad: str) -> dict:
+        """Güncel parametrelerle torna işinin `Is` sözlüğü (önbellekli). Bilinmeyen ad → KeyError."""
+        from tezgah import torna
+
+        return self._bellek("is", ad, lambda: torna.is_json(self.torna_isi(ad)))
+
+    def montaj_json(self, ad: str) -> dict:
+        """Güncel parametrelerle `Montaj` sözlüğü (önbellekli). Bilinmeyen ad → KeyError."""
+        from tezgah.montaj import montaj_json
+
+        return self._bellek("montaj", ad, lambda: montaj_json(self.montaj(ad)))
+
+    def _bag(self, montaj_ad: str, is_ad: str, anahtar: str) -> Bag:
+        tanim = self.montaj(montaj_ad)
+        for b in tanim.baglar:
+            if (b.is_ad, b.anahtar) == (is_ad, anahtar):
+                return b
+        raise CamError(f"'{montaj_ad}' montajında {is_ad}.{anahtar} parametre bağı yok")
 
     def ayarla(self, montaj_ad: str, is_ad: str, anahtar: str, deger: float) -> dict:
         """Parametreyi ayarlar; {"montaj": Montaj, "is": Is, "sure_farki": s} (K15).
 
-        Aralık dışı → CamError.
+        Aralık dışı → CamError. sure_farki = yeni − eski toplam süre [s].
         """
-        raise NotImplementedError("SPEC 25: tezgah.iplik.Depo.ayarla")
+        from tezgah import ornekler_25 as o
+
+        self._bag(montaj_ad, is_ad, anahtar)
+        yeni = copy.deepcopy(self.parametreler)
+        yeni[is_ad][anahtar] = deger
+        o.parametre_dogrula(is_ad, yeni[is_ad])  # doğrula: aralık dışı → CamError (parametre değişmez)
+        eski_sure = self.is_json(is_ad)["sure"]["toplam"]
+        self.parametreler = yeni
+        Is = self.is_json(is_ad)
+        return {
+            "montaj": self.montaj_json(montaj_ad),
+            "is": Is,
+            "sure_farki": Is["sure"]["toplam"] - eski_sure,
+        }
 
     def oneri(self, montaj_ad: str, is_ad: str, anahtar: str, cift: tuple[str, str]) -> Oneri:
-        """Bağlı parametre için girişimi sıfırlayan öneri (K16)."""
-        raise NotImplementedError("SPEC 25: tezgah.iplik.Depo.oneri")
+        """Bağlı parametre için girişimi sıfırlayan öneri (K16). Parametreyi değiştirmez."""
+        from tezgah import ornekler_25 as o
+        from tezgah.montaj import cift_hacmi
+
+        bag = self._bag(montaj_ad, is_ad, anahtar)
+        a, b = cift
+
+        def v(p: float) -> float:
+            yeni = copy.deepcopy(self.parametreler)
+            yeni[is_ad][anahtar] = p
+            return cift_hacmi(getattr(o, montaj_ad)(yeni), a, b)
+
+        return oneri(v, self.parametreler[is_ad][anahtar], bag.min, bag.max)
