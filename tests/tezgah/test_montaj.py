@@ -390,7 +390,7 @@ def test_sequence_invalid(sira, neden):
 
 
 def _kosegen(part) -> float:
-    lo, hi = part.bbox()
+    lo, hi = part.bbox
     return float(np.linalg.norm(np.asarray(hi) - np.asarray(lo)))
 
 
@@ -585,7 +585,7 @@ def test_meshes(hangi):
         veri = parca_agi(tanim, kimlik)
         V, T = _ag_oku(veri)
         assert _mesh_volume(V, T) == pytest.approx(part.volume, rel=1e-2), kimlik
-        lo, hi = part.bbox()
+        lo, hi = part.bbox
         np.testing.assert_allclose(V.min(axis=0), lo, atol=0.02, err_msg=kimlik)
         np.testing.assert_allclose(V.max(axis=0), hi, atol=0.02, err_msg=kimlik)
         V2, T2 = ag_coz(veri)
