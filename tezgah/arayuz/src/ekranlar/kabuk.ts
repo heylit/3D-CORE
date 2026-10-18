@@ -59,9 +59,74 @@ export function metinOdagi(hedef: EventTarget | null): boolean {
   return ad === "input" || ad === "textarea" || e.isContentEditable;
 }
 
+// ------------------------------------------------------------------ SPEC 54: hata kartı, kurtarma
+
+/** 422 / 500 gövdesindeki `hata` alanı (tezgah/hata.py). */
+export interface HataKarti {
+  sinif: string;
+  nesne: string;
+  ne_oldu: string;
+  oneri: string;
+  teknik: string;
+}
+
+/** Kartın gösterilecek hali; `geriAl` = "Son değişikliği geri al" düğmesi var mı. */
+export interface HataKartiModeli {
+  baslik: string;
+  nesne: string;
+  oneri: string;
+  teknik: string;
+  geriAl: boolean;
+}
+
+/** GET /api/proje/kurtarma `bulunan` alanı (fileio/kurtarma.py kurtarma_bul). */
+export interface KurtarmaBilgisi {
+  yol: string;
+  okunur: boolean;
+  kaynak_tutuyor: boolean;
+  farkli: boolean;
+  neden: string | null;
+}
+
+export type KurtarmaSecimi = "kurtar" | "yoksay" | "ikisi";
+
+export interface KurtarmaSecenegi {
+  secim: KurtarmaSecimi;
+  etiket: string;
+  varsayilan: boolean;
+}
+
+/** Hata kartı modeli; `geriAl` = durumdaki geri alınabilecek değişikliğin etiketi (yoksa null). */
+export function hataKartiModeli(hata: HataKarti, geriAl: string | null): HataKartiModeli {
+  return { baslik: hata.ne_oldu, nesne: hata.nesne, oneri: hata.oneri, teknik: hata.teknik, geriAl: geriAl !== null };
+}
+
+/** Kurtarma iletişim kutusunun seçenekleri: Kurtar / Yok say / İkisini de aç. */
+export function kurtarmaSecenekleri(b: KurtarmaBilgisi): KurtarmaSecenegi[] {
+  const varsayilan: KurtarmaSecimi = b.kaynak_tutuyor ? "kurtar" : "ikisi";
+  const liste: [KurtarmaSecimi, string][] = [
+    ["kurtar", "Kurtar"],
+    ["yoksay", "Yok say"],
+    ["ikisi", "İkisini de aç"],
+  ];
+  return liste.map(([secim, etiket]) => ({ secim, etiket, varsayilan: secim === varsayilan }));
+}
+
 // ------------------------------------------------------------------ sunucu
 
-class KabukHatasi extends Error {}
+class KabukHatasi extends Error {
+  constructor(
+    mesaj: string,
+    readonly kart: HataKarti | null = null,
+  ) {
+    super(mesaj);
+  }
+}
+
+function kartAl(j: { hata?: unknown }): HataKarti | null {
+  const h = j.hata as HataKarti | undefined;
+  return h && typeof h.ne_oldu === "string" ? h : null;
+}
 
 async function istek<T>(yol: string, govde?: unknown): Promise<T> {
   const y = await fetch(ONEK + yol, {
@@ -70,7 +135,7 @@ async function istek<T>(yol: string, govde?: unknown): Promise<T> {
     body: govde === undefined ? undefined : JSON.stringify(govde),
   });
   const j = await y.json().catch(() => ({}));
-  if (!y.ok) throw new KabukHatasi(typeof j.detail === "string" ? j.detail : `${y.status}`);
+  if (!y.ok) throw new KabukHatasi(typeof j.detail === "string" ? j.detail : `${y.status}`, kartAl(j));
   return j as T;
 }
 
@@ -112,6 +177,25 @@ const STIL = `
   font:13px/1.35 system-ui,sans-serif;box-shadow:0 10px 30px rgba(0,0,0,.4)}
 .kb-palet :is(button,input,[role="option"],a,[tabindex]):focus,.kb-cubuk button:focus,.kb-bildirim button:focus{
   outline:2px solid #8ab4ff;outline-offset:-2px}
+.kb-kart{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:46;width:min(560px,calc(100vw - 32px));
+  box-sizing:border-box;background:var(--panel,#1b1d22);color:var(--metin,#e8e6e3);border:1px solid #8a4b4b;
+  border-left:4px solid #ff8a80;border-radius:10px;padding:10px 12px;font:13px/1.4 system-ui,sans-serif;
+  box-shadow:0 10px 30px rgba(0,0,0,.45);overflow-wrap:anywhere}
+.kb-kart [data-alan="ne_oldu"]{font-weight:600;font-size:14px}
+.kb-kart [data-alan="nesne"]{opacity:.7;font-size:12px}
+.kb-kart [data-alan="oneri"]{margin-top:4px}
+.kb-kart details{margin-top:6px;font-size:12px}
+.kb-kart pre{max-height:30vh;overflow:auto;white-space:pre-wrap;margin:4px 0 0;opacity:.8}
+.kb-kart .kb-eylem{display:flex;gap:6px;margin-top:8px;justify-content:flex-end}
+.kb-kart button,.kb-kutu button{font:inherit;color:inherit;background:transparent;border:1px solid #4a4e58;border-radius:6px;
+  padding:3px 10px;cursor:pointer}
+.kb-kutu{max-width:min(480px,calc(100vw - 32px));box-sizing:border-box;background:var(--panel,#1b1d22);
+  color:var(--metin,#e8e6e3);border:1px solid #4a4e58;border-radius:12px;font:14px/1.4 system-ui,sans-serif;padding:14px}
+.kb-kutu::backdrop{background:rgba(0,0,0,.4)}
+.kb-kutu p{margin:0 0 10px;overflow-wrap:anywhere}
+.kb-kutu .kb-eylem{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.kb-kutu button[data-varsayilan]{border-color:#8ab4ff}
+.kb-kart button:focus,.kb-kutu button:focus{outline:2px solid #8ab4ff;outline-offset:1px}
 `;
 
 // ------------------------------------------------------------------ kabuk
@@ -140,6 +224,7 @@ class KabukOnYuz {
   private notKutu = document.createElement("div");
   private bildirim = document.createElement("div");
   private dosya = document.createElement("input");
+  private kart = document.createElement("div");
 
   constructor(
     private kabuk: Kabuk,
@@ -159,7 +244,11 @@ class KabukOnYuz {
     this.dosya.accept = ".3dc";
     this.dosya.hidden = true;
     this.dosya.addEventListener("change", () => void this.dosyaYukle());
-    document.body.append(this.cubuk, this.perde, this.bildirim, this.dosya);
+    this.kart.className = "kb-kart";
+    this.kart.setAttribute("data-testid", "hata-karti");
+    this.kart.setAttribute("role", "alert");
+    this.kart.hidden = true;
+    document.body.append(this.cubuk, this.perde, this.bildirim, this.dosya, this.kart);
     window.addEventListener("keydown", (e) => this.tus(e), true);
     window.addEventListener("beforeunload", (e) => {
       if (this.durum?.kirli) e.preventDefault();
@@ -181,6 +270,105 @@ class KabukOnYuz {
       /* örnek ve sekme listesi olmadan da palet çalışır */
     }
     await this.yenile(false);
+    await this.kurtarmaSor();
+  }
+
+  // ---------------------------------------------------------------- SPEC 54: hata kartı, kurtarma
+
+  private hataKartiGoster(hata: HataKarti): void {
+    const m = hataKartiModeli(hata, this.durum?.geri_al ?? null);
+    const alan = (ad: string, metin: string): HTMLDivElement => {
+      const d = document.createElement("div");
+      d.setAttribute("data-alan", ad);
+      d.textContent = metin;
+      return d;
+    };
+    const ayrinti = document.createElement("details");
+    ayrinti.setAttribute("data-alan", "teknik");
+    const ozet = document.createElement("summary");
+    ozet.textContent = "Ayrıntı";
+    const pre = document.createElement("pre");
+    pre.textContent = m.teknik;
+    ayrinti.append(ozet, pre);
+    const eylem = document.createElement("div");
+    eylem.className = "kb-eylem";
+    if (m.geriAl) {
+      const g = document.createElement("button");
+      g.setAttribute("data-eylem", "geri-al");
+      g.textContent = "Son değişikliği geri al";
+      g.addEventListener("click", () => {
+        this.kart.hidden = true;
+        void this.geriAl();
+      });
+      eylem.append(g);
+    }
+    const kapat = document.createElement("button");
+    kapat.textContent = "Kapat";
+    kapat.addEventListener("click", () => (this.kart.hidden = true));
+    eylem.append(kapat);
+    this.kart.replaceChildren(alan("ne_oldu", m.baslik), alan("nesne", m.nesne), alan("oneri", m.oneri), ayrinti, eylem);
+    this.kart.hidden = false;
+  }
+
+  /** Açılışta ve proje açıldıktan sonra: kurtarma dosyası önerisi ve uyarıları. */
+  private async kurtarmaSor(): Promise<void> {
+    let d: { bulunan: KurtarmaBilgisi | null; uyarilar: string[] };
+    try {
+      d = await istek("/kurtarma");
+    } catch {
+      return; // kurtarma ucu yoksa (eski sunucu) açılış sürer
+    }
+    for (const u of d.uyarilar ?? []) this.bildir(u);
+    const b = d.bulunan;
+    if (b && b.okunur && b.farkli) this.kurtarmaKutusu(b);
+  }
+
+  private kurtarmaKutusu(b: KurtarmaBilgisi): void {
+    const kutu = document.createElement("dialog");
+    kutu.className = "kb-kutu";
+    kutu.setAttribute("data-testid", "kurtarma");
+    kutu.setAttribute("aria-label", "Kurtarma dosyası bulundu");
+    const metin = document.createElement("p");
+    metin.textContent = b.kaynak_tutuyor
+      ? "Bu proje için kaydedilmemiş değişiklikler içeren bir kurtarma dosyası bulundu."
+      : "Bir kurtarma dosyası bulundu, ama proje dosyası o yazıldıktan sonra başka yerde değişmiş. " +
+        "İkisini de açmanız önerilir.";
+    const eylem = document.createElement("div");
+    eylem.className = "kb-eylem";
+    const dugmeler: HTMLButtonElement[] = [];
+    for (const s of kurtarmaSecenekleri(b)) {
+      const d = document.createElement("button");
+      d.type = "button";
+      d.setAttribute("data-secim", s.secim);
+      d.textContent = s.etiket;
+      if (s.varsayilan) d.setAttribute("data-varsayilan", "");
+      d.addEventListener("click", () => {
+        kutu.close();
+        void this.kurtarmaSec(s.secim);
+      });
+      dugmeler.push(d);
+      eylem.append(d);
+    }
+    kutu.append(metin, eylem);
+    kutu.addEventListener("keydown", (e) => {
+      if (e.key !== "Tab") return;
+      e.preventDefault(); // odak kutunun düğmeleri arasında döner
+      const i = dugmeler.indexOf(document.activeElement as HTMLButtonElement);
+      const n = dugmeler.length;
+      dugmeler[(i + (e.shiftKey ? n - 1 : 1) + n) % n].focus();
+    });
+    kutu.addEventListener("close", () => kutu.remove());
+    document.body.append(kutu);
+    kutu.showModal();
+    (dugmeler.find((d) => d.hasAttribute("data-varsayilan")) ?? dugmeler[0]).focus();
+  }
+
+  private async kurtarmaSec(secim: KurtarmaSecimi): Promise<void> {
+    await this.dene(async () => {
+      const r = await istek<{ proje: ProjeDurumu; kopya: string | null }>("/kurtarma", { secim });
+      const not = secim === "kurtar" ? "Kurtarıldı" : r.kopya ? `Kurtarılan kopya: ${r.kopya}` : "Yok sayıldı";
+      await this.sonrasi(null, not);
+    });
   }
 
   // ---------------------------------------------------------------- proje çubuğu
@@ -431,10 +619,12 @@ class KabukOnYuz {
       const yol = this.girdi.value.trim();
       if (!yol) return;
       await this.dene(async () => {
-        if (this.kip.tur === "yol" && this.kip.amac === "ac") await istek("/ac", { yol });
+        const acildi = this.kip.tur === "yol" && this.kip.amac === "ac";
+        if (acildi) await istek("/ac", { yol });
         else await istek("/kaydet", { yol });
         this.paletKapat();
         await this.yenile(true);
+        if (acildi) await this.kurtarmaSor();
       });
       return;
     }
@@ -534,6 +724,7 @@ class KabukOnYuz {
       await f();
     } catch (e) {
       if (this.paletAcik()) this.hataGoster(e);
+      else if (e instanceof KabukHatasi && e.kart) this.hataKartiGoster(e.kart);
       else this.bildir(e instanceof Error ? e.message : String(e));
     }
   }
@@ -610,7 +801,10 @@ class KabukOnYuz {
     if (!f) return;
     await this.dene(async () => {
       const y = await fetch(`${ONEK}/yukle`, { method: "POST", body: await f.arrayBuffer() });
-      if (!y.ok) throw new KabukHatasi((await y.json().catch(() => ({}))).detail ?? `${y.status}`);
+      if (!y.ok) {
+        const j = await y.json().catch(() => ({}));
+        throw new KabukHatasi(j.detail ?? `${y.status}`, kartAl(j));
+      }
       await this.sonrasi(null, `Açıldı: ${f.name}`);
     });
   }

@@ -112,7 +112,7 @@ def _kanonik_coz(veri: bytes, ad: str):
     try:
         belge = json.loads(veri.decode("utf-8"), parse_constant=_nan_reddet)
     except (UnicodeDecodeError, ValueError) as e:
-        raise ProjeError(f"{ad}: geçerli JSON değil ({e})") from None
+        raise ProjeError(f"{ad}: geçerli JSON değil ({e})") from e
     if kanonik(belge) != veri:
         raise ProjeError(f"{ad}: kanonik JSON değil")
     return belge
@@ -314,14 +314,17 @@ def _bildirim_oku(z: zipfile.ZipFile, adlar: list[str]) -> dict:
     try:
         b = json.loads(z.read(BILDIRIM).decode("utf-8"), parse_constant=_nan_reddet)
     except (UnicodeDecodeError, ValueError) as e:
-        raise ProjeError(f"{BILDIRIM}: geçerli JSON değil ({e})") from None
+        raise ProjeError(f"{BILDIRIM}: geçerli JSON değil ({e})") from e
     if not isinstance(b, dict):
         raise ProjeError(f"{BILDIRIM}: JSON nesnesi değil")
     sema = b.get("sema")
     if type(sema) is not int or sema < 1:
         raise ProjeError(f"{BILDIRIM}: geçersiz sema {sema!r}")
     if sema > SEMA:
-        raise ProjeError(f"{BILDIRIM}: sema {sema} bu sürümden yeni (desteklenen {SEMA})")
+        raise ProjeError(
+            f"{BILDIRIM}: sema {sema} bu sürümden yeni (desteklenen {SEMA}) — "
+            "Tezgah'ı güncelleyin ya da dosyayı yazan sürümle açın"
+        )
     for alan, tur in (("ad", str), ("bolumler", dict), ("onbellek", dict), ("gecmis", dict)):
         if not isinstance(b.get(alan), tur):
             raise ProjeError(f"{BILDIRIM}: '{alan}' alanı eksik ya da geçersiz")
@@ -395,13 +398,36 @@ def _onbellegi_oku(z, adlar, b, uyarilar: list[dict]) -> dict[str, Onbellek]:
     return onbellek
 
 
+ONERI_BOZUK = "dosya bozuk; yedekten ya da kurtarma dosyasından açmayı deneyin"
+
+
 def ac(yol: str | Path) -> Proje:
-    """Dosyayı okur ve denetler; bozuk girdi → ProjeError (mesajda girdi adı)."""
+    """Dosyayı okur ve denetler; bozuk girdi → ProjeError (mesajda girdi adı).
+
+    SPEC 54 §1: mesaj `<dosya> / <girdi>: <ne oldu> — <ne yapılabilir>` biçimindedir.
+    """
     yol = Path(yol)
     try:
+        return _ac(yol)
+    except ProjeError as e:
+        metin = str(e)
+        if metin.startswith(f"{yol.name}:") and " — " in metin:
+            raise
+        if not metin.startswith(f"{yol.name}:"):
+            metin = f"{yol.name} / {metin}"
+        if " — " not in metin:
+            metin = f"{metin} — {ONERI_BOZUK}"
+        raise ProjeError(metin) from e
+
+
+def _ac(yol: Path) -> Proje:
+    try:
         z = zipfile.ZipFile(yol)
-    except zipfile.BadZipFile:
-        raise ProjeError(f"{yol.name}: zip değil, proje dosyası olamaz") from None
+    except zipfile.BadZipFile as e:
+        raise ProjeError(
+            f"{yol.name}: zip değil, proje dosyası olamaz — dosya yarıda kesilmiş ya da başka türde; "
+            "yedekten ya da kurtarma dosyasından açmayı deneyin"
+        ) from e
     with z:
         try:
             adlar = _adlari_denetle(z)
@@ -412,7 +438,7 @@ def ac(yol: str | Path) -> Proje:
             uyarilar: list[dict] = []
             onbellek = _onbellegi_oku(z, adlar, b, uyarilar)
         except (zipfile.BadZipFile, zipfile.LargeZipFile, EOFError, OSError) as e:
-            raise ProjeError(f"{yol.name}: zip okunamadı ({e})") from None
+            raise ProjeError(f"{yol.name}: zip okunamadı ({e})") from e
         bilinen = {BILDIRIM, GECMIS} | {f"bolumler/{a}.json" for a in bolumler}
         bilinen |= {f"onbellek/{a}.bin" for a in b["onbellek"]}
         for ad in adlar:

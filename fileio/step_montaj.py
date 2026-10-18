@@ -154,7 +154,9 @@ def read_step(path: str | Path) -> tuple[Node, dict[str, Part]]:
     okuyucu = STEPCAFControl_Reader()
     okuyucu.SetNameMode(True)
     if okuyucu.ReadFile(str(path)) != IFSelect_RetDone or not okuyucu.Transfer(belge):
-        raise GeometryError(f"STEP okunamadı: {path}")
+        raise GeometryError(
+            f"{path.name}: STEP okunamadı — dosyayı CAD programınızda STEP AP214 olarak yeniden dışa aktarın"
+        )
 
     parts: dict[str, Part] = {}
     parca_etiketi: dict[str, str] = {}  # kimlik -> XCAF etiket girdisi (aynı adlı farklı ürün kontrolü)
@@ -165,7 +167,13 @@ def read_step(path: str | Path) -> tuple[Node, dict[str, Part]]:
         TDF_Tool.Entry_s(etiket, giris)
         giris = giris.ToCString()
         if kimlik not in parts:
-            parts[kimlik] = Part(bd.Shape.cast(st.GetShape_s(etiket)), name=kimlik)
+            try:
+                parts[kimlik] = Part(bd.Shape.cast(st.GetShape_s(etiket)), name=kimlik)
+            except GeometryError as e:
+                raise GeometryError(
+                    f"{path.name} / {kimlik}: bileşenin katı şekli okunamadı — dosyayı CAD programınızda "
+                    "bileşenler katı olacak biçimde STEP AP214 olarak yeniden dışa aktarın"
+                ) from e
             parca_etiketi[kimlik] = giris
         elif parca_etiketi[kimlik] != giris:
             raise AssyError(f"STEP'te aynı adlı iki farklı parça ürünü: '{kimlik}'")
@@ -200,7 +208,7 @@ def read_step(path: str | Path) -> tuple[Node, dict[str, Part]]:
     st.GetFreeShapes(serbest)
     etiketler = [serbest.Value(i) for i in range(1, serbest.Length() + 1)]
     if not etiketler:
-        raise GeometryError(f"STEP'te şekil yok: {path}")
+        raise GeometryError(f"{path.name}: STEP'te şekil yok — dışa aktarırken en az bir parça seçin")
     if len(etiketler) == 1 and st.IsAssembly_s(etiketler[0]):
         kok = dugum(etiketler[0], _ad_oku(etiketler[0]) or path.stem, np.eye(4))
         kok.ref = None
