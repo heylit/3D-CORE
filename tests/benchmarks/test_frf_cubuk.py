@@ -82,17 +82,18 @@ def test_k2_kapali_form_20_frekans(yol):
 
 @pytest.mark.parametrize("yol", [0, 1], ids=["modal", "dogrudan"])
 def test_k2_faz(yol):
-    """Birinci rezonansın altında faz 0°, üstünde (βL ∈ (π/2, 3π/2)) ±180°."""
+    """Faz kapalı formun işaretinden: tan(βL) > 0 → 0°, tan(βL) < 0 → ±180°.
+
+    Uç yer değiştirmesinde βL = π bir antirezonanstır; (π/2, π) aralığında faz 180°, (π, 3π/2)'de
+    yeniden 0°'dir. Noktalar rezonans ve antirezonanslardan uzak seçildi.
+    """
     m, yollar = _yollar()
-    alt = np.array([0.3, 0.9, 1.4])
-    ust = np.array([1.75, 2.5, 3.5, 4.5])
-    r = yollar[yol](f_of_betaL(np.concatenate([alt, ust])))
+    bL = np.array([0.3, 0.9, 1.4, 1.75, 2.5, 2.8, 3.5, 4.5, 5.0])
+    r = yollar[yol](f_of_betaL(bL))
     faz = r.faz(m, N + 1, "ux")
-    np.testing.assert_allclose(faz[:3], 0.0, atol=0.01)
-    np.testing.assert_allclose(np.abs(faz[3:]), 180.0, atol=0.01)
-    np.testing.assert_allclose(
-        r.genlik(m, N + 1, "ux"), np.abs(kapali(np.concatenate([alt, ust]))), rtol=2e-2
-    )
+    beklenen = np.where(np.tan(bL) > 0, 0.0, 180.0)
+    np.testing.assert_allclose(np.abs(faz), beklenen, atol=0.01)
+    np.testing.assert_allclose(r.genlik(m, N + 1, "ux"), np.abs(kapali(bL)), rtol=2e-2)
 
 
 def test_k4_rezonans_genligi_ve_tepe():
