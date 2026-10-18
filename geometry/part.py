@@ -78,7 +78,8 @@ class Hole:
 
     origin: giriş noktası, delik ekseninin parça yüzeyini deldiği yer. axis: birim delme yönü (malzemeye
     doğru); takım ekseni = −axis. d: matkap çapı (dişli delikte kılavuz matkabı). depth: eksen boyunca
-    girişten düz dibe; boydan boyada çıkış noktasına kadar. csk_d = 0 → havşa yok; thread = "" → dişsiz.
+    girişten düz dibe; boydan boyada çıkış noktasına kadar. csk_d = 0 → havşa yok; cbore_d = 0 → lamba
+    yok; thread = "" → dişsiz. Havşa ve lamba aynı delikte olamaz.
     Kayıt geometriye göre yeniden doğrulanmaz; STEP / STL gidiş-dönüşünde taşınmaz.
     """
 
@@ -89,6 +90,8 @@ class Hole:
     through: bool
     csk_d: float = 0.0  # mm, havşa ağız çapı
     csk_angle: float = 0.0  # derece, havşa tepe açısı
+    cbore_d: float = 0.0  # mm, lamba çapı
+    cbore_depth: float = 0.0  # mm, lamba derinliği (girişten eksen boyunca)
     thread: str = ""  # "M8", "M8x1"
     thread_d: float = 0.0  # mm, nominal diş çapı
     pitch: float = 0.0  # mm, hatve
@@ -104,6 +107,8 @@ class Hole:
             self.depth,
             self.csk_d,
             self.csk_angle,
+            self.cbore_d,
+            self.cbore_depth,
             self.thread_d,
             self.pitch,
             self.thread_depth,
@@ -121,6 +126,14 @@ class Hole:
                 raise GeometryError(
                     f"Delik: havşada csk_d > d ve 0 < csk_angle < 180 olmalı ({self.csk_d}, {self.csk_angle})"
                 )
+        if self.cbore_d != 0 or self.cbore_depth != 0:
+            if self.cbore_d <= self.d or not 0 < self.cbore_depth < self.depth:
+                raise GeometryError(
+                    "Delik: lambada cbore_d > d ve 0 < cbore_depth < depth olmalı "
+                    f"({self.cbore_d}, {self.cbore_depth})"
+                )
+            if self.csk_d != 0 or self.csk_angle != 0:
+                raise GeometryError("Delik: havşa ve lamba aynı delikte olamaz")
         if self.thread or self.thread_d or self.pitch or self.thread_depth:
             if not self.thread or self.thread_d <= self.d or self.pitch <= 0:
                 raise GeometryError(

@@ -144,6 +144,12 @@ def test_hole_threaded_and_countersunk_ok():
     assert h.csk_d == 16.0
 
 
+def test_hole_counterbored_ok():
+    """M6 lambalı: d = 6.6, lamba 11 x 6.4 mm."""
+    h = make_hole(d=6.6, depth=20.0, cbore_d=11.0, cbore_depth=6.4)
+    assert h.cbore_d == 11.0 and h.cbore_depth == 6.4
+
+
 @pytest.mark.parametrize(
     "kw",
     [
@@ -160,6 +166,10 @@ def test_hole_threaded_and_countersunk_ok():
         dict(thread="M8", thread_d=5.0, pitch=0.8, thread_depth=5.0),  # thread_d <= d
         dict(thread="M8", thread_d=8.0, pitch=0.0, thread_depth=5.0),
         dict(thread_d=8.0, pitch=1.25, thread_depth=5.0),  # thread adı yok
+        dict(cbore_d=6.0, cbore_depth=5.0),  # cbore_d <= d
+        dict(cbore_d=11.0, cbore_depth=10.0),  # cbore_depth >= depth
+        dict(cbore_d=11.0),  # lamba derinliği eksik
+        dict(csk_d=12.0, csk_angle=90.0, cbore_d=11.0, cbore_depth=5.0),  # havşa + lamba
     ],
 )
 def test_hole_invalid_raises(kw):
