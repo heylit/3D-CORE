@@ -165,3 +165,62 @@ Hepsi `cam.gcode`'dan dışa açılır. Hatalar `cam.model.CamError`.
 - Soğutma sıvısı bilgisi: okuyucu M7/M8/M9'u kabul eder ama yola yansıtmaz (modelde alan yok).
 - Gerçek makinede deneme; LinuxCNC, Heidenhain gibi başka diller (yeni `Dialect` örneği ile ileride).
 - `cam/model.py` arayüz değişikliği (çevrim veya takım değişimi hareket tipi): ayrı arayüz PR'ı.
+
+## Ek A — Yazım ayrıntıları (onaydan sonra eklenen netleştirmeler; kapsam değişmedi)
+Testleri yazan (`dogrulayici`) ve kodu yazan (`yazici`) aynı metni üretsin diye:
+- Satırlar `\n` ile ayrılır, metin `\n` ile biter. Bir satırdaki kelimeler tek boşlukla ayrılır.
+- Baş satırlar (`G21 G90 G17 G94 ...`) yazıcının durumunu kurar: G90/G17/G21/G94 sonra tekrar yazılmaz.
+  Başlangıçta hareket tipi, ilerleme, devir, takım ve konum bilinmiyor.
+- Fanuc satır numarası `%` ve `O0001` dışındaki her satıra (son satırlar dahil) `N10`, `N20`... olarak verilir.
+  Program numarası `O{program_no:04d}`.
+- Takım değişimi satırı: Fanuc `T<n> M6`; GRBL ilk takımda `T<n>`, sonrakilerde `T<n> M0`.
+  Ardından her zaman `S<rpm> M3` (rpm tam sayıya yuvarlanır, `S10000`). Devir tek başına değişirse sadece `S<rpm> M3`.
+- Op başlangıç satırı: `G0` kelimesi ve üç eksen her zaman yazılır (`G0 X0. Y0. Z5.`).
+- Bastırma yuvarlanmış metin üzerinden yapılır: `fmt(yeni) == fmt(durum)` ise eksen / `F` yazılmaz.
+  G0'da `F` yazılmaz. Yayda `I` ve `J` her zaman (0 olsa da) yazılır; `X`, `Y`, `Z` sadece değiştiyse.
+- Fanuc çevrimi: op başlangıcına `G0 X Y Z` yazıldıktan sonra ilk delik `G98 G81 X Y Z R F`
+  (G83'te `R` ile `F` arasında `Q`), sonraki delikler sadece değişen `X`/`Y`, en sonda `G80`.
+  `G80` sonrası hareket tipi bilinmiyor sayılır (sonraki hareket G kelimesini yazar); konum son deliğin
+  (x, y, z_dön) noktasıdır. Okuyucuda çevrim `G80` ile veya bir G0/G1/G2/G3 ile biter; G98'deki `z0`
+  çevrimin ilk satırındaki Z konumudur (çevrim boyunca sabit).
+- Okuyucu hata mesajı `satır <n>` içerir (n: metindeki 1 tabanlı satır sırası).
+- Okuyucu yol adı `T<n>-<k>`, k çıktı listesindeki 1 tabanlı sıra.
+
+### Altın örnek (K2)
+Takım `Tool(1, "freze6", FLAT, D=6, flute_length=20)`, `rpm = 10000`, `start = (0, 0, 5)`, hareketler:
+`G1 (0,0,−1) F100`, `G1 (10,0,−1) F300`, `G1 (10,10,−1) F300`, `G3 (0,10,−1) merkez (5,10) F300`,
+`G1 (0,0,−1) F300`, `G0 (0,0,5)`.
+
+GRBL:
+```
+G21 G90 G17 G94
+T1
+S10000 M3
+G0 X0. Y0. Z5.
+G1 Z-1. F100.
+X10. F300.
+Y10.
+G3 X0. I-5. J0.
+G1 Y0.
+G0 Z5.
+M5
+M30
+```
+Fanuc:
+```
+%
+O0001
+N10 G21 G90 G17 G94 G40 G49 G80
+N20 T1 M6
+N30 S10000 M3
+N40 G0 X0. Y0. Z5.
+N50 G1 Z-1. F100.
+N60 X10. F300.
+N70 Y10.
+N80 G3 X0. I-5. J0.
+N90 G1 Y0.
+N100 G0 Z5.
+N110 M5
+N120 M30
+%
+```
