@@ -270,7 +270,7 @@ Ağlar: unit ve benchmark testleri OCCT'siz, SPEC 11 K10'daki gibi Kuhn bölüml
   10 s'yi aşan test `@pytest.mark.slow` ile işaretlenir.
 
 ## Kararlar
-- **K-1 (K6 düzeltmesi, koordinatör kararı, 2026-10-18 15:14 UTC):** "Hata `k = 2 → 4` geçişinde en az yarıya
+- **K-1 (K6 düzeltmesi, kullanıcı onaylı: proje sohbeti 2026-10-18 15:59 UTC, 2 dakika otomatik kabul):** "Hata `k = 2 → 4` geçişinde en az yarıya
   iner" maddesi kaldırıldı, yerine "`x = 10` düğüm ortalaması her iki ağda `T_maks`'a göreli 1e-9 içinde" geldi.
   Gerekçe: doğrusal eleman ve tutarlı yükle bu 1B problemde düğüm değerleri tam çıkar (ön hesap: göreli hata
   `k = 2`'de 4e-16, `k = 4`'te 1.6e-15); yarıya inme ölçütü yuvarlama gürültüsünü karşılaştırırdı.

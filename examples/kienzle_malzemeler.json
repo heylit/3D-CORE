@@ -1,0 +1,10 @@
+{
+  "not": "Örnek Kienzle değerleri (SPEC 32). Tablo kitaplarında yaygın verilen değerlerdir; kullanmadan önce kendi kaynağınızla doğrulayın. Testler bu sayılara bağlı değildir.",
+  "malzemeler": [
+    {"name": "S235JR", "kc11": 1780.0, "mc": 0.17, "kaynak": "Kienzle tablosu (St 37), Tabellenbuch Metall / König-Klocke Fertigungsverfahren 1"},
+    {"name": "C45E", "kc11": 1680.0, "mc": 0.14, "kaynak": "Kienzle tablosu (C 45), Tabellenbuch Metall / König-Klocke Fertigungsverfahren 1"},
+    {"name": "42CrMo4", "kc11": 1563.0, "mc": 0.26, "kaynak": "Kienzle tablosu, Tabellenbuch Metall / König-Klocke Fertigungsverfahren 1"},
+    {"name": "16MnCr5", "kc11": 1411.0, "mc": 0.30, "kaynak": "Kienzle tablosu, Tabellenbuch Metall / König-Klocke Fertigungsverfahren 1"},
+    {"name": "EN-GJL-250", "kc11": 1160.0, "mc": 0.26, "kaynak": "Kienzle tablosu (GG 26), Tabellenbuch Metall / König-Klocke Fertigungsverfahren 1"}
+  ]
+}

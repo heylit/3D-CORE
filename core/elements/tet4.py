@@ -136,8 +136,15 @@ def me(element: Element, model: Model, lumped: bool = False) -> np.ndarray:
 
 
 def kt(element: Element, model: Model, k: float) -> np.ndarray:
-    """Isıl iletkenlik matrisi kt = k V Bᵀ B (4 x 4), B sütunları ∇N_a (SPEC 56)."""
-    raise NotImplementedError("SPEC 56: tet4.kt")
+    """Isıl iletkenlik matrisi kt = k V Bᵀ B (4 x 4), B sütunları ∇N_a (SPEC 56).
+
+    Düğüm başına bir sıcaklık serbestliği, element.nodes sırasında. k ≤ 0 veya sonlu değil → ModelError.
+    """
+    if not (np.isfinite(k) and k > 0.0):
+        raise ModelError(f"Eleman {element.id}: ısıl iletkenlik k > 0 olmalı (k={k})")
+    V, G = _hacim_ve_gradyan(element, model)
+    k_e = k * V * G.T @ G
+    return 0.5 * (k_e + k_e.T)
 
 
 def ct(element: Element, model: Model, rho_cp: float, lumped: bool = False) -> np.ndarray:
