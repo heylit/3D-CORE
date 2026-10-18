@@ -11,6 +11,12 @@ PR #3 incelemesi ve birleşmesi; birleşince `DURUM.md` SPEC tablosunda 08 satı
 | 2026-10-18 | 245 (SPEC 08) | 0 | `tests/assy/test_mates.py`, `test_solver.py`; main (SPEC 01) birleştirildikten sonra tüm depo 362 geçti, 0 uygulanmamış |
 
 ## Son oturum
+**2026-10-18 — Durağan noktadan kaçış (inceleme O1, kullanıcı kararı)**
+- Tam yanlış dal (çakışık düzlemlerde n_a = n_b) artık çözülüyor: `‖Jᵀ r‖ ≈ 0`, `r ≠ 0` iken serbest
+  bileşenler 1e-3 rad sabit dönmeyle itiliyor (en fazla 3 kez). Gerçek çelişkiler yine `AssyError`.
+- SPEC 08 kenar durumu ve K10 güncellendi; `test_wrong_branch_parallel_normals_raises` →
+  `..._escapes` (kullanıcı onayı, 2026-10-18).
+
 **2026-10-18 — Ölçekli artıklar (inceleme O1)**
 - Yön satırları (n_a + n_b, d_a × d_b, d_a·d_b − cos θ) karakteristik uzunluk L ile çarpılıyor
   (L = referans noktalarının başlangıç dünya çapı, en az 1 mm). Adım ve durma ölçütü artık mm cinsinden:
@@ -18,8 +24,6 @@ PR #3 incelemesi ve birleşmesi; birleşince `DURUM.md` SPEC tablosunda 08 satı
 - `assy.mates.angular_rows()`: satırın yön mü uzunluk mu olduğunu türevlerden çıkarır.
 - `SolveResult.residual` artık ölçekli max|r| (mm).
 - Yeni testler: `tests/assy/test_olcekli_artik.py`.
-- Açık: tam yanlış dalda (n_a = n_b) başlangıç SPEC K10 gereği `AssyError`; bunu değiştirmek SPEC + test
-  değişikliği ister, kullanıcı kararı bekleniyor.
 
 **2026-10-18**
 - SPEC kullanıcı tarafından onaylandı (düzlem çakışmasında normaller zıt, eş eksende eksen yönü serbest).
