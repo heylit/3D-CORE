@@ -203,6 +203,7 @@ class _Hesap:
     def __init__(self, mesh, tool, orient: Orientation, avoid: Avoid | None, floor) -> None:
         self.mesh, self.tool, self.o, self.avoid, self.floor = mesh, tool, orient, avoid, floor
         self.R = _R(tool)
+        self.kure = tool.kind is ToolKind.BALL
         self.h_n = self.R / 10
         self.govde = [
             (Tool(id=0, name=f"{tur}-{rho:g}", kind=ToolKind.FLAT, D=2 * rho, flute_length=1.0), H)
@@ -262,8 +263,8 @@ class _Hesap:
         p_l, z_uc = sonuc
         tol = 0.0 if self.avoid is None else self.avoid.tol
         p = yerel.F.to_world(p_l)
-        # Ek A: eksen doğrusu başka geometriye takıldı (c ≠ c₀) → çarpışma
-        sapma = float(np.linalg.norm(p + self.R * a - s.c0))
+        # Ek A: eksen doğrusu başka geometriye takıldı (c ≠ c₀) → çarpışma (küresel uç)
+        sapma = float(np.linalg.norm(p + self.R * a - s.c0)) if self.kure else 0.0
         if sapma > (C_TOL if self.avoid is None else self.avoid.tol):
             return p, f"eksen doğrusu başka geometriye takıldı (|c − c₀| = {sapma:.4g} mm)"
         for duz, H in self.govde:
@@ -346,13 +347,19 @@ def finish5(
     max_dangle: float = 5.0,
     floor: float | None = None,
 ) -> Toolpath:
-    """Küresel uçla 5 eksen raster ince işleme; her Move.axis dolu, frame = None.
+    """Küresel ya da torik uçla 5 eksen raster ince işleme; her Move.axis dolu, frame = None.
+
+    Torik uçta (SPEC 50) sürüş noktası c₀ = düşey drop ucu + R·ẑ eksen doğrusunun bir noktasıdır;
+    takım bu doğru boyunca drop'la konumlanır (Ek A |c − c₀| denetimi yalnız küresel uçta anlamlıdır).
 
     Giriş: z_safe'te eksen doğrusu üstünden G0, clearance kadar yukarıdan G1 dalma; çıkış eksen boyunca
     z_safe'e G0.
     """
-    if tool.kind is not ToolKind.BALL:
-        raise CamError(f"finish5: yalnız küresel uç (BALL) desteklenir ({tool.kind.value})")
+    if not (tool.kind is ToolKind.BALL or (tool.kind is ToolKind.FLAT and tool.corner_r > 0)):
+        raise CamError(
+            f"finish5: yalnız küresel uç (BALL) ve torik uç (FLAT, corner_r > 0) desteklenir "
+            f"({tool.kind.value}, corner_r = {tool.corner_r})"
+        )
     if not (math.isfinite(max_dangle) and max_dangle > 0):
         raise CamError(f"finish5: max_dangle pozitif olmalı ({max_dangle})")
     h = _Hesap(mesh, tool, orient, avoid, floor)
