@@ -15,6 +15,7 @@ Birim sistemi (zorunlu, her yerde aynı):
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -32,14 +33,22 @@ DOF_NAMES = {"ux": 0, "uy": 1, "uz": 2}
 DOFS_PER_NODE = {1: 1, 2: 2, 3: 3}
 
 
+def _sonlu(nerede: str, **degerler: float) -> None:
+    """Her değer sonlu bir sayı olmalı (nan / inf → ModelError). Sessiz hata yok."""
+    for ad, v in degerler.items():
+        if not math.isfinite(v):
+            raise ModelError(f"{nerede}: {ad} sonlu bir sayı olmalı ({ad}={v})")
+
+
 @dataclass
 class Material:
     name: str
-    E: float               # MPa
-    nu: float = 0.3        # Poisson oranı
-    rho: float = 0.0       # t/mm³ (ileride dinamik analiz için)
+    E: float  # MPa
+    nu: float = 0.3  # Poisson oranı
+    rho: float = 0.0  # t/mm³ (ileride dinamik analiz için)
 
     def __post_init__(self) -> None:
+        _sonlu(f"Malzeme '{self.name}'", E=self.E, nu=self.nu, rho=self.rho)
         if self.E <= 0:
             raise ModelError(f"Malzeme '{self.name}': E pozitif olmalı (E={self.E})")
 
@@ -47,9 +56,10 @@ class Material:
 @dataclass
 class Section:
     name: str
-    A: float               # mm²
+    A: float  # mm²
 
     def __post_init__(self) -> None:
+        _sonlu(f"Kesit '{self.name}'", A=self.A)
         if self.A <= 0:
             raise ModelError(f"Kesit '{self.name}': A pozitif olmalı (A={self.A})")
 
@@ -61,6 +71,9 @@ class Node:
     y: float = 0.0
     z: float = 0.0
 
+    def __post_init__(self) -> None:
+        _sonlu(f"Düğüm {self.id}", x=self.x, y=self.y, z=self.z)
+
     @property
     def xyz(self) -> np.ndarray:
         return np.array([self.x, self.y, self.z], dtype=float)
@@ -69,26 +82,34 @@ class Node:
 @dataclass
 class Element:
     id: int
-    type: str              # "bar1d", ileride "truss2d", "tri3", "tet4"...
-    nodes: list[int]       # düğüm id'leri
-    material: str          # Material.name
-    section: str | None = None   # Section.name (çubuk/kafes elemanları için)
+    type: str  # "bar1d", ileride "truss2d", "tri3", "tet4"...
+    nodes: list[int]  # düğüm id'leri
+    material: str  # Material.name
+    section: str | None = None  # Section.name (çubuk/kafes elemanları için)
 
 
 @dataclass
 class BC:
     """Sınır koşulu: bir düğümün bir DOF'una değer atar (0 = ankastre)."""
+
     node: int
-    dof: str               # "ux", "uy", "uz"
-    value: float = 0.0     # mm
+    dof: str  # "ux", "uy", "uz"
+    value: float = 0.0  # mm
+
+    def __post_init__(self) -> None:
+        _sonlu(f"Sınır koşulu (düğüm {self.node}, {self.dof})", value=self.value)
 
 
 @dataclass
 class Load:
     """Düğüm kuvveti."""
+
     node: int
     dof: str
-    value: float           # N
+    value: float  # N
+
+    def __post_init__(self) -> None:
+        _sonlu(f"Yük (düğüm {self.node}, {self.dof})", value=self.value)
 
 
 @dataclass
@@ -112,30 +133,52 @@ class Model:
     def n_dof(self) -> int:
         return len(self.nodes) * self.dofs_per_node
 
+    # id → liste indeksi sözlükleri: sorgu O(1). Listeler dışarıdan değiştirilebildiği için sözlük
+    # kendini onarır: bulunan kaydın id'si tutmuyorsa veya id yoksa sözlük bir kez yeniden kurulur.
+    # Sözlükler dataclass alanı değildir; to_dict / eşitlik karşılaştırmasına girmez.
+
+    def _bul(self, liste: list, anahtar, ad: str):
+        """liste içinde anahtarı taşıyan kaydın (indeks, kayıt) çifti; yoksa None."""
+        sozlukler = self.__dict__.setdefault("_indeks", {})
+        oz = "id" if ad == "nodes" else "name"
+        for yeniden_kuruldu in (False, True):
+            i = sozlukler.get(ad, {}).get(anahtar)
+            if i is not None and i < len(liste) and getattr(liste[i], oz) == anahtar:
+                return i, liste[i]
+            if yeniden_kuruldu:
+                return None
+            # Sözlük eski veya yok: yeniden kur. Tekrarlanan anahtarda ilk kayıt kazanır
+            # (doğrusal aramayla aynı); tekrarları validate() ayrıca yakalar.
+            yeni: dict = {}
+            for j, kayit in enumerate(liste):
+                yeni.setdefault(getattr(kayit, oz), j)
+            sozlukler[ad] = yeni
+        return None
+
     def node(self, node_id: int) -> Node:
-        for n in self.nodes:
-            if n.id == node_id:
-                return n
-        raise ModelError(f"Bilinmeyen düğüm: {node_id}")
+        bulunan = self._bul(self.nodes, node_id, "nodes")
+        if bulunan is None:
+            raise ModelError(f"Bilinmeyen düğüm: {node_id}")
+        return bulunan[1]
 
     def material(self, name: str) -> Material:
-        for m in self.materials:
-            if m.name == name:
-                return m
-        raise ModelError(f"Bilinmeyen malzeme: {name}")
+        bulunan = self._bul(self.materials, name, "materials")
+        if bulunan is None:
+            raise ModelError(f"Bilinmeyen malzeme: {name}")
+        return bulunan[1]
 
     def section(self, name: str | None) -> Section:
-        for s in self.sections:
-            if s.name == name:
-                return s
-        raise ModelError(f"Bilinmeyen kesit: {name}")
+        bulunan = self._bul(self.sections, name, "sections")
+        if bulunan is None:
+            raise ModelError(f"Bilinmeyen kesit: {name}")
+        return bulunan[1]
 
     def node_index(self, node_id: int) -> int:
         """Düğümün global sıra numarası (nodes listesindeki konumu)."""
-        for i, n in enumerate(self.nodes):
-            if n.id == node_id:
-                return i
-        raise ModelError(f"Bilinmeyen düğüm: {node_id}")
+        bulunan = self._bul(self.nodes, node_id, "nodes")
+        if bulunan is None:
+            raise ModelError(f"Bilinmeyen düğüm: {node_id}")
+        return bulunan[0]
 
     def dof_index(self, node_id: int, dof: str) -> int:
         """Global DOF numarası = düğüm_sırası * dofs_per_node + dof_içi_indeks."""
@@ -180,15 +223,26 @@ class Model:
 
     @classmethod
     def from_dict(cls, d: dict) -> Model:
+        """Sözlükten model. Eksik / fazla / yanlış tipte alan → ModelError (TypeError değil)."""
+
+        def kur(sinif, kayitlar: list, ne: str) -> list:
+            sonuc = []
+            for i, k in enumerate(kayitlar):
+                try:
+                    sonuc.append(sinif(**k))
+                except TypeError as e:
+                    raise ModelError(f"JSON {ne}[{i}] okunamadı: {e}") from e
+            return sonuc
+
         m = cls(
             dim=d.get("dim", 1),
             name=d.get("name", "isimsiz"),
-            nodes=[Node(**n) for n in d.get("nodes", [])],
-            elements=[Element(**e) for e in d.get("elements", [])],
-            materials=[Material(**m) for m in d.get("materials", [])],
-            sections=[Section(**s) for s in d.get("sections", [])],
-            bcs=[BC(**b) for b in d.get("bcs", [])],
-            loads=[Load(**ld) for ld in d.get("loads", [])],
+            nodes=kur(Node, d.get("nodes", []), "nodes"),
+            elements=kur(Element, d.get("elements", []), "elements"),
+            materials=kur(Material, d.get("materials", []), "materials"),
+            sections=kur(Section, d.get("sections", []), "sections"),
+            bcs=kur(BC, d.get("bcs", []), "bcs"),
+            loads=kur(Load, d.get("loads", []), "loads"),
         )
         m.validate()
         return m
@@ -204,9 +258,10 @@ class Model:
 @dataclass
 class Result:
     """Çözüm sonucu. Tüm diziler global DOF sırasındadır."""
-    u: np.ndarray                                   # yer değiştirmeler [mm], boyut n_dof
-    reactions: np.ndarray                           # mesnet tepkileri [N], boyut n_dof (serbest DOF'larda 0)
-    element_forces: dict[int, float] = field(default_factory=dict)    # eleman id -> eksenel kuvvet [N]
+
+    u: np.ndarray  # yer değiştirmeler [mm], boyut n_dof
+    reactions: np.ndarray  # mesnet tepkileri [N], boyut n_dof (serbest DOF'larda 0)
+    element_forces: dict[int, float] = field(default_factory=dict)  # eleman id -> eksenel kuvvet [N]
     element_stresses: dict[int, float] = field(default_factory=dict)  # eleman id -> eksenel gerilme [MPa]
 
     def displacement(self, model: Model, node_id: int, dof: str = "ux") -> float:

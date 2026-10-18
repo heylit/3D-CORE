@@ -21,8 +21,8 @@ from enum import StrEnum
 
 import numpy as np
 
-ARC_TOL = 1e-6     # mm: yayın başlangıç ve bitiş yarıçapı arasındaki izin verilen fark
-R_MIN = 1e-9       # mm: bundan küçük yarıçap yay sayılmaz
+ARC_TOL = 1e-6  # mm: yayın başlangıç ve bitiş yarıçapı arasındaki izin verilen fark
+R_MIN = 1e-9  # mm: bundan küçük yarıçap yay sayılmaz
 
 
 class CamError(ValueError):
@@ -45,17 +45,25 @@ class MoveType(StrEnum):
 ARCS = {MoveType.ARC_CW, MoveType.ARC_CCW}
 
 
+def _sonlu(nerede: str, **degerler) -> None:
+    """Her değer (sayı veya sayı dizisi) sonlu olmalı; nan / inf → CamError. Sessiz hata yok."""
+    for ad, v in degerler.items():
+        if not np.all(np.isfinite(np.asarray(v, dtype=float))):
+            raise CamError(f"{nerede}: {ad} sonlu olmalı ({ad}={v})")
+
+
 @dataclass
 class Tool:
     id: int
     name: str
     kind: ToolKind
-    D: float                  # mm, takım çapı
-    flute_length: float       # mm, kesici boy
-    corner_r: float = 0.0     # mm, köşe radyüsü (küresel uçta D/2)
+    D: float  # mm, takım çapı
+    flute_length: float  # mm, kesici boy
+    corner_r: float = 0.0  # mm, köşe radyüsü (küresel uçta D/2)
 
     def __post_init__(self) -> None:
         self.kind = ToolKind(self.kind)
+        _sonlu(f"Takım '{self.name}'", D=self.D, flute_length=self.flute_length, corner_r=self.corner_r)
         if self.D <= 0:
             raise CamError(f"Takım '{self.name}': D pozitif olmalı (D={self.D})")
         if self.flute_length <= 0:
@@ -78,6 +86,7 @@ class Stock:
     zmax: float
 
     def __post_init__(self) -> None:
+        _sonlu("Ham malzeme", sinirlar=[self.xmin, self.ymin, self.zmin, self.xmax, self.ymax, self.zmax])
         if not (self.xmax > self.xmin and self.ymax > self.ymin and self.zmax > self.zmin):
             raise CamError(f"Ham malzeme: her eksende max > min olmalı ({self})")
 
@@ -94,14 +103,18 @@ class Stock:
 class Move:
     type: MoveType
     end: tuple[float, float, float]
-    feed: float | None = None                  # mm/dk; G1/G2/G3 için zorunlu
+    feed: float | None = None  # mm/dk; G1/G2/G3 için zorunlu
     center: tuple[float, float] | None = None  # yay merkezi, mutlak XY
 
     def __post_init__(self) -> None:
         self.type = MoveType(self.type)
         self.end = tuple(float(v) for v in self.end)
+        _sonlu(f"Hareket ({self.type.value})", end=self.end)
         if self.center is not None:
             self.center = tuple(float(v) for v in self.center)
+            _sonlu(f"Hareket ({self.type.value})", center=self.center)
+        if self.feed is not None:
+            _sonlu(f"Hareket ({self.type.value})", feed=self.feed)
 
 
 def _arc_sweep(p0: np.ndarray, p1: np.ndarray, c: np.ndarray, cw: bool) -> tuple[float, float]:
@@ -112,9 +125,9 @@ def _arc_sweep(p0: np.ndarray, p1: np.ndarray, c: np.ndarray, cw: bool) -> tuple
     dtheta = math.atan2(v1[1], v1[0]) - math.atan2(v0[1], v0[0])
     if cw:
         dtheta = -dtheta
-    dtheta %= 2 * math.pi           # saat yönü tersi için [0, 2π)
+    dtheta %= 2 * math.pi  # saat yönü tersi için [0, 2π)
     if dtheta < 1e-12:
-        dtheta = 2 * math.pi        # aynı nokta: tam daire
+        dtheta = 2 * math.pi  # aynı nokta: tam daire
     return r, dtheta
 
 
@@ -128,13 +141,22 @@ class Toolpath:
 
     def __post_init__(self) -> None:
         self.start = tuple(float(v) for v in self.start)
+        _sonlu(f"Takım yolu '{self.name}'", start=self.start)
 
     def validate(self) -> None:
+        """Tutarsızlıkta CamError. Hareketler oluşturulduktan sonra yerinde değiştirilmiş olabilir:
+        sonlu sayı kontrolleri burada da tekrarlanır."""
+        _sonlu(f"Takım yolu '{self.name}'", start=self.start, rpm=self.rpm)
         if self.rpm <= 0:
             raise CamError(f"Takım yolu '{self.name}': devir pozitif olmalı (rpm={self.rpm})")
         p0 = np.array(self.start)
         for i, m in enumerate(self.moves):
-            p1 = np.array(m.end)
+            p1 = np.array(m.end, dtype=float)
+            _sonlu(f"Hareket {i} ({m.type.value})", end=p1)
+            if m.center is not None:
+                _sonlu(f"Hareket {i} ({m.type.value})", center=m.center)
+            if m.feed is not None:
+                _sonlu(f"Hareket {i} ({m.type.value})", feed=m.feed)
             if m.type is not MoveType.RAPID and (m.feed is None or m.feed <= 0):
                 raise CamError(f"Hareket {i} ({m.type.value}): ilerleme pozitif olmalı (feed={m.feed})")
             if m.type in ARCS:

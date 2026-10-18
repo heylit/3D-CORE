@@ -4,6 +4,7 @@
 
 echo "[pre-push] ruff..."
 "$PY" -m ruff check . || { echo "X Lint hatası, push iptal."; exit 1; }
+"$PY" -m ruff format --check . || { echo "X Biçim hatası, push iptal. Düzeltmek için: ruff format ."; exit 1; }
 
 echo "[pre-push] TÜM testler (slow dahil)..."
 "$PY" -m pytest -q || { echo "X Testler geçmedi, push iptal."; exit 1; }

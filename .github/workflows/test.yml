@@ -30,4 +30,5 @@ jobs:
           cache: pip
       - run: pip install -e ".[dev,cad]"
       - run: ruff check .
-      - run: pytest
+      - run: ruff format --check .
+      - run: pytest --uygulanmamis-hata   # NotImplementedError PR'da kırmızı (conftest.py)
