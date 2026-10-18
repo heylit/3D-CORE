@@ -29,6 +29,11 @@ jobs:
           python-version: "3.12"   # tek sürüm = tek iş
           cache: pip
       - run: pip install -e ".[dev,cad]"
+      - name: CalculiX (ccx) kur  # FEM çapraz kontrolü (tests/reference/test_calculix.py) atlanmasın
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends calculix-ccx
+          command -v ccx
       - run: ruff check .
       - run: ruff format --check .
-      - run: pytest --uygulanmamis-hata   # NotImplementedError PR'da kırmızı (conftest.py)
+      - run: pytest -rs --uygulanmamis-hata   # -rs: atlanan testler ve nedenleri logda; NotImplementedError PR'da kırmızı (conftest.py)
