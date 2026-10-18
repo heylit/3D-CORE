@@ -46,3 +46,9 @@ SPEC dosyasının "Açık sorular" / "Varsayımlar" bölümüne bakınız.
   M3'süz / M4'lü G84, G84 Q, Fanuc'ta M29'suz G84 → CamError; `check_machine` kılavuz F'yi feed_max'e tabi tutar.
   Sinumerik / Heidenhain'de kılavuz şimdilik CamError.
 - Kullanıcının tezgâhları DMG MORI (büyük olasılıkla Sinumerik 840D sl veya Heidenhain TNC 640): SPEC 31 öncelikli.
+
+## SPEC 40 Ek E2 — torna profili (2026-10-18)
+- İskelet: `cam/post/lathe.py` (`check_lathe`, `post_lathe`; NotImplementedError), `cam.post`'tan dışa açık.
+- Bağımlılık: E1 (`MachineProfile.validate()` `kind = "lathe"`, #107) birleşmeden örnek torna profili
+  (`ornek-fanuc-torna.json`) eklenemez (`builtin_machines()` yüklerken düşer); K16'nın eksenel delme kısmı E3'e (#88) bağlı.
+- Testler `tests/cam/test_post_lathe.py` (SPEC 40 K14–K16) ayrı test thread'inde; `test_post_machine.py` örnek listesi dörde çıkar.
