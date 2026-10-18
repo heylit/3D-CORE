@@ -18,15 +18,15 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class Dialect:
     name: str
-    decimals: int               # koordinat ondalık basamağı
-    feed_decimals: int          # F ondalık basamağı
-    line_numbers: bool          # N10, N20, ... yazılsın mı
-    line_step: int              # satır numarası artışı
-    header: tuple[str, ...]     # program başı
-    footer: tuple[str, ...]     # program sonu
-    tool_change: str            # 'M6' veya 'M0' (yukarıya bakınız)
-    canned_cycles: bool         # G81/G83 yazılsın mı (yoksa kanonik açılım)
-    peck_clearance: float       # G83 geri çekilme payı c [mm]
+    decimals: int  # koordinat ondalık basamağı
+    feed_decimals: int  # F ondalık basamağı
+    line_numbers: bool  # N10, N20, ... yazılsın mı
+    line_step: int  # satır numarası artışı
+    header: tuple[str, ...]  # program başı
+    footer: tuple[str, ...]  # program sonu
+    tool_change: str  # 'M6' veya 'M0' (yukarıya bakınız)
+    canned_cycles: bool  # G81/G83 yazılsın mı (yoksa kanonik açılım)
+    peck_clearance: float  # G83 geri çekilme payı c [mm]
     tool_length_comp: bool = False  # takım değişiminden sonra G43 H<n> yazılsın mı
 
 

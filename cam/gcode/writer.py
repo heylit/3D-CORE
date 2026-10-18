@@ -41,7 +41,7 @@ class _Writer:
         self.n = 0
         self.tools_used = 0
         self.safe_z = 0.0
-        self.p_true: tuple[float, float, float] | None = None   # yuvarlanmamış son nokta
+        self.p_true: tuple[float, float, float] | None = None  # yuvarlanmamış son nokta
 
     # --- satır ve sayı yardımcıları -------------------------------------------------
     def emit(self, words: list[str]) -> None:
@@ -59,7 +59,8 @@ class _Writer:
         """Durumdakinden farklı (yuvarlanmış metne göre) eksen kelimeleri."""
         pos = self.state.pos
         return [
-            f"{a}{self.c(v)}" for i, (a, v) in enumerate(zip(AXES, end, strict=True))
+            f"{a}{self.c(v)}"
+            for i, (a, v) in enumerate(zip(AXES, end, strict=True))
             if pos is None or self.c(v) != self.c(pos[i])
         ]
 
@@ -140,12 +141,12 @@ class _Writer:
     def move(self, m: Move) -> None:
         """Tek hareket: değişen G, değişen eksenler, yayda I J, değişen F."""
         if m.type in ARCS and self.tiny_arc(m):
-            m = Move(MoveType.LINEAR, m.end, m.feed)    # kiriş ≤ 2ε: G1 yeterli
+            m = Move(MoveType.LINEAR, m.end, m.feed)  # kiriş ≤ 2ε: G1 yeterli
         g = m.type.value
         words = [] if self.state.motion == g else [g]
         axes = self.axis_words(m.end)
         if not axes and m.type not in ARCS:
-            axes = [f"X{self.c(m.end[0])}"]   # eksensiz G0/G1 satırı hareket sayılmaz
+            axes = [f"X{self.c(m.end[0])}"]  # eksensiz G0/G1 satırı hareket sayılmaz
         words += axes
         if m.type in ARCS:
             x0, y0, _ = self.state.pos
@@ -166,7 +167,7 @@ class _Writer:
 
     def drill(self, op: DrillOp) -> None:
         """Delik op: Fanuc'ta G98/G99 G81/G83 ... G80; çevrimsiz dilde kanonik açılım."""
-        tp = op.to_toolpath(self.d)       # c < q denetimi her iki dilde de
+        tp = op.to_toolpath(self.d)  # c < q denetimi her iki dilde de
         if not self.d.canned_cycles:
             self.toolpath(tp)
             return
@@ -174,8 +175,14 @@ class _Writer:
         self.state.motion, self.state.retract = op.kind, op.retract
         for k, (x, y) in enumerate(op.holes):
             if k == 0:
-                words = [op.retract, op.kind, f"X{self.c(x)}", f"Y{self.c(y)}",
-                         f"Z{self.c(op.z)}", f"R{self.c(op.r)}"]
+                words = [
+                    op.retract,
+                    op.kind,
+                    f"X{self.c(x)}",
+                    f"Y{self.c(y)}",
+                    f"Z{self.c(op.z)}",
+                    f"R{self.c(op.r)}",
+                ]
                 if op.kind == "G83":
                     words.append(f"Q{self.c(op.q)}")
                 F = fmt(op.feed, self.d.feed_decimals)
@@ -184,7 +191,7 @@ class _Writer:
             else:
                 words = self.axis_words((x, y, self.state.pos[2]))
                 if not words:
-                    words = [f"X{self.c(x)}"]   # aynı noktada ikinci delik
+                    words = [f"X{self.c(x)}"]  # aynı noktada ikinci delik
             self.emit(words)
             self.set_pos((x, y, op.z_ret))
             self.p_true = (x, y, op.z_ret)

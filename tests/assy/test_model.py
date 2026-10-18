@@ -91,9 +91,9 @@ def test_is_rigid_reflection_false():
 
 
 def test_is_rigid_scale_and_last_row_false():
-    assert not is_rigid(transform(2.0 * np.eye(3)))     # R^T R = 4 I ≠ I
+    assert not is_rigid(transform(2.0 * np.eye(3)))  # R^T R = 4 I ≠ I
     T = np.eye(4)
-    T[3, 0] = 1.0                                         # son satır [0,0,0,1] değil
+    T[3, 0] = 1.0  # son satır [0,0,0,1] değil
     assert not is_rigid(T)
 
 
@@ -137,8 +137,8 @@ def test_component_defaults():
 @pytest.mark.parametrize(
     "T",
     [
-        transform(np.diag([1.0, -1.0, 1.0])),   # yansıma, det = -1
-        transform(1.5 * np.eye(3)),             # ölçek
+        transform(np.diag([1.0, -1.0, 1.0])),  # yansıma, det = -1
+        transform(1.5 * np.eye(3)),  # ölçek
     ],
 )
 def test_component_non_rigid_rejected(T):
@@ -152,9 +152,9 @@ def test_component_non_rigid_rejected(T):
 @pytest.mark.parametrize(
     "kind, value",
     [
-        (MateKind.DISTANCE, -0.1),   # mesafe < 0
-        (MateKind.ANGLE, -1.0),      # açı < 0°
-        (MateKind.ANGLE, 180.5),     # açı > 180°
+        (MateKind.DISTANCE, -0.1),  # mesafe < 0
+        (MateKind.ANGLE, -1.0),  # açı < 0°
+        (MateKind.ANGLE, 180.5),  # açı > 180°
     ],
 )
 def test_mate_value_out_of_range(kind, value):
@@ -205,18 +205,14 @@ def test_validate_duplicate_component():
 
 def test_validate_mate_unknown_component():
     asm = make_assembly()
-    asm.mates.append(
-        Mate(MateKind.COINCIDENT, plane("govde"), plane("yok"))
-    )
+    asm.mates.append(Mate(MateKind.COINCIDENT, plane("govde"), plane("yok")))
     with pytest.raises(AssyError):
         asm.validate()
 
 
 def test_validate_mate_same_component():
     asm = make_assembly()
-    asm.mates.append(
-        Mate(MateKind.DISTANCE, plane("mil"), plane("mil", (0.0, 0.0, 5.0)), 5.0)
-    )
+    asm.mates.append(Mate(MateKind.DISTANCE, plane("mil"), plane("mil", (0.0, 0.0, 5.0)), 5.0))
     with pytest.raises(AssyError):
         asm.validate()
 
@@ -240,9 +236,7 @@ def test_world_ref_identity_component():
 def test_dict_roundtrip_json():
     """to_dict → JSON metni → from_dict → to_dict birebir; T ve tipler korunur."""
     asm = make_assembly()
-    asm.mates.append(
-        Mate(MateKind.ANGLE, plane("govde", direction=(1.0, 0.0, 0.0)), plane("mil"), 45.0)
-    )
+    asm.mates.append(Mate(MateKind.ANGLE, plane("govde", direction=(1.0, 0.0, 0.0)), plane("mil"), 45.0))
     d = asm.to_dict()
     asm2 = Assembly.from_dict(json.loads(json.dumps(d)))
     assert asm2.to_dict() == d

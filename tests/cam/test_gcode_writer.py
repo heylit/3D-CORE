@@ -210,10 +210,10 @@ def test_g0_has_no_feed_and_feed_stays_modal_across_g0():
         "G0 X0. Y0. Z5.",
         "G1 Z-1. F150.",
         "G0 Z5.",
-        "X20.",          # G0 modal, F yok
-        "G1 Z-1.",       # F150 durumda zaten var
+        "X20.",  # G0 modal, F yok
+        "G1 Z-1.",  # F150 durumda zaten var
         "X30. F400.",
-        "G0 Z5.",        # Ek B: program sonu geri çekme
+        "G0 Z5.",  # Ek B: program sonu geri çekme
     ]
 
 
@@ -241,7 +241,7 @@ def test_arc_always_writes_I_J_and_full_circle():
         "G2 I5. J0. F500.",
         "Z-3. I5. J0.",
         "G3 X10. I5. J0.",
-        "G0 Z-1.",       # Ek B: güvenli Z = op başı Z−1'e geri çekme
+        "G0 Z-1.",  # Ek B: güvenli Z = op başı Z−1'e geri çekme
     ]
 
 
@@ -341,9 +341,13 @@ def test_multi_tool_grbl_text():
 def test_multi_tool_fanuc_text():
     """Fanuc: aynı gövde, her satır N10'dan 10'ar artan numaralı, takım değişimi `T<n> M6` (Ek A);
     Ek B: başta G54, takım değişiminden sonraki ilk satır `G0 G43 X Y Z H<n>`."""
-    govde = lines_of(MULTI_GRBL)[1:]                      # GRBL başı hariç
-    degis = {"T1": "T1 M6", "T2 M0": "T2 M6",
-             "G0 X0. Y0. Z5.": "G0 G43 X0. Y0. Z5. H1", "G0 X0. Y30. Z5.": "G0 G43 X0. Y30. Z5. H2"}
+    govde = lines_of(MULTI_GRBL)[1:]  # GRBL başı hariç
+    degis = {
+        "T1": "T1 M6",
+        "T2 M0": "T2 M6",
+        "G0 X0. Y0. Z5.": "G0 G43 X0. Y0. Z5. H1",
+        "G0 X0. Y30. Z5.": "G0 G43 X0. Y30. Z5. H2",
+    }
     govde = [degis.get(ln, ln) for ln in govde]
     satirlar = ["G21 G90 G17 G94 G40 G49 G80 G54"] + govde
     beklenen = ["%", "O0001"] + [f"N{10 * (i + 1)} {ln}" for i, ln in enumerate(satirlar)] + ["%"]
@@ -364,11 +368,11 @@ def test_rpm_change_only_writes_S_and_rounds_rpm():
         "S10000 M3",
         "G0 X0. Y0. Z5.",
         "G1 Z0. F100.",
-        "G0 Z5.",          # Ek B: devir değişiminden önce geri çekme
+        "G0 Z5.",  # Ek B: devir değişiminden önce geri çekme
         "S12000 M3",
         "G0 X10. Y0. Z5.",
         "G1 Z0.",
-        "G0 Z5.",          # Ek B: program sonu geri çekme
+        "G0 Z5.",  # Ek B: program sonu geri çekme
         "M5",
         "M30",
     ]
@@ -380,18 +384,18 @@ def test_rpm_change_only_writes_S_and_rounds_rpm():
 @pytest.mark.parametrize(
     "moves, rpm",
     [
-        ([Move(G1, (10.0, 0.0, 0.0))], 10_000.0),                                 # ilerlemesiz G1 (K14)
-        ([Move(G1, (10.0, 0.0, 0.0), feed=0.0)], 10_000.0),                       # F = 0
-        ([Move(G2, (10.0, 0.0, 0.0), feed=100.0)], 10_000.0),                     # merkezsiz yay
+        ([Move(G1, (10.0, 0.0, 0.0))], 10_000.0),  # ilerlemesiz G1 (K14)
+        ([Move(G1, (10.0, 0.0, 0.0), feed=0.0)], 10_000.0),  # F = 0
+        ([Move(G2, (10.0, 0.0, 0.0), feed=100.0)], 10_000.0),  # merkezsiz yay
         ([Move(G3, (10.0, 0.0, 0.0), feed=100.0, center=(4.0, 0.0))], 10_000.0),  # r0 = 4, r1 = 6
-        ([Move(G1, (10.0, 0.0, 0.0), feed=100.0)], 0.0),                          # devir 0
+        ([Move(G1, (10.0, 0.0, 0.0), feed=100.0)], 0.0),  # devir 0
     ],
 )
 def test_write_rejects_invalid_toolpath(moves, rpm):
     """K14: write önce Toolpath.validate() çağırır → geçersiz yolda CamError (her iki dilde)."""
     tp = Toolpath("bozuk", freze6(), (0.0, 0.0, 0.0), moves=moves, rpm=rpm)
     with pytest.raises(CamError):
-        tp.validate()                       # kontrol: örnek gerçekten geçersiz (cam/model.py)
+        tp.validate()  # kontrol: örnek gerçekten geçersiz (cam/model.py)
     with pytest.raises(CamError):
         write([tp], GRBL)
     with pytest.raises(CamError):
