@@ -54,4 +54,10 @@ def me(element: Element, model: Model, lumped: bool = False) -> np.ndarray:
     tutarlı:   ρAL/6 · [[2, 1], [1, 2]]      toplanmış: ρAL/2 · I₂
     ρ ≤ 0 → ModelError.
     """
-    raise NotImplementedError("SPEC 45: bar1d.me")
+    rho = model.material(element.material).rho
+    if rho <= 0.0:
+        raise ModelError(f"Eleman {element.id}: kütle matrisi için ρ > 0 olmalı (ρ={rho})")
+    m = rho * model.section(element.section).A * length(element, model)
+    if lumped:
+        return m / 2.0 * np.eye(2)
+    return m / 6.0 * np.array([[2.0, 1.0], [1.0, 2.0]])

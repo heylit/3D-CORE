@@ -125,4 +125,11 @@ def me(element: Element, model: Model, lumped: bool = False) -> np.ndarray:
     tutarlı:   ρV/20 · (1 + δ_ab) ⊗ I₃       toplanmış: ρV/4 · I₁₂
     Hatalar ke ile aynı, ek olarak ρ ≤ 0 → ModelError.
     """
-    raise NotImplementedError("SPEC 45: tet4.me")
+    V = volume(element, model)
+    rho = model.material(element.material).rho
+    if rho <= 0.0:
+        raise ModelError(f"Eleman {element.id}: kütle matrisi için ρ > 0 olmalı (ρ={rho})")
+    m = rho * V
+    if lumped:
+        return m / 4.0 * np.eye(12)
+    return np.kron(m / 20.0 * (np.ones((4, 4)) + np.eye(4)), np.eye(3))

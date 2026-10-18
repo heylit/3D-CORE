@@ -10,9 +10,10 @@ from collections.abc import Callable, Sequence
 
 import numpy as np
 
-from analiz.sehim import Sehim
-from core.modal import ModalResult
-from core.model import Material, Model
+import mesh
+from analiz.sehim import Sehim, kesme_sehimi
+from core.modal import ModalResult, modal
+from core.model import Material, Model, ModelError
 
 Tahmin = Callable[[np.ndarray], np.ndarray]
 
@@ -27,7 +28,8 @@ def parca_modal(
     lumped: bool = False,
 ) -> tuple[Model, ModalResult]:
     """Parçayı ağlar, sabit tahminlerinin seçtiği düğümleri tutar, modal analizi çözer."""
-    raise NotImplementedError("SPEC 45: parca_modal")
+    m = _agla_ve_sabitle(part, h, material, sabit)
+    return m, modal(m, n_modes, lumped=lumped)
 
 
 def parca_sehimi(
@@ -40,4 +42,17 @@ def parca_sehimi(
     yaricap: float,
 ) -> tuple[Model, Sehim]:
     """Parçayı ağlar, sabit yüzleri tutar, temas noktasında kesme sehimini hesaplar."""
-    raise NotImplementedError("SPEC 45: parca_sehimi")
+    m = _agla_ve_sabitle(part, h, material, sabit)
+    return m, kesme_sehimi(m, nokta, F, yaricap)
+
+
+def _agla_ve_sabitle(part, h: float, material: Material, sabit: Sequence[Tahmin]) -> Model:
+    """mesh.tet_mesh ile ağlar; sabit tahminlerinin seçtiği düğümlerin üç DOF'unu tutar."""
+    m = mesh.tet_mesh(part, h, material)
+    secilen: set[int] = set()
+    for pred in sabit:
+        secilen.update(mesh.select_nodes(m, pred))
+    if not secilen:
+        raise ModelError("sabit tahminleri hiçbir düğüm seçmedi (mesnetsiz parça: core.modal.modal kullanın)")
+    mesh.fix(m, sorted(secilen))
+    return m

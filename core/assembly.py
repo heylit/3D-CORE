@@ -10,7 +10,7 @@ import numpy as np
 import scipy.sparse as sp
 
 from core import elements
-from core.model import Model
+from core.model import Model, ModelError
 
 
 def assemble_K(model: Model) -> sp.csr_matrix:
@@ -47,4 +47,17 @@ def assemble_M(model: Model, lumped: bool = False) -> sp.csr_matrix:
     assemble_K ile aynı COO birleştirmesi. Eleman me sağlamıyorsa ModelError.
     Teori: specs/45-modal.md
     """
-    raise NotImplementedError("SPEC 45: assemble_M")
+    rows: list[int] = []
+    cols: list[int] = []
+    vals: list[float] = []
+    for e in model.elements:
+        eleman = elements.get(e.type)
+        if not hasattr(eleman, "me"):
+            raise ModelError(f"Eleman tipi '{e.type}' kütle matrisi (me) sağlamıyor")
+        m = eleman.me(e, model, lumped=lumped)
+        d = np.asarray(eleman.dofs(e, model))
+        rows.extend(np.repeat(d, len(d)))
+        cols.extend(np.tile(d, len(d)))
+        vals.extend(m.ravel())
+    n = model.n_dof
+    return sp.coo_matrix((vals, (rows, cols)), shape=(n, n)).tocsr()
