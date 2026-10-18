@@ -20,10 +20,9 @@ export class Serit {
   private yukOrnek: Float32Array = new Float32Array(0);
   private hataT: number[] = [];
 
-  constructor(
-    private tuval: HTMLCanvasElement,
-    private zamanDegisti: (t: number) => void,
-  ) {
+  private zamanDegisti: (t: number) => void = () => {};
+
+  constructor(private tuval: HTMLCanvasElement) {
     this.ctx = tuval.getContext("2d")!;
     new ResizeObserver(() => this.ciz()).observe(tuval);
     const tut = (e: PointerEvent) => {
@@ -41,6 +40,19 @@ export class Serit {
     const bitir = () => (this.suruk = false);
     tuval.addEventListener("pointerup", bitir);
     tuval.addEventListener("pointercancel", bitir);
+  }
+
+  /** Şeritte sürüklenince çağrılır (etkin ekran ayarlar). */
+  dinle(cb: (t: number) => void): void {
+    this.zamanDegisti = cb;
+  }
+
+  /** Ekran kapanınca: şerit boşalır. */
+  bosalt(): void {
+    this.is = undefined;
+    this.nk = undefined;
+    this.zamanDegisti = () => {};
+    this.ciz();
   }
 
   sure(): number {

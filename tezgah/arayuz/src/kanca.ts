@@ -17,6 +17,10 @@ export interface TezgahKanca {
   toplamSure(): number;
   /** Şu anki zamandaki simülasyon yüzeyi (ny·nx float32); sim yoksa null. */
   yuzey(): Float32Array | null;
+  /** A3: sahnedeki ekran katmanlarının adları (yalnız etkin ekranınki olmalı). */
+  katmanlar(): string[];
+  /** A3: ekran başına kanca, window.__tezgah.<ad>. */
+  [ekran: string]: unknown;
 }
 
 declare global {
