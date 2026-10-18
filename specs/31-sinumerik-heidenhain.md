@@ -1,6 +1,6 @@
 # SPEC 31 — Siemens Sinumerik ve Heidenhain Klartext postprosesörleri
 
-> Durum: **taslak, kullanıcı onayı bekliyor.** SPEC 30'a bağlıdır (blok planı `cam.post.plan`,
+> Durum: **onaylandı** (kullanıcı, 2026-10-18 10:38, proje sohbetinde yazılı onay). SPEC 30'a bağlıdır (blok planı `cam.post.plan`,
 > `MachineProfile`, `check_machine`). SPEC 30 `main`'e girince başlar.
 
 ## Amaç

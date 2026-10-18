@@ -1,6 +1,6 @@
 # SPEC 30 — Tezgâh profilleri, tezgâh sınır denetimi ve postprosesör katmanı (GRBL, Fanuc, Haas)
 
-> Durum: **taslak, kullanıcı onayı bekliyor.** Kod, `cam/gcode/writer.py`'ye dokunan açık PR'lar
+> Durum: **onaylandı** (kullanıcı, 2026-10-18 10:38, proje sohbetinde yazılı onay). Kod, `cam/gcode/writer.py`'ye dokunan açık PR'lar
 > (CAM güvenlik düzeltmesi #33, SPEC 14 #27, SPEC 21) `main`'e girdikten sonra başlar.
 > Devamı: SPEC 31 (Siemens Sinumerik ve Heidenhain Klartext), bu SPEC'in blok katmanını kullanır.
 
