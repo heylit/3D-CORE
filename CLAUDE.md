@@ -52,7 +52,7 @@ examples/       JSON örnek problemler
 - Yeni bağımlılık ekleme; gerekiyorsa sor.
 
 ## Komutlar
-- Kurulum (bulut ve yerel aynı): `pip install -e ".[dev,cad]"`  (sadece FEM için `.[dev]` yeter)
+- Kurulum (bulut ve yerel aynı): `pip install -e ".[dev,cad,viz]"`  (sadece FEM için `.[dev]` yeter)
 - Test: `pytest`  (tek dosya: `pytest tests/benchmarks/test_bar.py -v`)
 - Lint: `ruff check .`  (otomatik düzelt: `ruff check . --fix`, biçim: `ruff format .`)
 - Tam yerel CI (Windows): `.\ci.ps1`
@@ -79,6 +79,13 @@ Aynı oturum hem testi hem kodu yazarsa testler koda göre ayarlanır; o yüzden
 - PR açıklaması iki oturumun bağlantısını ve test commit'ini yazar; ikisi aynıysa PR "bağımsız değil" diye işaretlenir.
 - Onaylanmış SPEC metni (kabul kriterleri, ekler) kullanıcı onayı olmadan değiştirilmez; kodu yazan oturum SPEC'i netleştirmez.
 - PR'da (CI) `NotImplementedError` ile düşen test kırmızıdır (`pytest --uygulanmamis-hata`); yerelde TDD için "uygulanmamış" sayılır.
+- **CI kapısı** (`.github/workflows/bagimsizlik.yml`, `scripts/bagimsizlik_kapisi.py`): commit'teki
+  `Claude-Session:` izine bakar. Tek commit hem `tests/` hem kod (`.py`, `scripts/` ve `.github/` hariç)
+  değiştirirse ya da aynı oturum PR'da iki tarafa da dokunursa PR kırmızıdır. Bu yüzden test commit'i
+  cherry-pick edilir (iz korunur), squash edilmez; kodu yazan oturum test dosyasına dokunmaz (biçim düzeltmesi dahil).
+- **İstisna** (hata düzeltme / arayüz PR'ı gibi testin kodla aynı oturumda yazılması gerektiğinde): sadece depo
+  sahibi PR'a GitHub arayüzünden `bagimsizlik-istisnasi` etiketini ekler. Claude oturumları bu etiketi eklemez;
+  Claude (GitHub App) üzerinden eklenen etiket sayılmaz. Etiket, eklendiği anda PR'da olan ihlalleri kapsar.
 
 ## Gizlilik
 Gerçek şirket parçaları, çizimleri veya müşteri verisi repoya girmez. Bunlar sadece `yerel_parcalar/` (gitignore'da) altında durur. Testlerde uydurma geometri kullan.
