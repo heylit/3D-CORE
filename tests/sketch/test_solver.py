@@ -8,7 +8,10 @@ Kapalı formlar elle türetildi.
 from __future__ import annotations
 
 import math
-import time
+import os
+import subprocess
+import sys
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -517,13 +520,45 @@ def flans() -> Sketch:
     return eskiz(pts, ents, cs)
 
 
+# Süre ölçümü ayrı süreçte, BLAS tek iş parçacığına sabitlenerek yapılır: paralel test koşusunda
+# (pytest -n auto) çok iş parçacıklı OpenBLAS çekirdekler için yarışıp meşgul beklemede CPU yakar ve
+# hem duvar saatini hem süreç CPU süresini şişirir. Tek iş parçacığında CPU süresi koşu ortamından
+# bağımsızdır.
+_SURE_BETIGI = """
+import time
+from sketch.solver import solve
+from tests.sketch.test_solver import flans
+solve(flans())  # ısınma: tembel içe aktarmalar
+s = flans()
+t0 = time.process_time()
+solve(s)
+print(time.process_time() - t0)
+"""
+_TEK_IS_PARCACIGI = {k: "1" for k in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS")}
+
+
+def flans_cozum_suresi() -> float:
+    """Flanşın tek çözümünün CPU süresi (s): ayrı süreç, tek iş parçacıklı BLAS, ısınmadan sonra."""
+    kok = Path(__file__).resolve().parents[2]
+    cikti = subprocess.run(
+        [sys.executable, "-c", _SURE_BETIGI],
+        cwd=kok,
+        env={**os.environ, **_TEK_IS_PARCACIGI},
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return float(cikti.stdout.strip().splitlines()[-1])
+
+
 def test_flans_olcek():
+    """K14: "bozuk başlangıçtan 20 iterasyon içinde çözülür ve tek çözüm 0.5 s'nin altında sürer
+    (SPEC 26'da sürükleme akıcı olsun)". Süre, sürüklemedeki sürekli çözümü temsil etsin diye ısınmadan
+    sonra ve koşu ortamından bağımsız olsun diye tek iş parçacığında CPU süresi olarak ölçülür."""
     s = flans()
-    t0 = time.perf_counter()
     res = solve(s)
-    sure = time.perf_counter() - t0
+    assert flans_cozum_suresi() < 0.5
     assert res.iterations <= 20
-    assert sure < 0.5
     assert res.dof == 0
     for i in range(N_DELIK):
         t = 2 * math.pi * i / N_DELIK

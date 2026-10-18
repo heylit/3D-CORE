@@ -83,6 +83,7 @@ bilgisayardaki yerel klasör. Mimari buna göre kuruldu:
 - **Sıra:** `docs/yol-haritasi.md` → "Paralel çalışma: dalgalar". Bir dalgadaki SPEC'ler aynı anda başlar.
 - **Aynı kurulum her yerde:** `pip install -e ".[dev,cad,viz]"` ve `pytest`. OCCT gerektiren testler
   `@pytest.mark.occt` ile işaretlenir; build123d yoksa atlanır, böylece saf modüller her yerde hızlı test edilir.
+- **Operatör kurulumu (Windows):** `kurulum\kur.bat` (uv + Python 3.14, PowerShell yok); ayrıntı `kurulum/BENIOKU.md`.
 
 ### Her SPEC için döngü
 ```
@@ -175,6 +176,7 @@ Sıra ve paralellik: `docs/yol-haritasi.md` → "Paralel çalışma: dalgalar". 
 
 ```powershell
 pip install -e ".[dev,cad,viz]" # kurulum
+kurulum\kur.bat                 # operatör kurulumu (Windows, tek tık)
 pytest                          # tüm testler
 pytest tests/benchmarks -v      # sadece analitik benchmark'lar
 ruff check . --fix              # lint + otomatik düzeltme
