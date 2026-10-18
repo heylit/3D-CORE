@@ -107,15 +107,27 @@ class Tolerance:
     def __post_init__(self) -> None:
         try:
             object.__setattr__(self, "distribution", Distribution(self.distribution))
-        except ValueError:
-            raise AssyError(f"Tolerans '{self.name}': bilinmeyen dağılım {self.distribution!r}") from None
+        except ValueError as e:
+            raise AssyError(
+                f"Tolerans '{self.name}': bilinmeyen dağılım {self.distribution!r}"
+                " — dağılım olarak normal, duzgun ya da ucgen seçin"
+            ) from e
         sayilar = (self.nominal, self.lower, self.upper, self.sigma_level)
         if not all(math.isfinite(v) for v in sayilar):
-            raise AssyError(f"Tolerans '{self.name}': değerler sonlu olmalı {sayilar}")
+            raise AssyError(
+                f"Tolerans '{self.name}': değerler sonlu olmalı {sayilar}"
+                " — nominal, alt/üst sapma ve sigma_level için sonlu sayılar girin"
+            )
         if self.lower > self.upper:
-            raise AssyError(f"Tolerans '{self.name}': lower ≤ upper olmalı ({self.lower}, {self.upper})")
+            raise AssyError(
+                f"Tolerans '{self.name}': lower ≤ upper olmalı ({self.lower}, {self.upper})"
+                " — alt sapmayı üst sapmadan büyük olmayacak şekilde girin"
+            )
         if self.sigma_level <= 0:
-            raise AssyError(f"Tolerans '{self.name}': sigma_level > 0 olmalı ({self.sigma_level})")
+            raise AssyError(
+                f"Tolerans '{self.name}': sigma_level > 0 olmalı ({self.sigma_level})"
+                " — sigma_level için 0'dan büyük bir değer girin (genelde 3)"
+            )
 
     @property
     def mean(self) -> float:
@@ -169,7 +181,10 @@ class Tolerance:
     ) -> Tolerance:
         """nominal ± t (t ≥ 0)."""
         if not (math.isfinite(t) and t >= 0):
-            raise AssyError(f"Tolerans '{name}': simetrik t ≥ 0 olmalı ({t})")
+            raise AssyError(
+                f"Tolerans '{name}': simetrik t ≥ 0 olmalı ({t})"
+                " — t için 0 ya da pozitif sonlu bir değer girin"
+            )
         return cls(nominal, -t, t, distribution, sigma_level, name)
 
 
@@ -187,10 +202,16 @@ class Ref:
         self.origin = tuple(float(v) for v in self.origin)
         d = np.asarray(self.direction, dtype=float)
         if not (np.all(np.isfinite(self.origin)) and np.all(np.isfinite(d))):
-            raise AssyError(f"Referans ({self.component}): origin ve yön sonlu olmalı")
+            raise AssyError(
+                f"Referans ({self.component}): origin ve yön sonlu olmalı"
+                " — origin ve yön için sonlu üç bileşen girin"
+            )
         n = float(np.linalg.norm(d))
         if n < 1e-12:
-            raise AssyError(f"Referans ({self.component}): yön vektörü sıfır olamaz")
+            raise AssyError(
+                f"Referans ({self.component}): yön vektörü sıfır olamaz"
+                " — en az bir bileşeni sıfırdan farklı bir yön girin"
+            )
         self.direction = tuple(float(v) for v in d / n)
 
 
@@ -205,10 +226,16 @@ class Component:
     def __post_init__(self) -> None:
         self.T = np.asarray(self.T, dtype=float)
         if not is_rigid(self.T):
-            raise AssyError(f"Bileşen '{self.name}': T rijit bir dönüşüm değil")
+            raise AssyError(
+                f"Bileşen '{self.name}': T rijit bir dönüşüm değil"
+                " — T için ortonormal dönme ve son satırı (0, 0, 0, 1) olan 4×4 matris girin"
+            )
         # Kimliğin kütüphanede olup olmadığını assy bilmez (SPEC 66 köprüsü); burada yalnız biçim
         if self.material is not None and (not isinstance(self.material, str) or not self.material.strip()):
-            raise AssyError(f"Bileşen {self.name!r}: material boş metin olamaz ({self.material!r})")
+            raise AssyError(
+                f"Bileşen {self.name!r}: material boş metin olamaz ({self.material!r})"
+                " — malzeme kimliğini boş olmayan bir metin olarak girin ya da None bırakın"
+            )
 
     def __eq__(self, other: object) -> bool:
         # dataclass'ın ürettiği __eq__ numpy dizisinde ValueError verir; T'yi np.array_equal ile karşılaştır
@@ -251,17 +278,32 @@ class Mate:
     def __post_init__(self) -> None:
         self.kind = MateKind(self.kind)
         if not math.isfinite(self.value):
-            raise AssyError(f"Kısıt değeri sonlu olmalı ({self.value})")
+            raise AssyError(
+                f"Kısıt ({self.kind.name}): Kısıt değeri sonlu olmalı ({self.value})"
+                " — kısıt değeri için sonlu bir sayı girin"
+            )
         if not isinstance(self.flip, bool):
-            raise AssyError(f"flip bool olmalı ({self.flip!r})")
+            raise AssyError(
+                f"Kısıt ({self.kind.name}): flip bool olmalı ({self.flip!r})"
+                " — flip için True ya da False verin"
+            )
         if self.flip and not self._flip_etkili():
             raise AssyError(
-                f"flip bu kısıtta etkisiz: {self.kind.name} {self.a.kind.name}–{self.b.kind.name}"
+                f"Kısıt ({self.kind.name}): flip bu kısıtta etkisiz: "
+                f"{self.kind.name} {self.a.kind.name}–{self.b.kind.name}"
+                " — flip bayrağını kaldırın; yalnız düzlem–düzlem, nokta–düzlem mesafe"
+                " ve açı kısıtında etkilidir"
             )
         if self.kind is MateKind.DISTANCE and self.value < 0:
-            raise AssyError(f"Mesafe kısıtı negatif olamaz ({self.value})")
+            raise AssyError(
+                f"Kısıt ({self.kind.name}): Mesafe kısıtı negatif olamaz ({self.value})"
+                " — 0 ya da pozitif bir mesafe girin; karşı taraf için flip kullanın"
+            )
         if self.kind is MateKind.ANGLE and not 0 <= self.value <= 180:
-            raise AssyError(f"Açı kısıtı 0–180 derece olmalı ({self.value})")
+            raise AssyError(
+                f"Kısıt ({self.kind.name}): Açı kısıtı 0–180 derece olmalı ({self.value})"
+                " — açıyı 0 ile 180 derece arasında girin"
+            )
 
     def _flip_etkili(self) -> bool:
         """Yön tersine çevrilince artığın değiştiği kısıtlar (bkz. sınıf açıklaması)."""
@@ -294,12 +336,19 @@ def _aralik(sinir, ad: str, kapsam: tuple[float, float] | None = None) -> tuple[
     """(alt, üst) sınırını doğrular: sonlu, alt ≤ üst, varsa kapsam içinde."""
     try:
         alt, ust = (float(v) for v in sinir)
-    except (TypeError, ValueError):
-        raise AssyError(f"{ad}: sınır (alt, üst) olmalı ({sinir!r})") from None
+    except (TypeError, ValueError) as e:
+        raise AssyError(
+            f"{ad}: sınır (alt, üst) olmalı ({sinir!r}) — sınırı iki sayılık (alt, üst) çifti olarak girin"
+        ) from e
     if not (math.isfinite(alt) and math.isfinite(ust)) or alt > ust:
-        raise AssyError(f"{ad}: sınır sonlu ve alt ≤ üst olmalı ({alt}, {ust})")
+        raise AssyError(
+            f"{ad}: sınır sonlu ve alt ≤ üst olmalı ({alt}, {ust})"
+            " — alt sınırı üst sınırdan büyük olmayan sonlu sayılarla girin"
+        )
     if kapsam is not None and not (kapsam[0] <= alt and ust <= kapsam[1]):
-        raise AssyError(f"{ad}: sınır {kapsam} içinde olmalı ({alt}, {ust})")
+        raise AssyError(
+            f"{ad}: sınır {kapsam} içinde olmalı ({alt}, {ust}) — sınırı {kapsam} aralığına daraltın"
+        )
     return alt, ust
 
 
@@ -334,12 +383,15 @@ class Joint:
 
     def __post_init__(self) -> None:
         if not self.name:
-            raise AssyError("Eklem adı boş olamaz")
+            raise AssyError("Eklem: Eklem adı boş olamaz — ekleme boş olmayan bir ad verin")
         self.kind = JointKind(self.kind)
         beklenen = RefKind.POINT if self.kind is JointKind.SPHERICAL else RefKind.AXIS
         for ref in (self.a, self.b):
             if ref.kind is not beklenen:
-                raise AssyError(f"Eklem '{self.name}' ({self.kind.name}): {beklenen.name} referansı gerekli")
+                raise AssyError(
+                    f"Eklem '{self.name}' ({self.kind.name}): {beklenen.name} referansı gerekli"
+                    f" — iki uçta da {beklenen.name} türünde referans seçin"
+                )
         self.zero_a = self._sifir(self.zero_a, self.a)
         self.zero_b = self._sifir(self.zero_b, self.b)
         self.limits = self._sinirlar(self.limits)
@@ -349,17 +401,26 @@ class Joint:
             return None
         e = np.asarray(zero, dtype=float)
         if e.shape != (3,) or not np.all(np.isfinite(e)):
-            raise AssyError(f"Eklem '{self.name}': sıfır yönü sonlu (3,) olmalı ({zero!r})")
+            raise AssyError(
+                f"Eklem '{self.name}': sıfır yönü sonlu (3,) olmalı ({zero!r})"
+                " — sıfır yönünü sonlu üç bileşenli vektör olarak girin ya da boş bırakın"
+            )
         n = float(np.linalg.norm(e))
         if n == 0 or np.linalg.norm(np.cross(e / n, ref.direction)) < 1e-9:
-            raise AssyError(f"Eklem '{self.name}': sıfır yönü eksene paralel olamaz ({zero!r})")
+            raise AssyError(
+                f"Eklem '{self.name}': sıfır yönü eksene paralel olamaz ({zero!r})"
+                " — eklem eksenine paralel olmayan, sıfırdan farklı bir yön girin"
+            )
         return tuple(float(v) for v in e)
 
     def _sinirlar(self, limits):
         ad = f"Eklem '{self.name}'"
         if self.kind in (JointKind.SPHERICAL, JointKind.FIXED):
             if limits is not None:
-                raise AssyError(f"{ad}: {self.kind.name} ekleminde sınır olamaz")
+                raise AssyError(
+                    f"{ad}: {self.kind.name} ekleminde sınır olamaz"
+                    " — bu eklem türünde sınırı boş (None) bırakın"
+                )
             return None
         if limits is None:
             return None
@@ -368,7 +429,10 @@ class Joint:
         if self.kind is JointKind.PRISMATIC:
             return _aralik(limits, ad)
         if not isinstance(limits, (tuple, list)) or len(limits) != 2:
-            raise AssyError(f"{ad}: silindirik eklem sınırı ((θa, θü) | None, (sa, sü) | None) olmalı")
+            raise AssyError(
+                f"{ad}: silindirik eklem sınırı ((θa, θü) | None, (sa, sü) | None) olmalı"
+                " — açı ve öteleme için iki ayrı sınır çifti girin (gerekmeyeni boş bırakın)"
+            )
         teta, s = limits
         return (
             None if teta is None else _aralik(teta, ad, (-180.0, 180.0)),
@@ -383,7 +447,9 @@ class Joint:
     def axis_frame(self, side: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """side 'a' / 'b' için bileşenin YEREL koordinatında (origin, z, x); z = ref yönü, x = sıfır yönü."""
         if side not in ("a", "b"):
-            raise AssyError(f"Eklem '{self.name}': side 'a' veya 'b' olmalı ({side!r})")
+            raise AssyError(
+                f"Eklem '{self.name}': side 'a' veya 'b' olmalı ({side!r}) — taraf olarak 'a' ya da 'b' seçin"
+            )
         ref, zero = (self.a, self.zero_a) if side == "a" else (self.b, self.zero_b)
         z = np.array(ref.direction)
         if zero is None:
@@ -406,29 +472,49 @@ class Assembly:
         for c in self.components:
             if c.name == name:
                 return c
-        raise AssyError(f"Bilinmeyen bileşen: {name}")
+        raise AssyError(
+            f"Montaj '{self.name}': Bilinmeyen bileşen: {name} — montajda tanımlı bir bileşen adı kullanın"
+        )
 
     def validate(self) -> None:
         names = [c.name for c in self.components]
         dup = {n for n in names if names.count(n) > 1}
         if dup:
-            raise AssyError(f"Yinelenen bileşen adı: {sorted(dup)}")
+            raise AssyError(
+                f"Montaj '{self.name}': Yinelenen bileşen adı: {sorted(dup)}"
+                " — her bileşene benzersiz bir ad verin"
+            )
         for i, m in enumerate(self.mates):
             for ref in (m.a, m.b):
                 if ref.component not in names:
-                    raise AssyError(f"Kısıt {i}: bilinmeyen bileşen '{ref.component}'")
+                    raise AssyError(
+                        f"Kısıt {i}: bilinmeyen bileşen '{ref.component}'"
+                        " — kısıtta montajda tanımlı bir bileşen seçin"
+                    )
             if m.a.component == m.b.component:
-                raise AssyError(f"Kısıt {i}: iki ucu aynı bileşende ('{m.a.component}')")
+                raise AssyError(
+                    f"Kısıt {i}: iki ucu aynı bileşende ('{m.a.component}')"
+                    " — kısıtın uçlarını iki farklı bileşenden seçin"
+                )
         jnames = [j.name for j in self.joints]
         jdup = {n for n in jnames if jnames.count(n) > 1}
         if jdup:
-            raise AssyError(f"Yinelenen eklem adı: {sorted(jdup)}")
+            raise AssyError(
+                f"Montaj '{self.name}': Yinelenen eklem adı: {sorted(jdup)}"
+                " — her ekleme benzersiz bir ad verin"
+            )
         for j in self.joints:
             for ref in (j.a, j.b):
                 if ref.component not in names:
-                    raise AssyError(f"Eklem '{j.name}': bilinmeyen bileşen '{ref.component}'")
+                    raise AssyError(
+                        f"Eklem '{j.name}': bilinmeyen bileşen '{ref.component}'"
+                        " — eklemde montajda tanımlı bir bileşen seçin"
+                    )
             if j.a.component == j.b.component:
-                raise AssyError(f"Eklem '{j.name}': iki ucu aynı bileşende ('{j.a.component}')")
+                raise AssyError(
+                    f"Eklem '{j.name}': iki ucu aynı bileşende ('{j.a.component}')"
+                    " — eklemin uçlarını iki farklı bileşenden seçin"
+                )
 
     def world(self, ref: Ref) -> tuple[np.ndarray, np.ndarray]:
         """Referansın dünya koordinatında origin'i (p' = R p + t) ve birim yönü (d' = R d)."""
@@ -529,12 +615,21 @@ class Node:
 
     def __post_init__(self) -> None:
         if not self.name or "/" in self.name:
-            raise AssyError(f"Düğüm adı boş olamaz ve '/' içeremez ({self.name!r})")
+            raise AssyError(
+                f"Düğüm: Düğüm adı boş olamaz ve '/' içeremez ({self.name!r})"
+                " — düğüme '/' içermeyen, boş olmayan bir ad verin"
+            )
         self.T = np.asarray(self.T, dtype=float)
         if not is_rigid(self.T):
-            raise AssyError(f"Düğüm '{self.name}': T rijit bir dönüşüm değil")
+            raise AssyError(
+                f"Düğüm '{self.name}': T rijit bir dönüşüm değil"
+                " — T için ortonormal dönme ve son satırı (0, 0, 0, 1) olan 4×4 matris girin"
+            )
         if self.part is not None and (self.children or self.ref is not None):
-            raise AssyError(f"Düğüm '{self.name}': yaprakta (part dolu) çocuk veya ref olamaz")
+            raise AssyError(
+                f"Düğüm '{self.name}': yaprakta (part dolu) çocuk veya ref olamaz"
+                " — ya parça atayın ya da çocuk/ref verin, ikisini birden değil"
+            )
 
     def __eq__(self, other: object) -> bool:
         # dataclass'ın ürettiği __eq__ numpy dizisinde ValueError verir; T'yi np.array_equal ile, çocukları

@@ -37,7 +37,10 @@ def _sonlu(nerede: str, **degerler: float) -> None:
     """Her değer sonlu bir sayı olmalı (nan / inf → ModelError). Sessiz hata yok."""
     for ad, v in degerler.items():
         if not math.isfinite(v):
-            raise ModelError(f"{nerede}: {ad} sonlu bir sayı olmalı ({ad}={v})")
+            raise ModelError(
+                f"{nerede}: {ad} sonlu bir sayı olmalı ({ad}={v})"
+                f" — {ad} için nan/inf yerine sonlu bir sayı girin"
+            )
 
 
 @dataclass
@@ -50,7 +53,10 @@ class Material:
     def __post_init__(self) -> None:
         _sonlu(f"Malzeme '{self.name}'", E=self.E, nu=self.nu, rho=self.rho)
         if self.E <= 0:
-            raise ModelError(f"Malzeme '{self.name}': E pozitif olmalı (E={self.E})")
+            raise ModelError(
+                f"Malzeme '{self.name}': E pozitif olmalı (E={self.E})"
+                " — E için 0'dan büyük bir değer girin (MPa)"
+            )
 
 
 @dataclass
@@ -61,7 +67,10 @@ class Section:
     def __post_init__(self) -> None:
         _sonlu(f"Kesit '{self.name}'", A=self.A)
         if self.A <= 0:
-            raise ModelError(f"Kesit '{self.name}': A pozitif olmalı (A={self.A})")
+            raise ModelError(
+                f"Kesit '{self.name}': A pozitif olmalı (A={self.A})"
+                " — A için 0'dan büyük bir değer girin (mm²)"
+            )
 
 
 @dataclass
@@ -158,35 +167,39 @@ class Model:
     def node(self, node_id: int) -> Node:
         bulunan = self._bul(self.nodes, node_id, "nodes")
         if bulunan is None:
-            raise ModelError(f"Bilinmeyen düğüm: {node_id}")
+            raise ModelError(f"Bilinmeyen düğüm: {node_id} — modelde tanımlı bir düğüm id'si kullanın")
         return bulunan[1]
 
     def material(self, name: str) -> Material:
         bulunan = self._bul(self.materials, name, "materials")
         if bulunan is None:
-            raise ModelError(f"Bilinmeyen malzeme: {name}")
+            raise ModelError(f"Bilinmeyen malzeme: {name} — önce bu adla bir malzeme tanımlayın")
         return bulunan[1]
 
     def section(self, name: str | None) -> Section:
         bulunan = self._bul(self.sections, name, "sections")
         if bulunan is None:
-            raise ModelError(f"Bilinmeyen kesit: {name}")
+            raise ModelError(f"Bilinmeyen kesit: {name} — önce bu adla bir kesit tanımlayın")
         return bulunan[1]
 
     def node_index(self, node_id: int) -> int:
         """Düğümün global sıra numarası (nodes listesindeki konumu)."""
         bulunan = self._bul(self.nodes, node_id, "nodes")
         if bulunan is None:
-            raise ModelError(f"Bilinmeyen düğüm: {node_id}")
+            raise ModelError(f"Bilinmeyen düğüm: {node_id} — modelde tanımlı bir düğüm id'si kullanın")
         return bulunan[0]
 
     def dof_index(self, node_id: int, dof: str) -> int:
         """Global DOF numarası = düğüm_sırası * dofs_per_node + dof_içi_indeks."""
         if dof not in DOF_NAMES:
-            raise ModelError(f"Bilinmeyen DOF adı: {dof}")
+            raise ModelError(f"Bilinmeyen DOF adı: {dof} — DOF adı olarak ux, uy ya da uz kullanın")
         local = DOF_NAMES[dof]
         if local >= self.dofs_per_node:
-            raise ModelError(f"{self.dim}B modelde '{dof}' DOF'u yok")
+            raise ModelError(
+                f"Model '{self.name}': {self.dim}B modelde '{dof}' DOF'u yok"
+                f" — {self.dim}B modelde yalnız ilk {self.dofs_per_node} DOF'u"
+                " (ux, uy, uz sırasıyla) kullanın"
+            )
         return self.node_index(node_id) * self.dofs_per_node + local
 
     # ---------- doğrulama ----------
@@ -194,15 +207,19 @@ class Model:
     def validate(self) -> None:
         """Tutarsızlık varsa ModelError fırlatır. Çözücü çağırmadan önce çalıştırılır."""
         if self.dim not in DOFS_PER_NODE:
-            raise ModelError(f"Geçersiz boyut: {self.dim}")
+            raise ModelError(f"Geçersiz boyut: {self.dim} — model boyutu için 1, 2 ya da 3 girin")
 
         ids = [n.id for n in self.nodes]
         if len(ids) != len(set(ids)):
-            raise ModelError("Tekrarlanan düğüm id'si var")
+            raise ModelError(
+                f"Model '{self.name}': Tekrarlanan düğüm id'si var — her düğüme benzersiz bir id verin"
+            )
 
         eids = [e.id for e in self.elements]
         if len(eids) != len(set(eids)):
-            raise ModelError("Tekrarlanan eleman id'si var")
+            raise ModelError(
+                f"Model '{self.name}': Tekrarlanan eleman id'si var — her elemana benzersiz bir id verin"
+            )
 
         for e in self.elements:
             for nid in e.nodes:
@@ -231,7 +248,9 @@ class Model:
                 try:
                     sonuc.append(sinif(**k))
                 except TypeError as e:
-                    raise ModelError(f"JSON {ne}[{i}] okunamadı: {e}") from e
+                    raise ModelError(
+                        f"JSON {ne}[{i}] okunamadı: {e} — kayıttaki alan adlarını ve eksik alanları düzeltin"
+                    ) from e
             return sonuc
 
         m = cls(
