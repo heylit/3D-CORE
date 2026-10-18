@@ -24,7 +24,6 @@ include = ["core*", "geometry*", "cam*", "assy*", "mesh*", "fileio*", "viz*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-addopts = "-q"
 markers = [
     "slow: uzun süren testler (pre-commit'te atlanır, pre-push ve ci.ps1'de çalışır)",
     "occt: build123d / OpenCascade gerektirir (kurulu değilse atlanır)",

@@ -71,5 +71,14 @@ examples/       JSON örnek problemler
 - `dogrulayici` (.claude/agents/dogrulayici.md): Kodu görmeden SPEC'ten test yazar.
 Akış: SPEC -> dogrulayici testleri yazar -> yazici kodu yazar -> pytest yeşil -> commit.
 
+### Test bağımsızlığı (zorunlu)
+Aynı oturum hem testi hem kodu yazarsa testler koda göre ayarlanır; o yüzden:
+- Testler ve kod **ayrı commit'lerde ve ayrı oturumlarda** yazılır: önce `dogrulayici` oturumu SPEC'in
+  testlerini commit'ler (kod henüz yokken testler "uygulanmamış" görünür), sonra başka bir `yazici` oturumu kodu yazar.
+- Kod commit'leri o SPEC'in test dosyalarını değiştirmez. Test yanlış görünüyorsa kullanıcıya sorulur (altın kural 2).
+- PR açıklaması iki oturumun bağlantısını ve test commit'ini yazar; ikisi aynıysa PR "bağımsız değil" diye işaretlenir.
+- Onaylanmış SPEC metni (kabul kriterleri, ekler) kullanıcı onayı olmadan değiştirilmez; kodu yazan oturum SPEC'i netleştirmez.
+- PR'da (CI) `NotImplementedError` ile düşen test kırmızıdır (`pytest --uygulanmamis-hata`); yerelde TDD için "uygulanmamış" sayılır.
+
 ## Gizlilik
 Gerçek şirket parçaları, çizimleri veya müşteri verisi repoya girmez. Bunlar sadece `yerel_parcalar/` (gitignore'da) altında durur. Testlerde uydurma geometri kullan.
