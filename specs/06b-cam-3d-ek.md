@@ -1,6 +1,6 @@
 # SPEC 06b — 3D yüzey işleme eki: torik ve konik takım, waterline (sabit Z kontur)
 
-> **Onaylandı** (kullanıcı, 2026-10-18 10:38 UTC; konik takımla birlikte).
+> **Onaylandı** (kullanıcı, 2026-10-18 10:38 UTC; konik takımla birlikte). **Ek 1 onaylandı** (kullanıcı, 2026-10-18 11:13 UTC): K16, K1 ve SPEC 06 `rough` testi; aşağıda "Ek 1".
 
 ## Amaç
 SPEC 06'nın drop-cutter'ını tek bir **dışbükey takım profili** üzerine kurup **köşe radyüslü (torik)** ve
@@ -119,8 +119,9 @@ Analitik sonuçlar:
 - **Yarıküre** `ρ_s` (merkez orijin), `0 ≤ z < ρ_s`: kontur yarıçapı küresel `√((ρ_s + R)² − (z + R)²)`,
   torik `R_t + √((ρ_s + r_c)² − (z + r_c)²)`, düz `√(ρ_s² − z²) + R`, konik (teğet koni parçasındaysa)
   `(ρ_s − z sin θ)/cos θ`. Ağ kiriş hatası `ε` kadar tolerans.
-- **Dik duvarda iz:** dik duvar boyunca `Δz` aralıklı seviyelerde duvardaki sırt yüksekliği küresel uçta
-  `scallop_flat(R, Δz)`, torikte `scallop_flat(r_c, Δz)` (`Δz ≤ 2r_c`).
+- **Neredeyse dik duvarda iz (Ek 1):** yataydan `α` (75°–80°) eğimli düzlem duvarda `Δz` aralıklı seviyelerde ardışık
+  temas noktaları duvar boyunca `Δz / sin α` aralıklıdır; sırt yüksekliği küresel uçta `scallop_flat(R, Δz / sin α)`,
+  torikte (temas tüp üzerinde) `scallop_flat(r_c, Δz / sin α)` (`Δz / sin α ≤ 2r_c`).
 
 ### İz yüksekliği ekleri (yatay düzlemde, yan paso `s`)
 - Torik: `s ≤ 2R_t` → `h = 0`; değilse `h = r_c − √(r_c² − (s/2 − R_t)²)`; `s > 2R` → `CamError`.
@@ -133,7 +134,9 @@ Analitik sonuçlar:
   `cam/scallop.py` (`scallop_torus`, `scallop_cone`).
 - Değişecek test (test oturumu, bu SPEC onayıyla): `tests/cam/test_dropcutter.py` ve `tests/cam/test_ops3d.py`
   içindeki "köşe radyüslü düz → `CamError`" parametreleri artık geçerli değildir; test oturumu bunları kaldırır
-  veya torik takımın kabul edildiğini doğrulayan teste çevirir. Diğer SPEC 06 testleri değişmeden geçmelidir.
+  veya torik takımın kabul edildiğini doğrulayan teste çevirir. Ek 1: `tests/cam/test_ops3d.py::test_k14_seviyeler_ve_cl[duz]`
+  da değişir; düz uçta pay artık kesin ofset olduğu için testin `_big()` yardımcısı büyütülmüş düz takım yerine torik takım
+  (`D = 2(R + δ)`, `corner_r = δ`) kullanır. Diğer SPEC 06 testleri değişmeden geçmelidir.
 - Kullanılır (değişmez): `cam/model.py` (`Tool`, `ToolKind`, `Move`, `Toolpath`, `CamError`), `cam/ops2d.py`.
 - **Arayüz eki (ayrı PR, "CAM model arayüzü" sahibi):** `ToolKind.CONE = "konik"` ve
   `Tool.tip_angle: float | None = None` [derece, tam uç açısı]. `CONE` için zorunlu, `0 < tip_angle < 180`,
@@ -181,7 +184,8 @@ Analitik sonuçlar:
 Geometrik değerlerde tolerans aksi yazılmadıkça mutlak `1e-9 mm`. Konik takım kriterleri (K3'ün konik kısmı,
 K6, K11'in konik kısmı) arayüz eki birleşince yazılır.
 - [ ] K1 `Cutter` profilleri: düz, küresel, torik, konik `f(ρ)` tablodaki formüllerle; `r_c = 0` ve `r_c = R` torik
-  düz ve küresele eşit; `ρ > R` → `inf`; dışbükey olmayan / azalan profil, hatalı parametreler → `CamError` — `test_cutter.py`
+  düz ve küresele eşit; `ρ > R` → `inf`; hatalı parametreler → `CamError` (dışbükey olmayan / azalan profil denetimi
+  Ek 1 ile kapsam dışı: `Cutter` yalnız sınıf yöntemleri ve `offset` ile kurulur) — `test_cutter.py`
 - [ ] K2 `support`: dört takımda kapalı form `f*`, `ρ*`; kaba kuvvet (`ρ`'yu sık örnekleyerek) ile 1e-9 — `test_cutter.py`
 - [ ] K3 `offset`: düz → torik (`R+δ`, `δ`), torik → torik, küresel → küresel; konik ofset profili, takım katısını
   `δ` küreyle büyütmenin kaba kuvvet alt zarfıyla 1e-6; `offset(0)` aynı — `test_cutter.py`
@@ -205,8 +209,8 @@ K6, K11'in konik kısmı) arayüz eki birleşince yazılır.
 - [ ] K15 Waterline sınır doğruluğu: rastgele dalgalı ağda her döngü noktası `c` için döngü normali `n` ile
   `z_CL(c + η n) ≤ z` ve `z_CL(c − η n) > z` (`η = 1e-7`); `ds_min`'e takılmayan her parçanın orta noktasında
   dik doğrultudaki sınır uzaklığı `≤ tol` — `test_waterline.py`
-- [ ] K16 Dik duvarda iz: `Δz` aralıklı seviyelerle duvardaki ölçülen sırt küresel `scallop_flat(R, Δz)`,
-  torik `scallop_flat(r_c, Δz)` — `test_waterline.py`
+- [ ] K16 Neredeyse dik duvarda iz (Ek 1): `α` = 75°–80° eğimli duvarda `Δz` aralıklı seviyelerle ölçülen sırt küresel
+  `scallop_flat(R, Δz / sin α)`, torik `scallop_flat(r_c, Δz / sin α)` — `test_waterline.py`
 - [ ] K17 `waterline` yolu: `z_safe`'te başlar/biter, `validate()` geçer, her döngü yukarıdaki hareket sırasında,
   seviyeler azalan, kesme `G1 feed`, dalma `G1 plunge_feed`, `rpm` doğru; dalma noktasında takım ağa girmez — `test_waterline.py`
 - [ ] K18 Hatalı girdiler (`Waterline` alanları, azalmayan `z_levels`, yetersiz `z_safe`, `DRILL`) → `CamError` — `test_waterline.py`
@@ -215,7 +219,13 @@ K6, K11'in konik kısmı) arayüz eki birleşince yazılır.
 - [ ] `pytest` 0 failed, bu SPEC'in testlerinde 0 "uygulanmamış"; `ruff check .` ve `ruff format --check .` temiz;
   10 saniyeden uzun testler `@pytest.mark.slow`
 
+## Ek 1 (kullanıcı onayı, 2026-10-18 11:13 UTC)
+- K16 tam dik duvardan 75°–80° eğimli duvara taşındı; sırt `scallop_flat(R, Δz / sin α)`, torikte `r_c` ile.
+- SPEC 06 testi `test_ops3d.py::test_k14_seviyeler_ve_cl[duz]`: `_big()` torik takım (`D = 2(R + δ)`, `corner_r = δ`) kullanır.
+- K1'deki "dışbükey olmayan / azalan profil → `CamError`" maddesi kapsam dışı.
+
 ## Kapsam dışı
+- `Cutter`'ın keyfî parça listesinden kurulması ve dışbükeylik denetimi (Ek 1).
 - Dik / sığ bölge ayrımı (waterline'ı yalnız dik yerlerde, raster'ı sığ yerlerde kullanmak), birleşik ince işleme.
 - Seviyeler arası köprüleme (aşağı inmeden döngüden döngüye geçiş), rampa / helis giriş, döngü sırası optimizasyonu (TSP).
 - Lif aralığından dar bileşen ve boşlukların bulunması (uyarlamalı lif sıklaştırma), sabit iz yüksekliğine göre seviye seçimi.

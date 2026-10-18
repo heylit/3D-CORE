@@ -17,7 +17,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from cam.dropcutter import TOL, TriMesh, _yaricap, drop
+from cam.dropcutter import TOL, TriMesh, drop, kesici
 from cam.model import CamError, Move, MoveType, Stock, Tool, Toolpath
 from cam.ops2d import depths
 
@@ -140,7 +140,7 @@ def _yol(name: str, tool: Tool, r: Raster, seviyeler: list[tuple[np.ndarray, flo
 
 def finish(mesh: TriMesh, tool: Tool, r: Raster, floor: float | None = None) -> Toolpath:
     """Raster ince işleme: her CL drop-cutter'dan (floor ile), uyarlamalı bölme, zigzag."""
-    _yaricap(tool)  # desteklenmeyen takım → CamError
+    kesici(tool)  # desteklenmeyen takım → CamError
 
     def z_of(xy: np.ndarray) -> np.ndarray:
         return drop(mesh, tool, xy, floor)
@@ -160,9 +160,10 @@ def rough(
 ) -> Toolpath:
     """Katmanlı kaba işleme: her seviye z_i için z_CL = max(z_δ, z_i).
 
-    İşleme payı δ: z_δ = drop(R + δ) + δ (büyütülmüş takım). Seviyeler cam.ops2d.depths ile.
+    İşleme payı δ (SPEC 06b): z_δ = drop(ofset(δ)) + δ, takım katısının δ küreyle Minkowski
+    toplamı (kesin). Seviyeler cam.ops2d.depths ile.
     """
-    _yaricap(tool)  # desteklenmeyen takım → CamError
+    K = kesici(tool)  # desteklenmeyen takım → CamError
     for ad, v in (("a_p", a_p), ("z_bottom", z_bottom), ("allowance", allowance)):
         if not math.isfinite(v):
             raise CamError(f"rough: {ad} sonlu olmalı ({v})")
@@ -174,10 +175,7 @@ def rough(
         raise CamError(f"rough: stock.zmin ≤ z_bottom < stock.zmax olmalı (z_bottom={z_bottom})")
     if not r.z_safe > stock.zmax:
         raise CamError(f"rough: z_safe ham malzemenin üstünde olmalı ({r.z_safe} ≤ {stock.zmax})")
-    buyuk = tool
-    if allowance > 0:
-        buyuk = Tool(id=tool.id, name=tool.name, kind=tool.kind, D=tool.D + 2 * allowance,
-                     flute_length=tool.flute_length)  # fmt: skip
+    buyuk = K.offset(allowance)
     taban = z_bottom - allowance - 1.0  # ağın dışında: +δ sonrası z_bottom'ın altında kalır
 
     def z_delta(xy: np.ndarray) -> np.ndarray:
