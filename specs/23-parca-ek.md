@@ -34,6 +34,29 @@ Delik çapı d, havşa ağız çapı D (> d), tepe açısı α (ör. 90°), deli
 Koni yüksekliği `h = (D − d) / (2 tan(α/2))`, `t > h` olmalı. Kaldırılan hacim (kesik koni + silindir):
 `ΔV = (π h / 3)(R² + R r + r²) + π r² (t − h)`, `R = D/2`, `r = d/2`. Boydan boyada `t = c`.
 
+### Lambalı delik (counterbore, düz havşa)
+Geçiş deliği çapı d, lamba çapı D (> d), lamba derinliği t_c, delik derinliği t (> t_c, üst yüzden, düz dip).
+İki eş eksenli silindir: `ΔV = π (D² − d²) t_c / 4 + π d² t / 4`. Boydan boyada `t = c`.
+Civata adıyla çağrılınca varsayılanlar ISO 4762 imbus civata (baş çapı d_k, baş boyu k = d_n) içindir:
+geçiş deliği ISO 273 orta seri, lamba çapı ve derinliği DIN 974-1 (pulsuz) satırı:
+
+| Civata | d (geçiş) | D (lamba) | t_c (lamba derinliği) | ISO 4762 d_k / k |
+|---|---|---|---|---|
+| M3 | 3.4 | 6.5 | 3.4 | 5.5 / 3 |
+| M4 | 4.5 | 8.0 | 4.4 | 7 / 4 |
+| M5 | 5.5 | 10.0 | 5.4 | 8.5 / 5 |
+| M6 | 6.6 | 11.0 | 6.4 | 10 / 6 |
+| M8 | 9.0 | 15.0 | 8.6 | 13 / 8 |
+| M10 | 11.0 | 18.0 | 10.6 | 16 / 10 |
+| M12 | 13.5 | 20.0 | 12.6 | 18 / 12 |
+| M14 | 15.5 | 24.0 | 14.6 | 21 / 14 |
+| M16 | 17.5 | 26.0 | 16.6 | 24 / 16 |
+| M20 | 22.0 | 33.0 | 20.6 | 30 / 20 |
+| M24 | 26.0 | 40.0 | 24.8 | 36 / 24 |
+
+Tablo tutarlılığı (testle denetlenir): her satırda `D > d_k`, `t_c > k`, `d > d_n`.
+OCCT ön deneme (blok c = 20; M8 boydan boya, M8 kör t = 14, M6 boydan boya): rel ≤ 1.2e-14.
+
 ### Dişli delik (tapped hole)
 Diş **görsel / kozmetiktir**: geometride sadece kılavuz matkabı deliği vardır, diş bilgisi `Hole` kaydında
 durur (helis modellenmez; CAM ve teknik resim diş bilgisini kayıttan okur).
@@ -51,7 +74,7 @@ Giriş noktası p parça yüzeyinde, birim delme yönü n malzemeye doğru, çap
 - OCCT ön deneme (c = 20, θ = 30°, r = 4): boydan boya rel 4e-13, kör t = 12 rel 2e-10.
 
 Kaynaklar: build123d / OCCT belgeleri (BRepFilletAPI_MakeFillet); ISO 261, ISO 724 (metrik diş, kılavuz
-matkabı); Pappus–Guldin teoremi; Cavalieri ilkesi; Machinery's Handbook, "Countersinks" ve "Tap drill sizes".
+matkabı); ISO 4762 (imbus civata), ISO 273 (geçiş delikleri), DIN 974-1 (lamba ölçüleri); Pappus–Guldin teoremi; Cavalieri ilkesi; Machinery's Handbook, "Countersinks" ve "Tap drill sizes".
 
 ## Delik kaydı (`Hole`) — CAM için
 Her delik işlemi dönen parçaya bir `Hole` ekler. CAM (SPEC 04 G81/G83, ileride havşa ve G84 kılavuz)
@@ -67,6 +90,8 @@ class Hole:
     through: bool
     csk_d: float = 0.0  # mm, havşa ağız çapı; 0 → havşa yok
     csk_angle: float = 0.0  # derece, havşa tepe açısı; havşa yoksa 0
+    cbore_d: float = 0.0  # mm, lamba çapı; 0 → lamba yok
+    cbore_depth: float = 0.0  # mm, lamba derinliği (giriş noktasından eksen boyunca)
     thread: str = ""  # "M8", "M8x1"; "" → dişsiz
     thread_d: float = 0.0  # mm, nominal diş çapı d_n
     pitch: float = 0.0  # mm, hatve P
@@ -74,7 +99,8 @@ class Hole:
 ```
 
 Doğrulama (`__post_init__`, hepsi `GeometryError`): değerler sonlu; `axis` birim (|n| − 1 ≤ 1e-9);
-`d > 0`, `depth > 0`; havşa varsa `csk_d > d` ve `0 < csk_angle < 180`; diş varsa `thread_d > d`,
+`d > 0`, `depth > 0`; havşa varsa `csk_d > d` ve `0 < csk_angle < 180`;
+lamba varsa `cbore_d > d` ve `0 < cbore_depth < depth`; havşa ve lamba aynı delikte olamaz; diş varsa `thread_d > d`,
 `pitch > 0`, `0 < thread_depth ≤ depth`.
 
 Kayıt **tasarım niyetidir**: parçanın sonraki işlemleri (pah, cep, fillet, yeni delik) kayıtları korur ama
@@ -84,7 +110,7 @@ geometriye göre yeniden doğrulamaz. STEP / STL gidiş-dönüşünde kayıt kay
 - **Önce ayrı arayüz PR'ı** (bu SPEC'in PR'ı değil): `geometry/part.py`'ye `Hole` dataclass'ı,
   `Part(shape, name="parca", holes=())` parametresi ve `Part.holes -> tuple[Hole, ...]` özelliği.
   Mevcut `Part(shape, name)` çağrıları aynen çalışır (varsayılan boş).
-- Yeni: `geometry/holes.py` (havşalı, dişli, eğimli delik, diş tablosu), `geometry/fillet.py`,
+- Yeni: `geometry/holes.py` (havşalı, lambalı, dişli, eğimli delik; diş ve lamba tabloları), `geometry/fillet.py`,
   `tests/geometry/test_holes.py`, `tests/geometry/test_fillet.py`, `durum/23-parca-ek.md`
 - Değişecek: `geometry/features.py` — SPEC 02 işlemleri (`hole`, `pocket`, `chamfer_top`) girdi parçanın
   `holes` kayıtlarını yeni parçaya taşır; `hole` kendi kaydını ekler
@@ -114,6 +140,13 @@ Malzeme kaldırmayan işlem (ΔV ≤ 1e-9 mm³) → `GeometryError` (SPEC 02 ile
 - `countersink_hole(part, x, y, d, csk_d, csk_angle=90.0, depth=None) -> Part` — üstten −Z, eksen (x, y).
   `depth=None` → boydan boya. `csk_d <= d`, açı (0, 180) dışında, `depth <= h` (havşa konisi dibe
   ulaşıyor), `depth > yükseklik` → `GeometryError`. Kayıt: `csk_d`, `csk_angle` dolu.
+- `CBORE_ISO4762: dict[str, tuple[float, float, float]]` — yukarıdaki lamba tablosu,
+  `"M8": (9.0, 15.0, 8.6)` = (d, D, t_c).
+- `counterbore_hole(part, x, y, screw=None, d=None, cbore_d=None, cbore_depth=None, depth=None) -> Part` —
+  üstten −Z, eksen (x, y). `screw="M8"` verilirse eksik ölçüler tablodan gelir, açıkça verilen ölçü tablonun
+  önüne geçer; `screw=None` iken `d`, `cbore_d`, `cbore_depth` üçü de zorunlu. `depth=None` → boydan boya.
+  Tabloda olmayan civata, eksik ölçü, `cbore_d <= d`, `cbore_depth >= depth` (veya boydan boyada ≥ yükseklik),
+  `depth > yükseklik` → `GeometryError`. Kayıt: `cbore_d`, `cbore_depth` dolu.
 - `tapped_hole(part, x, y, thread, depth=None, thread_depth=None) -> Part` — üstten −Z, kılavuz matkabı
   `d_m = d_n − P` ile delik. `thread_depth=None` → `depth` (boydan boyada parça yüksekliği).
   `thread_depth > depth` → `GeometryError`. Kayıt: `thread`, `thread_d`, `pitch`, `thread_depth` dolu.
@@ -129,14 +162,15 @@ Malzeme kaldırmayan işlem (ΔV ≤ 1e-9 mm³) → `GeometryError` (SPEC 02 ile
 - [ ] K3 `fillet_all`: blokta V ve S kapalı formla rel 1e-6; ağırlık merkezi blok merkezinde 1e-6 mm — `test_fillet.py`
 - [ ] K4 Fillet hataları: r ≤ 0, kenar boyundan büyük r → `GeometryError`; girdi parça değişmiyor — `test_fillet.py`
 - [ ] K5 `countersink_hole`: kör ve boydan boyada ΔV = kesik koni + silindir rel 1e-6 (α = 90° ve 82° dahil); `Hole` kaydı (origin, axis, d, depth, csk_d, csk_angle) doğru; geçersiz girdiler hata — `tests/geometry/test_holes.py`
+- [ ] K5b `counterbore_hole`: tablo değerleriyle (M6, M8) ve açık ölçülerle kör / boydan boya ΔV = π(D² − d²)t_c/4 + π d² t/4 rel 1e-6; tablo tutarlılığı (D > d_k, t_c > k, d > d_n); açık ölçü tabloyu eziyor; kayıtta cbore_d, cbore_depth; geçersiz girdiler hata — `test_holes.py`
 - [ ] K6 `parse_thread` ve `tapped_hole`: tablo değerleri ve ince hatve; ΔV = π (d_n − P)² t / 4 rel 1e-6; kayıtta diş bilgisi; bozuk yazım, tabloda olmayan diş, thread_depth > depth hata — `test_holes.py`
 - [ ] K7 `inclined_hole`: θ = 0°, 30°, 45°'de boydan boya ΔV = π r² c / cos θ ve kayıt depth = c / cos θ rel 1e-6; kör ΔV = π r² t rel 1e-6; yüzey dışı p, malzemeye girmeyen n, sıfır n hata — `test_holes.py`
-- [ ] K8 Kayıt zinciri: blok → `hole` → `countersink_hole` → `tapped_hole` → `inclined_hole` → `chamfer_top` → `fillet_vertical` sonunda `part.holes` 4 kaydı sırayla taşıyor; girdi parçaların kayıtları değişmiyor; `Hole` doğrulaması (birim olmayan axis, csk_d ≤ d, thread_depth > depth) hata — `test_holes.py`
+- [ ] K8 Kayıt zinciri: blok → `hole` → `countersink_hole` → `counterbore_hole` → `tapped_hole` → `inclined_hole` → `chamfer_top` → `fillet_vertical` sonunda `part.holes` 5 kaydı sırayla taşıyor; girdi parçaların kayıtları değişmiyor — `test_holes.py`
 - [ ] Tüm testler yeşil (`pytest` 0 failed, bu SPEC'te 0 "uygulanmamış"), `ruff check .` ve `ruff format --check .` temiz; SPEC 02 testleri değişmeden geçiyor
 
 ## Kapsam dışı
 - Helisel (gerçek) diş geometrisi; inç / UNC / boru dişi; sol diş
-- Düz havşa / lamba (counterbore) — istenirse ayrı küçük ek
+- Pullu lamba ölçüleri, ISO 4762 dışındaki civata başları (DIN 7984 alçak baş vb.); havşa + lamba aynı delikte
 - Matkap ucu konisi (118°) ile kör delik dibi; delikler SPEC 02 gibi düz diplidir
 - Değişken yarıçaplı fillet, pah + fillet karışık köşeler, seçili tek kenarın kullanıcıca işaretlenmesi
   (kararlı kenar referansı SPEC 18 özellik ağacının konusu)
