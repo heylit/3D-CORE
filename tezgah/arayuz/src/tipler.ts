@@ -59,4 +59,28 @@ export interface Noktalar {
   islem: Int16Array;
   hizli: Uint8Array;
   yuk: Float32Array;
+  hareket: Int32Array; // noktaya getiren hareket (bağlantıda −1)
+}
+
+/** Çözülmüş sim olay listesi (kopru.sim_ikili). Hücre c = j·nx + i. */
+export interface SimVeri {
+  nx: number;
+  ny: number;
+  x0: number;
+  y0: number;
+  dx: number;
+  dy: number;
+  zUst: number;
+  zAlt: number;
+  ofset: Uint32Array; // nx·ny + 1
+  k: Int32Array;
+  z: Float32Array;
+  islem: Int16Array;
+}
+
+/** Parametre ucu yanıtı. */
+export interface ParametreYaniti {
+  sema: number;
+  is: Is;
+  sure_farki: number;
 }
