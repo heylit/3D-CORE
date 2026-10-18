@@ -17,7 +17,7 @@ concurrency:                 # aynı PR'a yeni push gelirse eski çalışmayı i
 jobs:
   pytest:
     runs-on: ubuntu-latest   # Windows 2x, macOS 10x dakika sayar
-    timeout-minutes: 10      # takılan test dakika yiyemez
+    timeout-minutes: 25      # takılan test runner'ı kilitlemesin (tüm suite ~8,5 dk, SPEC 19 @slow ~8 dk)
     env:
       VTK_DEFAULT_OPENGL_WINDOW: vtkOSOpenGLRenderWindow   # ekran yok: VTK doğrudan OSMesa ile çizer
     steps:
