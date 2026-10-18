@@ -52,3 +52,8 @@ SPEC dosyasının "Açık sorular" / "Varsayımlar" bölümüne bakınız.
 - Bağımlılık: E1 (`MachineProfile.validate()` `kind = "lathe"`, #107) birleşmeden örnek torna profili
   (`ornek-fanuc-torna.json`) eklenemez (`builtin_machines()` yüklerken düşer); K16'nın eksenel delme kısmı E3'e (#88) bağlı.
 - Testler `tests/cam/test_post_lathe.py` (SPEC 40 K14–K16) ayrı test thread'inde; `test_post_machine.py` örnek listesi dörde çıkar.
+- Testler 3ba81cb (cherry-pick); kod ayrı commit'te: `check_lathe` (kurs, devir, feed·S, taret, freze yolu, G54),
+  `post_lathe` = `check_lathe` + `write_lathe` + başlığın 3 satırından sonra iki yorum; `post()` torna profilinde
+  CamError ("post_lathe kullanın"), `dialect_for` torna profilinde `FANUC_TORNA`.
+- Test durumu: 46 / 47 geçti; `test_K16_axial_drill_post_equals_write_lathe` E3 (#88) birleşene kadar uygulanmamış
+  (CI'da kırmızı). PR #111, #88'den sonra main alınıp birleştirilir.
