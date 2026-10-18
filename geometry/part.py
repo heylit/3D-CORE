@@ -10,7 +10,7 @@ Birimler: mm, mm², mm³.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from pathlib import Path
 
 import numpy as np
@@ -145,6 +145,21 @@ class Hole:
         axis.flags.writeable = False
         object.__setattr__(self, "origin", origin)
         object.__setattr__(self, "axis", axis)
+
+    def _anahtar(self) -> tuple:
+        """Eşitlik ve hash için değer demeti (diziler tuple'a çevrilir)."""
+        return (tuple(self.origin), tuple(self.axis)) + tuple(
+            getattr(self, f.name) for f in fields(self) if f.name not in ("origin", "axis")
+        )
+
+    def __eq__(self, other: object) -> bool:
+        # dataclass'ın ürettiği __eq__ numpy dizilerinde ValueError verir; değer karşılaştırması yap
+        if not isinstance(other, Hole):
+            return NotImplemented
+        return self._anahtar() == other._anahtar()
+
+    def __hash__(self) -> int:
+        return hash(self._anahtar())
 
 
 class Part:
