@@ -141,8 +141,10 @@ Hepsi `@pytest.mark.occt`.
   - `z = (x² + y²)/200` paraboloidinden 7×7 nokta, `x, y ∈ [−30, 30]`.
   - Yüzey her noktadan `tol = 0.01` içinde geçer.
   - Hücre ortalarında paraboloide sapma ≤ 0.05 mm.
-  - `kalinlik = 3` ile kalınlaştırılan katının hacmi `A_yüzey · 3`'e göreli 1e-2 içinde.
-- [ ] **K6** Yüzeyle kesme: 80×80×40 blok K5 yüzeyiyle kesilir ve `"alt"` saklanır.
+  - `kalinlik = 3` ile kalınlaştırılan katının hacmi `A_yüzey · 3`'e göreli 5e-2 içinde (eğrilik yarıçapı ~100 mm'de
+    Steiner farkı ~%3; düzeltme 4).
+- [ ] **K6** Yüzeyle kesme: 60×60×40 blok (yüzeyle aynı x, y aralığı) K5 yüzeyiyle kesilir ve `"alt"` saklanır.
+  Yüzey uzatılmaz; yüzeyin baştan başa kesmediği gövde hata verir (düzeltme 4).
   - Kalan hacim `∫∫ (z_yüzey − z_taban) dA`'nın sayısal değerine göreli 1e-3 içinde.
   - Kesik yüz `FaceRef("…", "kesit")` ile bulunur.
 - [ ] **K7** Ağaç davranışı:
@@ -179,6 +181,10 @@ Hepsi `@pytest.mark.occt`.
    yarıçap sonraya kalır.
 3. **Nokta ağı STEP / IGES'ten yüzey olarak alınsın mı?** Karar: evet, ama ayrı küçük bir ek olarak: `Part.from_step`
    zaten katı okuyor, yalnız yüzey içeren STEP ayrı bir yol ister.
+
+4. **K5 / K6 ölçüt düzeltmesi** (kullanıcı onayı 2026-10-18 16:47, mesaj cmsg_01DTo5iWYb5RBUWgjk6xu1sGGabJ6sK4RC64XZsWuWP9nf):
+   K5 kalınlaştırma hacmi toleransı 1e-2 → 5e-2 (OCCT ölçümü −%2,8 / +%2,9); K6 bloğu 80×80×40 → 60×60×40,
+   yüzey uzatılmaz, yüzeyi aşan gövde hata verir, beklenen hacim paraboloid integraliyle göreli 1e-3.
 
 ## Kapsam dışı
 - Class-A süreklilik (G2/G3), yüzey düzeltme (sculpt), alt bölümlü yüzeyler (SubD).
