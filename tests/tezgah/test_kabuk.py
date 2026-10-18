@@ -743,6 +743,8 @@ def test_imports():
         "tezgah.ekranlar",
         "tezgah.ornekler_37",
         "fileio.proje",
+        "fileio.kurtarma",
+        "tezgah.hata",
         "cam.model",
         "core.model",
         "assy.model",
