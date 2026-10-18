@@ -42,6 +42,16 @@ def yonsel_katsayilar(phi_st: float, phi_ex: float, K_r: float) -> np.ndarray:
     raise NotImplementedError("SPEC 71: yonsel_katsayilar")
 
 
+def kesme_katsayisi(malzeme, fz: float, phi_st: float, phi_ex: float) -> float:
+    """Kienzle'den eşdeğer teğetsel katsayı K_t = kc11 · h_m^(−mc) [N/mm²] (K7).
+
+    h_m = fz / (φ_ex − φ_st) · (cos φ_st − cos φ_ex). `malzeme` kc11 ve mc özniteliği taşır:
+    malzeme.model.Malzeme (66) ya da cam.kuvvet.KienzleMaterial (32); import edilmez (K10).
+    kc11 / mc yoksa (None) CamError.
+    """
+    raise NotImplementedError("SPEC 71: kesme_katsayisi")
+
+
 def lob_freze(
     frf: TakimFRF | None,
     takim: Tool,
@@ -52,7 +62,7 @@ def lob_freze(
     fz: float | None = None,
     K_t: float | None = None,
     K_r: float | None = None,
-    malzeme=None,  # kc11 [N/mm²] ve mc özniteliği olan malzeme (Kienzle, SPEC 32 / 66)
+    malzeme=None,  # kc11, mc öznitelikli (Malzeme 66 / KienzleMaterial 32); K_t yoksa gerekir
     lob_sayisi: int = 10,
     profil: MachineProfile | None = None,
 ) -> Lob:
