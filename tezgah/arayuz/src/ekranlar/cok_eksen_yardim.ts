@@ -29,6 +29,8 @@ export interface Olay {
   b: string;
   distance: number;
   detail: string;
+  /** Şerit zamanı [s], sunucudan: zaman[k−1] + t·(zaman[k] − zaman[k−1]) (t hareket içi parametre). */
+  zaman: number;
 }
 
 function birim(q: Dordey): Dordey {
@@ -145,11 +147,14 @@ export function zamandanIndeks(t: number, zaman: ArrayLike<number>): number {
   return lo - 1 + (t - zaman[lo - 1]) / (zaman[lo] - zaman[lo - 1]);
 }
 
-/** Olay → şerit zamanı: olayın kendi `t`'si; `zaman[k] ≤ t ≤ zaman[k+1]` değilse Error (tutarsız sunucu verisi). */
+/**
+ * Olay → şerit zamanı: sunucunun `zaman` alanı. Adım k, k−1 noktasından k noktasına gider (SPEC 05);
+ * `1 ≤ k ≤ n−1` ve `zaman[k−1] ≤ olay.zaman ≤ zaman[k]` değilse Error (tutarsız sunucu verisi).
+ */
 export function olayZamani(olay: Olay, zaman: ArrayLike<number>): number {
-  const { k, t } = olay;
-  if (!Number.isInteger(k) || k < 0 || k + 1 >= zaman.length || !(zaman[k] <= t && t <= zaman[k + 1]))
-    throw new Error(`olay zamanı tutarsız: k = ${k}, t = ${t}`);
+  const { k, zaman: t } = olay;
+  if (!Number.isInteger(k) || k < 1 || k >= zaman.length || !(zaman[k - 1] <= t && t <= zaman[k]))
+    throw new Error(`olay zamanı tutarsız: k = ${k}, zaman = ${t}`);
   return t;
 }
 

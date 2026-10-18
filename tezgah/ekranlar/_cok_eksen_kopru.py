@@ -13,7 +13,7 @@ CokEksen sözlüğü (SPEC 47 "Ekran 2 / Veri modeli"):
       "parametreler": {"lead", "tilt", "tol_p", "tol_a", "L", "clearance"},
       "islemler": [{"i", "ad", "takim", "t0", "t1", "k0", "k1", "cerceve": Frame sözlüğü | None,
                     "yonelim": Orientation sözlüğü | None}],
-      "olaylar": [MachineEvent sözlüğü],       # SPEC 44 check() çıktısı, aynı sırada ve değerde
+      "olaylar": [MachineEvent sözlüğü + "zaman"],  # SPEC 44 check() çıktısı + şerit zamanı [s]
       "sim": {"removed_volume", "rest_volume" | None, "gouge_volume" | None, "total_time",
               "collisions": [Collision sözlüğü]} | None,
       "sapma": {"tol_p", "tol_a", "e_p_max", "e_a_max"},
@@ -80,7 +80,8 @@ def eksik_moduller() -> list[str]:
 
 def olaylar(is_: CokEksenIsi) -> list[dict]:
     """SPEC 44 `check(model, setup, ops, L, tcp=True, clearance=is_.clearance)` → olay sözlükleri
-    (`kind, k, t, a, b, distance, detail`), aynı sırada ve değerde."""
+    (`kind, k, t, a, b, distance, detail`), aynı sırada ve değerde; ek alan `zaman` [s] =
+    zaman[k−1] + t·(zaman[k] − zaman[k−1]) (k: SPEC 05 adım indeksi, t: hareket içi parametre; K10 eki)."""
     raise NotImplementedError("SPEC 47b: uygulanmadı")
 
 
