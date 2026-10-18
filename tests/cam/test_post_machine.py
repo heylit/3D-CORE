@@ -24,7 +24,10 @@ ORNEKLER = {
     # SPEC 31: örnek profiller kod commit'inde gelir
     "ORNEK-SINUMERIK-DIK": ("ornek-sinumerik-dik.json", "sinumerik"),
     "ORNEK-HEIDENHAIN-DIK": ("ornek-heidenhain-dik.json", "heidenhain"),
+    # SPEC 40 Ek E2: örnek torna profili kod commit'inde gelir
+    "ORNEK-FANUC-TORNA": ("ornek-fanuc-torna.json", "fanuc"),
 }
+TORNALAR = {"ORNEK-FANUC-TORNA"}
 
 
 def _ornek_dosyalari_var(*adlar: str) -> None:
@@ -68,7 +71,7 @@ def test_builtin_machines_are_the_three_examples():
         assert isinstance(m, MachineProfile)
         assert m.name == ad
         assert m.controller == dil
-        assert m.kind == "mill"
+        assert m.kind == ("lathe" if ad in TORNALAR else "mill")
         assert m.verified is False  # SPEC: uydurma kurs ve sınırlar, verified: false
         m.validate()
 

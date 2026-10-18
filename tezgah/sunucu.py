@@ -138,6 +138,7 @@ def uygulama(dist: Path | None = DIST, ekranlar: list[Ekran] | None = None) -> F
     for e in liste:
         if e.router is not None:
             app.include_router(e.router, prefix=f"{kayit.ONEK}/{e.ad}", dependencies=[Depends(_hazir_mi(e))])
+    app.state.ekranlar = liste  # kabuk (SPEC 37) ekran listesini buradan okur
     for e in liste:
         if e.kur is not None:
             e.kur(app)

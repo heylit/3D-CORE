@@ -1,6 +1,7 @@
 # SPEC 40 — Torna ekleri: eksenel delme ve punta, ters bağlama, profilli kanal, torna tezgâh profili
 
 > Durum: **onaylandı** (kullanıcı, 2026-10-18 11:13, proje sohbetinde yazılı toplu onay; önerilerle, E1–E4 ekleri dahil). Dalga 5, hat H6.
+> Düzeltme: K6 gidiş-dönüş toleransı SPEC 21'le aynı yapıldı (kullanıcı, 2026-10-18 13:59, 2 dakika kuralıyla onaylı öneri).
 > Bağımlılık (kod): SPEC 20 (`main`'de), SPEC 21 (PR #42), SPEC 22 (PR #41), SPEC 29 (PR #58), SPEC 30, `cam/model.py`
 > Ek 2 dalga 2 arayüzü (PR #60: `ToolKind.CONE`, `Tool.tip_angle`). Kod iskeleti birleşmemiş bağımlılık dallarının üstüne kurulabilir.
 
@@ -216,10 +217,11 @@ Geometrik değerlerde tolerans aksi yazılmadıkça mutlak `1e-9 mm`. Test geome
 - [ ] K4 `lathe_center`: tek paso, uç `z_top − t` (T2); `peck` verilmişse `CamError` — `test_torna_delme.py`
 - [ ] K5 Delme hataları: `z_uç < stock.zmin`, `z_top > stock.zmax`, borude `D ≤ d`, `H > flute_length`, `LatheTool` ya da
   `FLAT` takım → `CamError` — `test_torna_delme.py`
-- [ ] K6 (E3 ve E4 birleşince) Çapraz kontrol: `write_lathe → read_lathe` gidiş-dönüşü delme yolunu `≤ 0,25·10⁻³` içinde
-  geri veriyor ve `G96` içermiyor; `simulate_lathe` dolu çubukta delinen hacim
+- [ ] K6 (E3 ve E4 birleşince) Çapraz kontrol: `write_lathe → read_lathe` gidiş-dönüşü delme yolunu SPEC 21
+  toleranslarıyla (`x` yarıçapta `≤ 0,25·10⁻³`, `z` `≤ 0,5·10⁻³` mm: 3 basamaklı çıktının yarım basamağı) geri
+  veriyor ve `G96` içermiyor; `simulate_lathe` dolu çubukta delinen hacim
   `π/4·D²·(H − L_uç) + π/3·(D/2)²·L_uç`'ye ızgara toleransıyla (`≤ π·(D/2)²·dz`) eşit, çarpışma yok —
-  `test_torna_delme.py` (`importorskip` / bağımlılık birleşmeden atlanır)
+  `test_torna_delme.py` (bağımlılık birleşmeden `NotImplementedError`)
 - [ ] K7 `flip_profile` (T4): noktalar dönüşüyor, yay yönü değişiyor, açık profil ön→arka; iki kez uygulanınca aynı profil;
   `flip_stock` varsayılanı stoğu kendine götürüyor — `tests/cam/test_torna_ters.py`
 - [ ] K8 `flip_setup`: stok, `wcs` (`G55`), ad varsayılanları, verilen bağlama elemanları aynen; kutu stok → `CamError` —

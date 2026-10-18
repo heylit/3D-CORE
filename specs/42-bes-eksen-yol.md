@@ -119,3 +119,17 @@ Uç yolu boyu `L_k = |p₁ − p₀|`, istenen uç ilerlemesi `F` [mm/dk]: süre
 - Otomatik "en iyi" yönelim / eksen düzgünleştirme (B-spline), tekillik çevresinde yol yeniden planlama
   (yalnız 41'in tekillik kuralı ve `max_dangle` uygulanır).
 - G-code yazımı (`G93`, `G43.4`, `TRAORI`, `M128`): postprosesör SPEC'i. Malzeme simülasyonu: 43. Tezgâh çarpışması: 44.
+
+## Ek A — Eksen doğrusu başka geometriye takılınca (onaylandı: kullanıcının 2 dakika kuralı, koordinatör önerisi 2026-10-18 13:39 UTC, itiraz yok)
+- Sorun: eksen boyunca drop, eksen doğrusu üstündeki her geometriyi hesaba katar. Takım yüksek bir duvara doğru
+  eğilince doğru duvarı deler ve takım duvarın üstüne ya da arkasına oturur; sonuç çakmasızdır ama istenen
+  temas noktasında değildir ve sap / tutucu basamak denetimi bunu her zaman yakalamaz.
+- Kural: eksen boyunca drop'la bulunan merkez `c` ile sürüş noktası merkezi `c₀` arasında `|c − c₀| > tol`
+  ise bu konum **çarpışma** sayılır (`tol` = `Avoid.tol`; `Avoid` yoksa 1e-6 mm). Düzgün yüzeyde ve kesin
+  normalde `c = c₀` olduğundan (Teori, Konumlama) iyi noktalar etkilenmez.
+- Sonuç gövde çarpışmasıyla aynıdır: `Avoid` varsa yana eğim adayları aynı sırayla denenir, aday da bu
+  ölçütle ve basamak ölçütüyle sınanır; hiçbiri geçmezse ya da `Avoid` yoksa `CamError` (nokta indeksi,
+  `|c − c₀|`).
+- `floor` ile ağa değmeyen eksen drop'unda `c = c₀` alınır (ölçüt tetiklenmez).
+- Kabul: K5'e ek: duvara doğru eğik sabit eksen (`sabit`, duvara 10°) ile duvar dibinde `Avoid` yokken
+  `CamError`; `Avoid` ile seçilen eksen `|c − c₀| ≤ tol` sağlar. K4 yolları değişmez.
