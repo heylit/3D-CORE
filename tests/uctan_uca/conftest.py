@@ -254,3 +254,16 @@ def montaj_kisitlari() -> list[Mate]:
             flip=True,
         ),
     ]
+
+
+@pytest.fixture(scope="session")
+def montaj() -> Node:
+    """Çözülmüş montaj ağacı (H6'nın sonucu): mil flanşın merkez deliğinde."""
+    from assy.solver import solve
+    from assy.tree import apply, flatten
+
+    kok = montaj_agaci()
+    assy = flatten(kok, fixed=["flans"])
+    assy.mates = montaj_kisitlari()
+    solve(assy).apply(assy)
+    return apply(kok, assy)
