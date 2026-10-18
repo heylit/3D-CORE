@@ -17,4 +17,4 @@ SPEC metni kullanıcı onayında; onaydan sonra `NotImplementedError` iskeleti, 
 - Arayüz değişikliği gerekmiyor: sadece `Part.bbox/area/holes/planar_faces/cylindrical_faces/section_z`.
 
 ## Açık sorular
-- Katıdan dönel profil çıkarma SPEC 22'de (yol haritası); SPEC 27 torna tarafında profili girdi alır.
+- Katıdan dönel profil çıkarma ayrı bir SPEC'te ("Katı parçadan torna profili"); SPEC 27 torna tarafında profili girdi alır.

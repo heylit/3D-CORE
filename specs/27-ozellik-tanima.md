@@ -270,7 +270,7 @@ Analitik değerler `1e-6` mm (alan `1e-6` bağıl) içinde.
   (`t_z > 0`), stoktan taşan profil, hatalı `side` → `CamError`. (`::test_ic_taraf_ve_hatalar`)
 
 ## Kapsam dışı
-- Katı parçadan dönel yarı kesit profili çıkarmak: SPEC 22 (`22-torna-sim`, yol haritası satırı). Bu SPEC profili girdi alır.
+- Katı parçadan dönel yarı kesit profili çıkarmak: ayrı SPEC ("Katı parçadan torna profili"). Bu SPEC profili `Profile` olarak girdi alır.
 - Çok bağlamalı (alttan / yandan) işleme, 4–5 eksen; eğik düzlem, pah, yuvarlatma, serbest yüzey özellikleri
   (3B yüzey işleme SPEC 06'nın girdisi olan ağdır, özellik değildir).
 - Açık bölgede çokgen farkı ve açık cep takım yolu; özelliklerden otomatik işlem / takım seçimi (işlem planlama).
