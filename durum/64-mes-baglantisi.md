@@ -3,14 +3,25 @@
 Dal: `claude/project-thread-nkn98y` · Oturum: bulut
 
 ## Sıradaki adım
-Testler ayrı oturumda yazılacak (`tests/tezgah/mes/`); test commit'i cherry-pick edildikten sonra kod commit'i.
+CI yeşilse birleştirme. SPEC 58 birleşince `sure` / `maliyet` uçlarının bağlanması (şimdi 503).
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
 |---|---|---|---|
 | 2026-10-18 | — | — | iskelet; gövdeler `NotImplementedError`, test yok |
+| 2026-10-18 | 48 | 0 | testler ayrı oturumda (`2087edf` + düzeltme `65e6eac`, cherry-pick); kod commit'i testlere dokunmadı |
 
 ## Son oturum
+**2026-10-18 — kod**
+- `depo.py`: dosya her işlemde okunur ve atomik yazılır (geçici dosya + fsync + `os.replace`); bir PUT bir
+  `degisiklik`. Yeni revizyonda eskisi aynı numarayla `iptal`. Program = `post(..., program_no=1)` + POST yorumunun
+  ardına `MES <id> REV <rev>` (Heidenhain'de satırlar yeniden numaralanır). Föy:
+  `render_html(build_job_sheet("<parca_no> rev <parca_rev>", [kurulum], [ops], ToolLibrary(ops'un takımları), malzeme,
+  dialect_for(profil), program_no=1, names=...))`. `tazele` bağlı işin programını / föyünü yeniden üretip özetle karşılaştırır.
+- `uclar.py`: her istekte `yukle` → `esitle` (SPEC 63 kaydı) → `tazele`; MES hataları `tezgah/ekranlar/mes.py`'nin
+  `kur`'unda 404 / 409 / 503'e eşlenir. `sure` / `maliyet` SPEC 58 bağlanana kadar 503.
+- `docs/mes-openapi-v1.json` `sema.alt_sema(openapi)` çıktısı (kanonik JSON); `docs/mes-baglantisi.md` kılavuz.
+
 **2026-10-18 — iskelet**
 - `specs/64-mes-baglantisi.md`: onaylı metin (kullanıcı 16:06 UTC) olduğu gibi.
 - `tezgah/mes/sema.py` pydantic modelleri tam (OpenAPI şeması bunlardan çıkar); `depo.py` ve `uclar.py`

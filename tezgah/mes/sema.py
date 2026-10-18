@@ -139,3 +139,41 @@ class GonderimKaydi(BaseModel):
     program: GonderimProgram
     hedef: str
     sonuc: str  # "yazildi" | "ayni" | "ezildi"
+
+
+ONEK = "/api/mes/v1/"
+
+
+def _basvurular(x, bulunan: set[str]) -> None:
+    if isinstance(x, dict):
+        ref = x.get("$ref")
+        if isinstance(ref, str) and ref.startswith("#/components/schemas/"):
+            bulunan.add(ref.rsplit("/", 1)[1])
+        for v in x.values():
+            _basvurular(v, bulunan)
+    elif isinstance(x, list):
+        for v in x:
+            _basvurular(v, bulunan)
+
+
+def alt_sema(openapi: dict) -> dict:
+    """OpenAPI belgesinden /api/mes/v1/ yolları ve onların (dolaylı da) başvurduğu bileşen şemaları (§1).
+
+    docs/mes-openapi-v1.json bu fonksiyonun çıktısıdır (kanonik JSON: sort_keys, indent 2, sonda satır sonu).
+    """
+    yollar = {k: v for k, v in openapi.get("paths", {}).items() if k.startswith(ONEK)}
+    semalar = openapi.get("components", {}).get("schemas", {})
+    gerekli: set[str] = set()
+    _basvurular(yollar, gerekli)
+    bekleyen = list(gerekli)
+    while bekleyen:
+        ad = bekleyen.pop()
+        yeni: set[str] = set()
+        _basvurular(semalar.get(ad, {}), yeni)
+        for y in yeni - gerekli:
+            gerekli.add(y)
+            bekleyen.append(y)
+    return {
+        "paths": yollar,
+        "components": {"schemas": {k: semalar[k] for k in sorted(gerekli) if k in semalar}},
+    }
