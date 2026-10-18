@@ -28,8 +28,8 @@ THETA = 30.0  # konik yarı açı [derece]
 EPS = 1e-9
 
 
-def tool(kind: ToolKind, D: float = 2 * R, corner_r: float = 0.0) -> Tool:
-    return Tool(id=1, name="t", kind=kind, D=D, flute_length=30.0, corner_r=corner_r)
+def tool(kind: ToolKind, D: float = 2 * R, corner_r: float = 0.0, tip_angle: float | None = None) -> Tool:
+    return Tool(id=1, name="t", kind=kind, D=D, flute_length=30.0, corner_r=corner_r, tip_angle=tip_angle)
 
 
 def rho_grid(Rad: float) -> np.ndarray:
@@ -127,6 +127,8 @@ def test_k1_hatali_parametre(make):
         pytest.param(tool(ToolKind.FLAT), profil("duz", R), id="FLAT"),
         pytest.param(tool(ToolKind.FLAT, corner_r=RC), profil("torik", R, RC), id="FLAT-torik"),
         pytest.param(tool(ToolKind.FLAT, corner_r=R), profil("kure", R), id="FLAT-rc=R"),
+        pytest.param(tool(ToolKind.CONE, tip_angle=2 * THETA), profil("konik", R, theta=THETA), id="CONE-60"),
+        pytest.param(tool(ToolKind.CONE, tip_angle=90.0), profil("konik", R, theta=45.0), id="CONE-90"),
     ],
 )
 def test_k1_from_tool(t, fref):
@@ -253,3 +255,41 @@ def test_k3_offset_sifir(make):
 def test_k3_offset_negatif():
     with pytest.raises(CamError):
         Cutter.torus(R, RC).offset(-0.1)
+
+
+def konik_offset_closed(Rad: float, th_deg: float, delta: float):
+    """SPEC 06b konik ofset: uçta δ küre, ona teğet θ koni, kenarda δ yay (merkez eski kenar
+    noktası (R, h_c)), dış yarıçap R + δ; ucu 0'a kaydırılmış."""
+    th = math.radians(th_deg)
+    cot = 1 / math.tan(th)
+    h_c = Rad * cot
+    r1 = delta * math.cos(th)  # küre–koni teğet noktası
+    r2 = Rad + delta * math.cos(th)  # koni–kenar yayı teğet noktası
+
+    def f(rho):
+        rho = np.asarray(rho, dtype=float)
+        kure = delta - np.sqrt(np.maximum(delta**2 - rho**2, 0.0))
+        koni = (delta - delta * math.sin(th)) + (rho - r1) * cot
+        yay = delta + h_c - np.sqrt(np.maximum(delta**2 - (rho - Rad) ** 2, 0.0))
+        z = np.where(rho <= r1, kure, np.where(rho <= r2, koni, yay))
+        return np.where(rho > Rad + delta, np.inf, z)
+
+    return f
+
+
+@pytest.mark.parametrize("Rad, th", [pytest.param(R, THETA, id="R4-30"), pytest.param(2.0, 59.0, id="R2-59")])
+def test_k3_konik_offset(Rad, th):
+    """Konik ofset profili: kapalı form ve takım katısı ⊕ δ küre alt zarfı (kaba kuvvet), 1e-6."""
+    o = Cutter.cone(Rad, th).offset(DELTA)
+    assert o.R == pytest.approx(Rad + DELTA, abs=1e-12)
+    rho = np.linspace(0.0, Rad + DELTA, 61)
+    ref = minkowski_profile(profil("konik", Rad, theta=th), Rad, DELTA, rho)
+    np.testing.assert_allclose(konik_offset_closed(Rad, th, DELTA)(rho), ref, atol=1e-6, rtol=0)  # oracle
+    np.testing.assert_allclose(o.f(rho), ref, atol=1e-6, rtol=0)
+    assert np.isinf(o.f(np.array([Rad + DELTA + 1e-6]))[0])
+
+
+def test_k3_konik_offset_from_tool():
+    o = Cutter.from_tool(tool(ToolKind.CONE, tip_angle=2 * THETA)).offset(DELTA)
+    rho = rho_grid(R + DELTA)
+    np.testing.assert_allclose(o.f(rho), konik_offset_closed(R, THETA, DELTA)(rho), atol=EPS, rtol=0)

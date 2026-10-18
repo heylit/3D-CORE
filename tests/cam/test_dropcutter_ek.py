@@ -343,3 +343,85 @@ def test_k10_finish_torik_iz(s):
     dy = np.abs(ys[:, None] - yc[None, :])
     zarf = np.min(np.where(dy <= R10, zc[None, :] + f(np.minimum(dy, R10)), np.inf), axis=1)
     assert float(np.max(zarf - z0)) == pytest.approx(h_bek, abs=EPS)
+
+
+# --- K6 ---------------------------------------------------------------------------------------------
+
+RK, THK = 4.0, 30.0  # konik: R, yarı açı θ [derece]; tam uç açısı 60°
+
+
+def konik_tool(Rad: float = RK, th: float = THK) -> Tool:
+    t = Tool(id=6, name="konik", kind=ToolKind.CONE, D=2 * Rad, flute_length=40.0, tip_angle=2 * th)
+    rho = np.linspace(0.0, Rad, 101)
+    np.testing.assert_allclose(
+        Cutter.from_tool(t).f(rho), profil("konik", Rad, theta=th)(rho), atol=EPS, rtol=0
+    )
+    return t
+
+
+def konik(tur: str, Rad: float = RK, th: float = THK):
+    return konik_tool(Rad, th) if tur == "tool" else Cutter.cone(Rad, th)
+
+
+@pytest.mark.parametrize("tur", TUR)
+@pytest.mark.parametrize(
+    "beta_deg", [pytest.param(b, id=f"beta{b:g}") for b in (10.0, 45.0, 59.0, 60.0, 61.0, 75.0)]
+)
+def test_k6_egik_duzlem_iki_dal(beta_deg, tur):
+    """β ≤ 90° − θ: uç değer (z_CL = düzlem); β > 90° − θ: kenar değer R(tan β − cot θ)."""
+    b = math.radians(beta_deg)
+    xs = np.linspace(-40.0, 40.0, 17)
+    m = mesh_of(*grid_mesh(lambda X, Y: X * math.tan(b), xs, xs))
+    xy = np.random.default_rng(6).uniform(-10, 10, (30, 2))
+    cot = 1 / math.tan(math.radians(THK))
+    ek = 0.0 if math.tan(b) <= cot else RK * (math.tan(b) - cot)
+    z = drop(m, konik(tur), xy)
+    np.testing.assert_allclose(z, xy[:, 0] * math.tan(b) + ek, atol=EPS, rtol=0)
+
+
+@pytest.mark.parametrize("tur", TUR)
+def test_k6_tek_kose(tur):
+    zV = 7.0
+    m = mesh_of([[0.0, 0.0, zV], [-20.0, -5.0, zV - 30.0], [-20.0, 5.0, zV - 30.0]], [[0, 1, 2]])
+    f = profil("konik", RK, theta=THK)
+    for d in (0.0, 1.0, 2.5, RK - 1e-6):
+        for phi in (0.0, math.radians(30.0), math.radians(-50.0)):
+            z = drop(m, konik(tur), np.array([[d * math.cos(phi), d * math.sin(phi)]]))[0]
+            assert z == pytest.approx(zV - float(f(d)), abs=EPS), (d, phi)
+
+
+def cone_sphere_z(rho: float, d: float, Rad: float = RK, th_deg: float = THK) -> float:
+    """ρ yarıçaplı küre (merkez orijin) üstünde konik uç: teğet noktası koninin [uç, kenar]
+    parçasındaysa (ρ − d cos θ)/sin θ; değilse uç √(ρ² − d²) veya kenar √(ρ² − (d − R)²) − h_c."""
+    th = math.radians(th_deg)
+    t = d - rho * math.cos(th)  # teğet noktasının eksene uzaklığı
+    if t < 0:
+        return math.sqrt(rho * rho - d * d)
+    if t > Rad:
+        return math.sqrt(rho * rho - (d - Rad) ** 2) - Rad / math.tan(th)
+    return (rho - d * math.cos(th)) / math.sin(th)
+
+
+@pytest.mark.parametrize("tur", TUR)
+def test_k6_kure_agi(kure_agi, tur):
+    m, eps = kure_agi
+    rng = np.random.default_rng(8)
+    for d in (2.0, 7.0, 9.0, 10.5, 12.0, 13.0):  # uç, uç, teğet, teğet, teğet, kenar
+        phi = rng.uniform(0, 2 * math.pi)
+        z = drop(m, konik(tur), np.array([[d * math.cos(phi), d * math.sin(phi)]]))[0]
+        assert cone_sphere_z(RHO_S - eps, d) - EPS <= z <= cone_sphere_z(RHO_S, d) + EPS, d
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("seed", [7, 11])
+def test_k7_konik_cakma_yok_temas_var(seed):
+    V, T = wavy(seed)
+    m = mesh_of(V, T)
+    f = profil("konik", RK, theta=THK)
+    xy = np.random.default_rng(seed + 200).uniform(-5, 5, (25, 2))
+    z = drop(m, konik_tool(), xy)
+    for c, zc in zip(xy, z, strict=True):
+        ornek, best = ref_contact(V, T, c, f, RK)
+        assert ornek <= zc + EPS
+        assert best <= zc + EPS
+        assert best >= zc - 1e-7

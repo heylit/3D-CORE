@@ -17,7 +17,7 @@ import math
 import pytest
 
 from cam.model import CamError
-from cam.scallop import scallop_curved, scallop_flat, scallop_torus, stepover_flat
+from cam.scallop import scallop_cone, scallop_curved, scallop_flat, scallop_torus, stepover_flat
 from tests.cam.ref3d import envelope_ridge_bruteforce
 from tests.cam.ref3d_ek import profil
 
@@ -179,3 +179,34 @@ def test_k11_torik_rcR_kuresel(R, s):
 def test_k11_torik_hatali(R, r_c, s):
     with pytest.raises(CamError):
         scallop_torus(R, r_c, s)
+
+
+# --- SPEC 06b K11: konik uç ----------------------------------------------------------------------
+# İki komşu koni (aralık s) alt zarfının sırtı orta noktada: h = f(s/2) = (s/2)·cot θ (θ yarı açı, derece).
+
+
+@pytest.mark.parametrize(
+    "R, theta, s", [(4.0, 30.0, 3.0), (4.0, 45.0, 8.0), (2.0, 59.0, 0.7), (3.0, 10.0, 0.0)]
+)
+def test_k11_konik_formul(R, theta, s):
+    h = scallop_cone(R, theta, s)
+    assert h == pytest.approx((s / 2) / math.tan(math.radians(theta)), abs=1e-12)
+    assert h == pytest.approx(float(profil("konik", R, theta=theta)(s / 2)), abs=1e-12)
+
+
+@pytest.mark.parametrize(
+    "R, theta, s",
+    [
+        pytest.param(0.0, 30.0, 1.0, id="R=0"),
+        pytest.param(-1.0, 30.0, 1.0, id="R<0"),
+        pytest.param(4.0, 0.0, 1.0, id="theta=0"),
+        pytest.param(4.0, 90.0, 1.0, id="theta=90"),
+        pytest.param(4.0, -5.0, 1.0, id="theta<0"),
+        pytest.param(4.0, 30.0, -0.1, id="s<0"),
+        pytest.param(4.0, 30.0, 8.01, id="s>2R"),
+        pytest.param(4.0, math.nan, 1.0, id="theta-nan"),
+    ],
+)
+def test_k11_konik_hatali(R, theta, s):
+    with pytest.raises(CamError):
+        scallop_cone(R, theta, s)
