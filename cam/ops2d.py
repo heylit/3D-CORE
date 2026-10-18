@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -17,6 +18,9 @@ from cam.geom2d import LINK_TOL, TOL, closest, intersect
 from cam.model import CamError, Move, MoveType, Stock, Tool, ToolKind, Toolpath
 from cam.offset import offset
 from cam.profile import Arc, Line, Profile, Region, Segment
+
+if TYPE_CHECKING:
+    from cam.model import EntryMode
 
 
 @dataclass
@@ -32,6 +36,8 @@ class Cut:
     z_safe: float  # hızlı hareket yüksekliği
     clearance: float = 1.0  # dalmadan önce son paso üstünde bırakılan mesafe
     stepover: float | None = None  # yan paso s (cep, yüz alma)
+    entry: EntryMode | None = None  # SPEC 03c: giriş türü; None → düz dalma (SPEC 03)
+    ramp_feed: float | None = None  # SPEC 03c: rampa / helis iniş ilerlemesi; None → feed
 
     def __post_init__(self) -> None:
         if not self.z_top > self.z_bottom:

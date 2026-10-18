@@ -1,6 +1,6 @@
 # SPEC 03c — Rampa ve helis giriş
 
-> Taslak: onay bekliyor (Dalga 5, hat H1). Onaydan önce kod yazılmaz.
+> Onaylandı: kullanıcı, 2026-10-18 11:13 (proje sohbeti, yazılı toplu onay "önerilerle"). Dalga 5, hat H1.
 
 ## Amaç
 Cep (`cam.ops2d.pocket`) ve konturun (`cam.ops2d.contour`) malzemeye düz dalmak yerine **helis**, **zigzag
