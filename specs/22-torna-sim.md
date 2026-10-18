@@ -1,7 +1,8 @@
 # SPEC 22 — Torna talaş simülasyonu, süre, ayna ve tutucu çarpışması
 
 > **Durum: ONAYLANDI** (kullanıcı, 2026-10-18: 09:45 UTC kart "Önerilerle onayla": `LatheTool` arayüz eki ayrı PR,
-> profil çıkarma ayrı SPEC; 10:38 UTC yazılı onay). Metin kullanıcı onayı olmadan değişmez.
+> profil çıkarma ayrı SPEC; 10:38 UTC yazılı onay). SPEC 40 ek E4 (eksenel takım) 11:13 UTC yazılı onayla eklendi.
+> Metin kullanıcı onayı olmadan değişmez.
 
 ## Amaç
 Bir torna programını (SPEC 20 `Toolpath` listesi, `G18`, `G95`, `G96`) `CylinderStock` ham malzeme üzerinde
@@ -58,6 +59,19 @@ Takım `y = 0` düzleminde, kalınlığı ihmal edilen bir uçtur (uç ekseni me
 **Taraf** her yol için başlangıç noktasından belirlenir (SPEC 20 güvenli noktası `A` stoğun dışında / deliğin içindedir):
 `start.x ≥ D/2` → dış, `d > 0` ve `start.x ≤ d/2` → iç, aksi `CamError`. `TURN` yalnız dış, `BORE` yalnız iç; `GROOVE`
 dışta `T ∈ {3, 4}`, içte `T ∈ {1, 2}`; uyumsuzluk → `CamError`.
+
+### Eksenel takım (SPEC 40 ek E4: matkap, punta matkabı)
+İş mili ekseninde (`x = 0`) duran freze takımı (`cam.model.Tool`, `kind ∈ {DRILL, CONE}`) ile delme. Takım ekseni iş mili
+eksenidir, programlanan nokta **takım ucudur** (`C = P`, telafi yok), takım `−Z` yönünde ilerler.
+- Kesici bölge `(z, x)` düzleminde, uca göre (`r = 0`): uç konisi + kesici boyda dikdörtgen,
+  `L_uç = (D/2) / tan(φ/2)` (`φ = Tool.tip_angle`; `tip_angle = None` → `L_uç = 0`, düz uç, SPEC 05 kuralı),
+  `L_f = flute_length`; `core` = beşgen `(0, 0), (L_uç, D/2), (L_f, D/2), (L_f, −D/2), (L_uç, −D/2)` (`(z, x)` sırasında;
+  `L_uç = 0` iken dikdörtgen). `L_uç ≥ L_f` → `CamError`.
+- Gövde = sap: `[L_f, ∞) × [−d_s/2, d_s/2]` (`d_s = Tool.shank`), sonsuz uç gövde uzantısı gibi kesilir; çakışması `kenar_asimi`.
+  `Tool.holder` bu SPEC'te kullanılmaz.
+- Taraf kuralı uygulanmaz; takım eksene göre simetrik olduğundan `to_radial` aralığı `[0, D/2]` verir (3B'de de kesin).
+- Yolun **bütün noktaları** (`start` ve her hareketin `end`'i) `|x| ≤ 1e-9` olmalı, yay olmamalı; aksi `CamError`.
+  `FLAT`, `BALL` freze takımı → `CamError`.
 
 ### Doğrusal hareketin süpürmesi
 Bir dışbükey şeklin doğru boyunca süpürmesi iki ucundaki kopyalarının dışbükey zarfıdır:
@@ -141,7 +155,8 @@ ilk `k` adımı ayrıca simüle edildiğinde çıkan haritayla **birebir** aynı
 - Dokunulmayacak: `cam/model.py` ve tüm `*/model.py` (gerekirse ayrı arayüz PR'ı, aşağıda), SPEC 05'in diğer dosyaları,
   SPEC 20 dosyaları, `geometry/part.py`, ortak dosyalar.
 - Bağımlılık: numpy. `cam.sim.lathe` → `cam.model`, `cam.lathe` (`tip_offset`), `cam.profile`, `cam.sim` (SPEC 05:
-  `Machine`, `Collision`, `SimStep`, `move_time`), `geometry.part.Part` (yalnız `part_rmap`). Yeni bağımlılık yok.
+  `Machine`, `Collision`, `SimStep`, `move_time`), `geometry.part.Part` (yalnız `part_rmap`). E4 için `cam.model` `ToolKind.CONE` ve `Tool.tip_angle` (PR #60,
+  arayüz eki). Yeni bağımlılık yok.
 
 ### Gerekli arayüz eki (ayrı PR, "CAM model arayüzü" thread'i)
 `LatheTool`'da kesici kenar boyu ve tutucu yok; simülasyon bunlarsız kesici bölgeyi ve tutucu çarpışmasını tanımlayamaz.
@@ -161,8 +176,9 @@ Hepsi `cam.sim`'den dışa açılır. Hatalar `cam.model.CamError`.
   - `RadialMap.empty_like(grid)`; `centers() -> np.ndarray` `(nz,)`; `intervals(i) -> list[tuple[float, float]]`;
     `subtract(i, a, b)` (`a ≥ b` → `CamError`); `add(i, a, b)` (birleştirerek; parça haritası kurmak için);
     `outer() -> np.ndarray`, `inner() -> np.ndarray`, `volume() -> float`, `copy()`.
-- `cutter_shape(tool: LatheTool, side: str) -> LatheShape` — `LatheShape(core: np.ndarray (m, 2), r: float,
-  body: np.ndarray (p, 2), holder: np.ndarray | None, half_width: float)`; hepsi `C`'ye göre `(z, x)`.
+- `cutter_shape(tool: LatheTool | Tool, side: str | None) -> LatheShape` — `LatheShape(core: np.ndarray (m, 2), r: float,
+  body: np.ndarray (p, 2), holder: np.ndarray | None, half_width: float)`; hepsi `C`'ye göre `(z, x)`. Eksenel takımda
+  (`Tool`, `DRILL`/`CONE`) `side` yok sayılır (`None` verilebilir); `LatheTool`'da `side` `"dis"` veya `"ic"`.
 - `sweep_interval(poly: np.ndarray, r: float, p0, p1, z: np.ndarray) -> tuple[np.ndarray, np.ndarray]` —
   `conv(poly + p0, poly + p1) ⊕ D(r)`'nin `z` doğrularıyla kesişimi `(a, b)` (x cinsinden; kesişmeyen `a = +inf, b = −inf`).
   `p0`, `p1` `(z, x)` sırasında.
@@ -185,8 +201,8 @@ Hepsi `cam.sim`'den dışa açılır. Hatalar `cam.model.CamError`.
   - `Setup` verilirse `stock` ve `fixtures` ondan; `CylinderStock` verilirse bağlama elemanı yok.
   - `initial` verilirse (ör. parça ters bağlanmadan önceki durumun devamı) o haritadan başlar; ızgarası
     `(z0, dz, nz)` kurulan ızgarayla aynı olmalı; kopyalanır, değiştirilmez.
-  - Her yol `validate()`'ten geçer. `CamError`: boş `ops`; `Stock` (kutu) ham malzeme; `Tool` (freze takımı);
-    `plane != ZX`; `edge_len = None`; taraf belirlenemiyor veya takım türüyle uyuşmuyor; tutucu `K`'ye giriyor; `part`
+  - Her yol `validate()`'ten geçer. `CamError`: boş `ops`; `Stock` (kutu) ham malzeme; `DRILL`/`CONE` dışı `Tool`;
+    eksenel takımla `x ≠ 0` nokta veya yay; `plane != ZX`; `edge_len = None`; taraf belirlenemiyor veya takım türüyle uyuşmuyor; tutucu `K`'ye giriyor; `part`
     veya `initial` ızgarası uyuşmuyor; `arc_tol`, `tol`, `gouge_tol ≤ 0`. `feed_mode = PER_MIN` (`G94`) kabul edilir
     (SPEC 05 süre kuralı). `machine=None` → `Machine()`.
 
@@ -241,6 +257,11 @@ Testlerde uydurma geometri; beklenen değerin kaynağı test yorumunda. Tolerans
 - [ ] K18 Hatalar: boş program, kutu `Stock`, freze `Tool`, `G17` yol, `edge_len = None`, taraf belirsiz, `TURN` içte,
   `BORE` dışta, tutucu `K`'ye giriyor, `part` / `initial` ızgarası uyuşmuyor, `tol/arc_tol/gouge_tol ≤ 0`, `section_at`
   aralık dışı → `CamError` — `tests/cam/test_lsim_errors.py`
+- [ ] K19 Eksenel takım (E4): `cutter_shape` matkapta beşgen köşeleri kapalı formla 1e-12 (`φ = 118°`, `CONE` `φ = 90°`,
+  `tip_angle = None` dikdörtgen); dolu çubuğa `H` derin delik → kaldırılan hacim `π(D/2)²·(H − L_uç) + π(D/2)²·L_uç/3`,
+  hata ≤ `π(D/2)²·dz`; delik hücrelerinde iç yarıçap `D/2` (koni bölgesi hariç); boruda (`d > 0`) delme hacmi farkla;
+  `H > L_f` (sap malzemeye giriyor) → `kenar_asimi`; `FLAT` takım, `x ≠ 0` nokta, yaylı yol → `CamError` —
+  `tests/cam/test_lsim_drill.py`
 - [ ] Tüm testler yeşil, `ruff check .` ve `ruff format --check .` temiz, bu SPEC'in testlerinde 0 "uygulanmamış";
   10 s'den uzun testler `@pytest.mark.slow`
 
