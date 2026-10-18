@@ -133,9 +133,16 @@ def check(
     scope: str = "",
     across: bool = False,
     ignore: Iterable[tuple[str, str]] = (),
+    broadphase: str = "bvh",
 ) -> list[Clash]:
-    """scope altındaki yaprak çiftlerinde girişim / temas / dar boşluk listesi (walk sırasıyla)."""
+    """scope altındaki yaprak çiftlerinde girişim / temas / dar boşluk listesi (walk sırasıyla).
+
+    broadphase: aday çift araması, "bvh" (SPEC 53 sınır kutusu ağacı) veya "sweep"
+    (sort and sweep); sonuç aynı.
+    """
     _negatif_degil(clearance=clearance, tol_v=tol_v, tol_d=tol_d)
+    if broadphase not in ("bvh", "sweep"):
+        raise AssyError(f"broadphase 'bvh' veya 'sweep' olmalı ({broadphase!r})")
     yapraklar = _yapraklar(root, parts)
     dugumler = {y: n for y, n, _ in walk(root)}
     yollar = {y for y, _, _ in yapraklar}

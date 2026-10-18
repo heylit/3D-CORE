@@ -317,9 +317,13 @@ def simulate(
     max_cells: int = 20_000_000,
     model: str = "zmap",
     initial: ZMap | DexelMap | None = None,
+    block: int | None = 256,
+    merge: bool = True,
 ) -> SimResult:
     """Freze programını kutu stok üzerinde z-haritasıyla simüle eder (SPEC 05)."""
     _check_positive(arc_tol=arc_tol, tol=tol, gouge_tol=gouge_tol)
+    if block is not None and (isinstance(block, bool) or not isinstance(block, int) or block <= 0):
+        raise CamError(f"block pozitif tam sayı veya None olmalı (block={block!r})")
     if machine is None:
         machine = Machine()
     if not isinstance(machine, Machine):
