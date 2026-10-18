@@ -24,12 +24,26 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from geometry.part import GeometryError
 from sketch.model import SketchError
-from tezgah import SEMA, depo, kopru, model_kopru
+from tezgah import SEMA, depo, kopru
 from tezgah.ekranlar import Ekran
 
 router = APIRouter()
+
+
+# build123d (geometry/) ilk kullanımda yüklenir: sunucunun açılışı onu beklemez.
+def _mk():
+    from tezgah import model_kopru
+
+    return model_kopru
+
+
+def _geometri_hatasi() -> type[ValueError]:
+    from geometry.part import GeometryError
+
+    return GeometryError
+
+
 IKILI = "application/octet-stream"
 
 _kilit = threading.Lock()
@@ -59,15 +73,15 @@ def _model() -> dict:
 def _dogrula(model: dict) -> dict:
     """Model JSON'u: sözlük, sema = SEMA, adimlar liste, JSON'a çevrilebilir (nan / inf yok)."""
     if not isinstance(model, dict):
-        raise GeometryError("Model JSON'u sözlük olmalı")
+        raise _geometri_hatasi()("Model JSON'u sözlük olmalı")
     if model.get("sema") != SEMA:
-        raise GeometryError(f"Model sürümü {model.get('sema')!r}, beklenen {SEMA}")
+        raise _geometri_hatasi()(f"Model sürümü {model.get('sema')!r}, beklenen {SEMA}")
     if not isinstance(model.get("adimlar", []), list):
-        raise GeometryError("Model 'adimlar' alanı liste olmalı")
+        raise _geometri_hatasi()("Model 'adimlar' alanı liste olmalı")
     try:
         return json.loads(json.dumps(model, allow_nan=False))
     except (TypeError, ValueError) as e:
-        raise GeometryError(f"Model JSON'a çevrilemiyor: {e}") from None
+        raise _geometri_hatasi()(f"Model JSON'a çevrilemiyor: {e}") from None
 
 
 def _yaz(model: dict) -> None:
@@ -91,7 +105,7 @@ def model_yaz(model: dict) -> dict:
     m = _dogrula(model)
     p, r = insa(m)  # adım hatası rapora yazılır, PUT düşmez
     _yaz(m)
-    return {"sema": SEMA, "rapor": model_kopru.rapor_json(r), "hacim": None if p is None else float(p.volume)}
+    return {"sema": SEMA, "rapor": _mk().rapor_json(r), "hacim": None if p is None else float(p.volume)}
 
 
 def _parametreler(i: EskizIstek) -> dict:
@@ -101,7 +115,7 @@ def _parametreler(i: EskizIstek) -> dict:
 @router.post("/eskiz/coz")
 def eskiz_coz(i: EskizIstek) -> dict:
     try:
-        return model_kopru.eskiz_coz(i.eskiz, i.olculer, _parametreler(i))
+        return _mk().eskiz_coz(i.eskiz, i.olculer, _parametreler(i))
     except SketchError as e:
         raise _celiski(e) from None
 
@@ -109,7 +123,7 @@ def eskiz_coz(i: EskizIstek) -> dict:
 @router.post("/eskiz/surukle")
 def eskiz_surukle(i: SurukleIstek) -> dict:
     try:
-        return model_kopru.eskiz_surukle(i.eskiz, i.nokta, i.hedef, i.olculer, _parametreler(i))
+        return _mk().eskiz_surukle(i.eskiz, i.nokta, i.hedef, i.olculer, _parametreler(i))
     except SketchError as e:
         raise _celiski(e) from None
 
@@ -120,24 +134,24 @@ def _parca(k: int | None):
     p, r = insa(_model(), k)
     if p is None:
         neden = f" ({r.hata.kimlik}: {r.hata.hata})" if r.hata is not None else ""
-        raise GeometryError(f"Bu adımda katı yok{neden}")
+        raise _geometri_hatasi()(f"Bu adımda katı yok{neden}")
     return p
 
 
 @router.get("/ag")
 def model_ag(k: int | None = None):
-    return Response(model_kopru.ag_ikili(_parca(k)), media_type=IKILI)
+    return Response(_mk().ag_ikili(_parca(k)), media_type=IKILI)
 
 
 @router.get("/yuz/{index}")
 def model_yuz(index: int) -> dict:
-    return model_kopru.yuz_json(_parca(None), index)
+    return _mk().yuz_json(_parca(None), index)
 
 
 @router.post("/tezgaha-gonder")
 def tezgaha_gonder() -> dict:
     m = _model()
-    tanim, uyarilar = model_kopru.gonder_uyarilari(m)
+    tanim, uyarilar = _mk().gonder_uyarilari(m)
     tanim.ad = f"model-{m.get('ad', 'model')}"
     depo.kaydet(tanim.ad, tanim)  # freze ekranı bu işi açar (#/freze?is=…)
     J = kopru.is_json(tanim)
@@ -157,7 +171,7 @@ def ice_aktar(belge: dict, onbellek: Mapping[str, bytes]) -> None:
     m = _dogrula(belge)
     _, r = insa(m)
     if r.hata is not None:
-        raise GeometryError(f"Model kurulamadı: adım '{r.hata.kimlik}': {r.hata.hata}")
+        raise _geometri_hatasi()(f"Model kurulamadı: adım '{r.hata.kimlik}': {r.hata.hata}")
     _yaz(m)
 
 

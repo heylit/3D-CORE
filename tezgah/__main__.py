@@ -39,7 +39,7 @@ def main(argv: list[str] | None = None) -> int:
     url = f"http://{HOST}:{a.port}/"
     if not a.tarayici_yok:
         threading.Timer(1.0, webbrowser.open, (url,)).start()
-    print(f"Tezgah: {url}  (durdurmak için Ctrl+C)")
+    print(f"Tezgah: {url}  (durdurmak için Ctrl+C)", flush=True)
     uvicorn.run(uygulama(DIST), host=HOST, port=a.port, log_level="warning")
     return 0
 

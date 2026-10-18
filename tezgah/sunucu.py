@@ -19,6 +19,7 @@ Sunucu yalnızca 127.0.0.1'de dinler (`__main__`).
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -29,7 +30,6 @@ from pydantic import BaseModel
 from assy.model import AssyError
 from cam.model import CamError
 from core.model import ModelError
-from geometry.part import GeometryError
 from sketch.model import SketchError
 from tezgah import SEMA, depo, kopru
 from tezgah import ekranlar as kayit
@@ -39,14 +39,20 @@ DIST = Path(__file__).parent / "arayuz" / "dist"
 IKILI = "application/octet-stream"
 
 # A3 §4: çekirdeğin hata türleri → 422, gövde {"detail": str(e)} (ekrandan bağımsız, tek yerde).
+# GeometryError (ValueError) ayrı eşlenir: geometry.part build123d'yi yükler, açılışta import edilmez.
 CEKIRDEK_HATALARI: tuple[type[Exception], ...] = (
     KeyError,
     CamError,
     ModelError,
     AssyError,
-    GeometryError,
     SketchError,
 )
+
+
+def _geometri_hatasi_mi(e: Exception) -> bool:
+    """`geometry.part.GeometryError` mı; modül yüklenmediyse bu hata da atılmış olamaz."""
+    gp = sys.modules.get("geometry.part")
+    return gp is not None and isinstance(e, gp.GeometryError)
 
 
 class Parametre(BaseModel):
@@ -71,6 +77,13 @@ def uygulama(dist: Path | None = DIST, ekranlar: list[Ekran] | None = None) -> F
 
     for tur in CEKIRDEK_HATALARI:
         app.add_exception_handler(tur, cekirdek_hatasi)
+
+    async def deger_hatasi(istek: Request, e: Exception) -> JSONResponse:
+        if _geometri_hatasi_mi(e):
+            return JSONResponse({"detail": str(e)}, status_code=422)
+        raise e  # başka ValueError: eskisi gibi sunucu hatası
+
+    app.add_exception_handler(ValueError, deger_hatasi)
 
     def is_al(ad: str) -> kopru.IsTanimi:
         if not depo.var_mi(ad):
