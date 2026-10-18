@@ -19,10 +19,18 @@ import pytest
 
 from cam.model import CamError, Tool, ToolKind
 
+# Konik takımda (SPEC 06b) tip_angle zorunlu; ToolKind.CONE yoksa bu ayar kullanılmaz.
+TIP_ANGLE_CONE = 90.0
+
+
+def kind_kw(kind: ToolKind) -> dict:
+    """Takım tipinin zorunlu ek alanları (CONE: tip_angle)."""
+    return {"tip_angle": TIP_ANGLE_CONE} if kind.name == "CONE" else {}
+
 
 def make_tool(kind: ToolKind = ToolKind.FLAT, **kw) -> Tool:
     """Ø6 takım; kind ve ek alanlar parametre."""
-    return Tool(id=1, name="t6", kind=kind, D=6.0, flute_length=20.0, **kw)
+    return Tool(id=1, name="t6", kind=kind, D=6.0, flute_length=20.0, **{**kind_kw(kind), **kw})
 
 
 def old_dict(kind: ToolKind = ToolKind.FLAT) -> dict:
@@ -39,6 +47,7 @@ def old_dict(kind: ToolKind = ToolKind.FLAT) -> dict:
         "stickout": None,
         "holder": None,
         "cutting": {},
+        **kind_kw(kind),
     }
 
 
