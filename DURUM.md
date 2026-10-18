@@ -5,7 +5,7 @@
 > (kurallar: `BASLANGIC.md` bölüm 7). Sıra ve paralellik: `docs/yol-haritasi.md` → "Paralel çalışma: dalgalar".
 
 ## Açık dalga
-**Dalga 2 sürüyor.** Tamamlanan: 11, 15, 16. Diğerleri bulut thread'lerinde (aşağıdaki tablo). Dalga 1 tamamlandı (01, 02, 03, 04, 08).
+**Dalga 2 sürüyor.** Tamamlanan: 11, 15, 16, 20, 23. Diğerleri bulut thread'lerinde (aşağıdaki tablo). Dalga 1 tamamlandı (01, 02, 03, 04, 08).
 
 ## SPEC tablosu
 | SPEC | Dalga | Durum | Kimde (dal / oturum) | Ayrıntı |
@@ -23,8 +23,9 @@
 | 07-montaj-agaci | 2 | sürüyor (PR #20) | `claude/spec-07-montaj-agaci-ejmdg5` | — |
 | 14-cam-kurulum | 2 | sürüyor (PR #27) | `claude/spec-14-cam-kurulum-05r8z1` | — |
 | 06-cam-3d | 2 | sürüyor | `claude/spec-06-cam-3d-09jwcj` | — |
-| 23-parca-ek | 2 | sürüyor | `claude/spec-23-parca-ek-die5mp` | — |
-| 05-cam-sim, 20-torna-yol | 2 | SPEC taslağı | — | — |
+| 23-parca-ek | 2 | tamamlandı (PR #28, `0bf3649`) | — | `durum/23-parca-ek.md` |
+| 20-torna-yol | 2 | tamamlandı (PR #34, `25548e0`) | — | `durum/20-torna-yol.md` |
+| 05-cam-sim | 2 | SPEC taslağı | — | — |
 | 24-tezgah | 3 | SPEC onaylı (PR #19, `97935da`); K3/K5/K6 SPEC 05'ten sonra yeniden onaylanacak | — | — |
 | 09-girisim, 10-montaj-cam, 12-gmsh, 13-calculix, 17-kroki, 21-torna-gcode | 3 | bekliyor | — | — |
 | 18-ozellik-agaci, 19-adaptif-kaba, 22-torna-sim | 4 | bekliyor | — | — |
@@ -56,6 +57,8 @@
 | 11-tet4 | 3B tetrahedron eleman, gerilme tensörü (PR #21) | 2026-10-18 | 58 |
 | 15-goruntuleyici | pyvista geliştirici görüntüleyici (PR #18, #25) | 2026-10-18 | 41 |
 | 16-teknik-resim | Teknik resim, DXF R12 / SVG (PR #22) | 2026-10-18 | 129 |
+| 23-parca-ek | Parça ekleri: delikler, havşa, eğik delik, pah/radyus (PR #28) | 2026-10-18 | 127 |
+| 20-torna-yol | Torna takım yolları: alın, çap, kaba, finiş, kanal, diş, uç radyusu telafisi (PR #34) | 2026-10-18 | 220 |
 
 ## Kurulum kontrol listesi (bir kez, kullanıcı)
 - [x] `powershell -ExecutionPolicy Bypass -File _kurulum\yerlestir.ps1`
