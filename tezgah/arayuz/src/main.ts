@@ -468,6 +468,9 @@ const kanca: TezgahKanca = {
   gcodeSatirSayisi: () => (D.gelenIs ?? D.is)?.gcode.length ?? 0,
   toplamSure: () => (D.gelenIs ?? D.is)?.sure.toplam ?? 0,
   yuzey: () => sahne.yuzey(),
+  katmanlar: () => {
+    throw new Error("A3: uygulanmadı");
+  },
 };
 window.__tezgah = kanca;
 
