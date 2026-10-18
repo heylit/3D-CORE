@@ -169,6 +169,8 @@ def contour(profile: Profile, tool: Tool, cut: Cut, side: str, climb: bool = Tru
     Tırmanma: dış kontur CW, iç kontur CCW; climb=False tersi.
     """
     r = _check_tool(tool)
+    if not tool.center_cutting:
+        raise NotImplementedError("SPEC 03 Ek A2: merkezden kesmeyen takım")
     if side not in ("dis", "ic", "uzerinde"):
         raise CamError(f"contour: side 'dis', 'ic' veya 'uzerinde' olmalı ({side!r})")
     if side == "uzerinde":
@@ -277,6 +279,10 @@ def pocket(region: Region, tool: Tool, cut: Cut, climb: bool = True) -> Toolpath
     """Kontur-paralel cep: halkalar d_k = r + k·s, içten dışa; halkalar arası mümkünse inmeden geçiş."""
     r = _check_tool(tool)
     s = _stepover(cut, tool)
+    if not tool.center_cutting:
+        raise NotImplementedError("SPEC 03 Ek A2: merkezden kesmeyen takım")
+    if s > r + TOL:
+        raise NotImplementedError("SPEC 03 Ek A1: cepte yan paso en fazla D/2")
     first = offset(region, r)
     if not first:
         raise CamError("pocket: takım cebe sığmıyor")

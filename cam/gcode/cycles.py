@@ -114,6 +114,8 @@ class DrillOp:
 
     def validate(self) -> None:
         """Tutarsızlıkta CamError: rpm, feed, delik listesi, z < r ≤ z0, çevrim tipi, q, dönüş."""
+        if not self.tool.center_cutting:
+            raise NotImplementedError("SPEC 04 Ek C3: merkezden kesmeyen takım")
         if self.rpm <= 0:
             raise CamError(f"Delik op '{self.name}': devir pozitif olmalı (rpm={self.rpm})")
         if self.feed <= 0:
