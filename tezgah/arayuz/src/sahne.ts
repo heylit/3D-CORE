@@ -8,6 +8,7 @@ import { yuzeyAt } from "./ikili";
 import type { Is, Noktalar, Nokta3, SimVeri } from "./tipler";
 import { hareketKonum, parcaSayisi } from "./yol";
 
+/** Yüzey / yol renk katmanı (freze). */
 export type Katman = "islem" | "yuk";
 
 const ISI: [number, THREE.Color][] = [
@@ -105,6 +106,8 @@ export class Sahne {
   private zI = new Int16Array(0);
   private zK = new Int32Array(0);
   private cizimIstegi = true;
+  /** A3: ekran katmanları; her ekran yalnız kendi grubuna çizer. */
+  private ekranKatmanlari = new Map<string, THREE.Group>();
 
   constructor(private kap: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
@@ -120,7 +123,7 @@ export class Sahne {
     gunes.position.set(-120, -160, 260);
     const kenar = new THREE.DirectionalLight(0x9fc4ff, 0.6);
     kenar.position.set(200, 180, 80);
-    this.sahne.add(gunes, kenar, this.grup, this.takim, this.hayaletG);
+    this.sahne.add(gunes, kenar);
     this.hayaletG.visible = false;
     new ResizeObserver(() => this.boyutla()).observe(kap);
     this.boyutla();
@@ -286,7 +289,40 @@ export class Sahne {
     this.zK = new Int32Array(N);
   }
 
-  katman(ad: Katman): void {
+  /** A3: ekranın sahne katmanı (yoksa kurulur ve sahneye eklenir). */
+  katman(ad: string): THREE.Group {
+    let g = this.ekranKatmanlari.get(ad);
+    if (!g) {
+      g = new THREE.Group();
+      g.name = ad;
+      this.ekranKatmanlari.set(ad, g);
+      this.sahne.add(g);
+      this.ciz();
+    }
+    return g;
+  }
+
+  /** A3: ekran kapanınca katmanı sahneden kalkar (geometriyi ekran yönetir). */
+  katmanBirak(ad: string): void {
+    const g = this.ekranKatmanlari.get(ad);
+    if (!g) return;
+    this.sahne.remove(g);
+    this.ekranKatmanlari.delete(ad);
+    this.ciz();
+  }
+
+  /** A3: sahnedeki ekran katmanlarının adları. */
+  katmanlar(): string[] {
+    return [...this.ekranKatmanlari.keys()];
+  }
+
+  /** İş çizimini (yol, yüzey, takım, hayalet) verilen ekran katmanına bağlar. */
+  isKatmani(g: THREE.Group): void {
+    g.add(this.grup, this.takim, this.hayaletG);
+    this.ciz();
+  }
+
+  renkKatmani(ad: Katman): void {
     this.katmanAd = ad;
     if (!this.is) return;
     this.grup.remove(this.yolTum!, this.yolBiten!);
