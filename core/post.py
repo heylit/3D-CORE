@@ -39,3 +39,18 @@ def element_stress_tensors(model: Model, u: np.ndarray) -> dict[int, np.ndarray]
         if hasattr(eleman, "stress"):
             sonuc[e.id] = eleman.stress(e, model, u)
     return sonuc
+
+
+def von_mises(sigma) -> float | np.ndarray:
+    """Von Mises eşdeğer gerilmesi [MPa] (SPEC 13). (6,) → float, (n, 6) → (n,)."""
+    raise NotImplementedError("SPEC 13: von_mises")
+
+
+def principal_stresses(sigma) -> np.ndarray:
+    """Asal gerilmeler σ1 ≥ σ2 ≥ σ3 [MPa] (SPEC 13). (6,) → (3,), (n, 6) → (n, 3)."""
+    raise NotImplementedError("SPEC 13: principal_stresses")
+
+
+def nodal_stress_tensors(model: Model, u: np.ndarray) -> dict[int, np.ndarray]:
+    """düğüm id -> σ (6,) [MPa], düğümü içeren katı elemanların hacim ağırlıklı ortalaması (SPEC 13)."""
+    raise NotImplementedError("SPEC 13: nodal_stress_tensors")
