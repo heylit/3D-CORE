@@ -39,6 +39,16 @@ def trochoid_pitch(rho: float, r: float, phi: float) -> float:
     raise NotImplementedError("SPEC 19: trochoid_pitch")
 
 
+def trochoid_loop_engagement(rho: float, r: float, p: float) -> float:
+    """Ek A1: döngü boyunca en büyük temas açısı φ_loop(ρ, r, p) [derece]."""
+    raise NotImplementedError("SPEC 19: trochoid_loop_engagement")
+
+
+def trochoid_loop_pitch(rho: float, r: float, phi: float) -> float:
+    """Ek A2: φ_loop ≤ φ_t olan en büyük döngü aralığı p* [mm]."""
+    raise NotImplementedError("SPEC 19: trochoid_loop_pitch")
+
+
 # ---------------------------------------------------------------- malzeme ızgarası
 
 
@@ -118,5 +128,5 @@ def trochoidal_slot(
     ramp_angle: float = 2.0,
     climb: bool = True,
 ) -> Toolpath:
-    """P0 → P1 düz kanalı, döngü yarıçapı ρ = (w − D)/2 ve aralığı ≤ p(ρ, φ_t) olan trokoidle açar."""
+    """P0 → P1 düz kanalı, döngü yarıçapı ρ = (w − D)/2 ve aralığı ≤ p* (Ek A2) olan trokoidle açar."""
     raise NotImplementedError("SPEC 19: trochoidal_slot")

@@ -201,3 +201,41 @@ Trokoidal kanal — `tests/cam/test_trochoid.py`
 - Yay uydurma (G1 dizisini G2/G3'e çevirme), yol yumuşatma, boş hareket sırası optimizasyonu.
 - Trokoidal kanalda yay veya çok parçalı merkez yolu, duvar perdah geçişi.
 - Kesin (ızgarasız) temas açısı hesabı: ızgara ve `tol(φ)` yeterli kabul edildi.
+
+## Ek A — Trokoid döngüsü boyunca temas sınırı (onaylandı: kullanıcı, 2026-10-18; koordinatör sorusu 11:56, 2 dakika kuralıyla kabul, kural mesajı 11:14)
+Test oturumu, "Trokoidal kanal" kuralının `φ_t`'yi aştığını buldu: formül 3 yalnız döngünün **ön noktasındaki** açıyı verir;
+takım ön noktayı geçmeden önce, döngünün alt yarısında (tırmanmada CCW turun ilerleme yönünün sağında kalan, `−n` yarısı)
+taze malzemeye dönerken açı büyür. Bu oturumda örneklemeyle (`n_α = 7200`, döngü 0,5° adımlı) ölçülen değerler, `p = p(ρ, φ_t)` ile:
+
+| `ρ` | `φ_t` | ön nokta | döngü boyunca en büyük | konum |
+|---|---|---|---|---|
+| 2,5 | 60° | 60,0° | 67,9° | ≈ 310° |
+| 2,5 | 90° | 90,0° | 118,2° | 270° |
+| 5 | 45° | 45,0° | 46,7° | ≈ 333° |
+| 1 | 30° | 30,0° | 31,6° | ≈ 331° |
+
+(`r = 5`; konum döngü merkezinden ilerleme yönüne göre CCW açı, ön nokta 0°.)
+
+**A1 — Döngü temas açısı.** Döngü merkezi orijinde, önceki döngünün merkezi `(−p, 0)`, takım döngüye arka noktadan (`α = π`)
+girip CCW döner. Takım merkezi `α`'da (`ρ·(cos α, sin α)`) iken malzeme: önceki döngünün boşalttığı `ρ + r` yarıçaplı dairenin
+**dışı**, ve bu döngüde `π`'den `α`'ya kadar süpürülmüş bölgenin (merkezleri o yay üzerindeki `r` yarıçaplı disklerin birleşimi)
+**dışı**. `φ(α)` bu malzemeye düşen takım çevresinin açısı; `φ_loop(ρ, r, p) = max_{α ∈ (π, 3π]} φ(α)`.
+Yalnız bir önceki döngü hesaba katılır: daha eski döngüler malzemeyi yalnız azaltır, bu yüzden `φ_loop` bir üst sınırdır ve ilk
+döngüde (`k = 1`, önceki = helis dairesi) tam değerdir. Ön noktada (`α = 2π`) formül 3'e eşittir. Sayısal hesap: çevrede
+7200 nokta, `α`'da en az 720 adım ve en büyüğün çevresinde ikiye bölme; hassasiyet 0,1°.
+
+**A2 — Adım seçimi.** Trokoidal kanalın döngü aralığı `p* = max{ p ∈ (0, p(ρ, φ_t)] : φ_loop(ρ, r, p) ≤ φ_t }`
+(ikiye bölme, `φ_loop` `p`'de artandır; göreli hassasiyet 1e-9). "Trokoidal kanal" bölümündeki `p = p(ρ, φ_t)` yerine `p*` kullanılır:
+`N = ⌈L/p*⌉`, `p' = L/N ≤ p*`. Bedeli biraz daha küçük adım, yani biraz daha uzun süre.
+
+**A3 — Arayüz eki (`cam/adaptive.py`).**
+- `trochoid_loop_engagement(rho: float, r: float, p: float) -> float` — `φ_loop` [derece]; `rho > 0`, `r > 0`, `p > 0` dışında `CamError`.
+- `trochoid_loop_pitch(rho: float, r: float, phi: float) -> float` — `p*`; `rho > 0`, `0 < phi < 180` dışında `CamError`.
+- `trochoid_pitch` (formül 3, ön nokta) aynen kalır.
+
+Ek A ile değişen kabul kriterleri (eski metindeki karşılıklarının yerine geçer):
+- [ ] K1a `trochoid_loop_engagement(ρ, r, p(ρ, φ))` ≥ `φ − 0,1°` (ön nokta alt sınırdır) ve yukarıdaki tabloyla 0,2° içinde;
+  `trochoid_loop_pitch(ρ, r, φ) ≤ trochoid_pitch(ρ, r, φ)` ve geri konunca `trochoid_loop_engagement = φ` (0,2°) — `tests/cam/test_adaptive_grid.py`
+- [ ] K13 (yerine) Döngü sayısı `N + 1 = ⌈L/p*⌉ + 1`, `p* = trochoid_loop_pitch(ρ, r, φ_t)`; diğer maddeler aynı — `tests/cam/test_trochoid.py`
+- [ ] K14 (yerine) Yeniden oynatmada helis dışındaki her parçanın `φ ≤ φ_t + tol(φ_t)`; en büyük `φ`, `trochoid_loop_engagement(ρ, r, L/N)`
+  ile `tol + 0,2°` içinde aynı ve bu değer `≤ φ_t + 0,2°` — `tests/cam/test_trochoid.py`
