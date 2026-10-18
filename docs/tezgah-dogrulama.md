@@ -78,3 +78,49 @@ Föy güvensiz program için üretilmez: `check_tools` ve `check_setup` hatası 
 Föydeki her doğrulama maddesi `data-bolum` ile yukarıdaki bölüm numarasına bağlıdır; bu yüzden bölüm 1–5'in
 başlık numaraları değiştirilmez. Süreler SPEC 05 modeline göre tahmindir (yazıcının eklediği güvenli Z geri
 çekmeleri ve bağlama değişimi hariç); tezgâhtaki gerçek süre kayda geçirilir.
+
+## 7. Doğrulama programı
+Bir tezgâh profili (`cam/post/profiles/*.json`) ve bir program ancak bu basamaklardan sırayla geçince güvenilir
+sayılır (SPEC 48). Her basamak bir **doğrulama kaydıdır**; kodu `atolye/dogrulama.py`.
+
+| # | Basamak | Ne yapılır | Geçme koşulu |
+|---|---|---|---|
+| 1 | `masa` | Bölüm 1 ve iş föyündeki bölüm 1 maddeleri; simülasyonda çarpma yok | Tüm maddeler işaretli |
+| 2 | `havada` | Bölüm 2–4: iş sıfırı, takım boyları, Z'si kaydırılmış kuru çalıştırma (hızlı %25, ilerleme %50, tek blok) | Program havada sonuna kadar bitti; takım değişimi ve döner eksen yönleri beklendiği gibi |
+| 3 | `mum` | Aynı program işlenebilir mum ya da sert köpükte, ilerleme %50–100 | Parça çıktı, gözle hata yok; kritik ölçüler alındı (gevşek tolerans) |
+| 4 | `ilk_metal` | Aynı program gerçek malzemede (önce alüminyum), bölüm 5 | Ses, titreşim, talaş normal; kırık takım veya alarm yok |
+| 5 | `olcum` | İş föyü ölçüm listesindeki **tüm** kalemler ölçülüp girilir | Her kalem `alt ≤ ölçülen ≤ üst` (ISO 2768-1) |
+
+Mum / köpük basamağı metalden önce gelir: yanlış bir yol orada takımı ve tezgâhı kırmadan görünür. Bir tezgâhta
+`havada`, `mum` ya da `ilk_metal` atlanacaksa kayda `atlandi` ve gerekçe yazılır; `masa` ve `olcum` atlanamaz.
+Bir basamak `kaldi` ise neden bulunup düzeltilir ve iş `masa` basamağından yeniden başlar.
+
+Kayıt nasıl tutulur:
+1. Proje dosyasının yanında bir `dogrulama/` klasörü seçin. Kayıtlar
+   `dogrulama/<profil adı>/<tarih>-<sıra>-<basamak>.json` dosyalarıdır.
+2. `bos_kayit(profil, program, föy, basamak, kapsam, tarih, operatör)` doldurulacak kaydı verir: bu belgenin bölüm
+   1–5 maddeleri ve iş föyünün maddeleri işaretsiz, ölçüm kalemleri (yalnız `olcum`) boş.
+3. Tezgâh başında maddeleri işaretleyin, ölçülenleri girin, sonucu (`gecti` / `kaldi` / `atlandi`) ve gerekiyorsa
+   gerekçeyi yazın; `kaydet(kayıt, "dogrulama", program=..., job=...)` sırayı, ölçümleri ve dosya özetlerini
+   denetleyip kaydı yazar. Kural ihlali kaydı yazmaz, dosya adıyla başlayan bir hata verir.
+4. `hazirlik(profil, oku("dogrulama"))` her kapsam için "hazir" ya da eksik ilk basamağı söyler; `rapor_html`
+   aynı bilgiyi yazdırılabilir rapor olarak verir. Profil dosyası değişirse (kurs, kinematik…) eski kayıtlar o profil
+   için sayılmaz ve rapor bunu söyler.
+5. `verified: true` işaretini profil dosyasına **yalnız siz** koyarsınız; kod bu alanı hiçbir zaman yazmaz.
+
+## 8. Tezgâh sırası
+Basitten karmaşığa; her tezgâh bir öncekinin doğrulanmış kısmını taşır. "Gerekenler" o tezgâhta gerçek bir program
+yazabilmek için `main`'de olması gereken SPEC'lerdir; kalın yazılanlar henüz yoktur ve o tezgâhın 4. basamaktan
+sonrası onları bekler.
+
+| Sıra | Tezgâh | Kapsam | Uydurma doğrulama parçası | Gerekenler |
+|---|---|---|---|---|
+| 1 | NLX 2500 | `torna_2x` | Kademeli mil (alın, boy, pah, kanal); sonra diş | 20, 21, 22, 30 Ek A, 38b |
+| 2 | DMU 50 | `freze_3x`, sonra `freze_3arti2` | Prizmatik blok: yüz alma, cep, 4 delik (G83); sonra 3+2 ile 30° eğik yüz | 14, 29, 30, 31, 38, 41 |
+| 3 | NHC 5000 | `freze_4x_indeks` | Aynı blokta 4 yüz, B ekseni 0/90/180/270 indeksleme | 31, 41 |
+| 4 | DMU 75 / 90 | `freze_5x` | Eş zamanlı 5 eksen: SPEC 42 örnek yüzeyi | 42, 43, 44, **51** |
+| 5 | DMF 360 | `freze_3arti2` (kafa-masa) | Uzun parça, kafa B ekseniyle eğik delik | 41, 44 |
+| 6 | NTX 3000 | `torna_freze` | Milde radyal delik ve kama (C/Y) | **49**, B0 |
+
+Lehçe tezgâhın kontrolörüne göre seçilir (önce Sinumerik, sonra Heidenhain); kontrolör tezgâh panelinden teyit edilip
+profilin `controller` alanına yazılır. Dalga 6'nın bitmesi için ilk iki tezgâhın kayıtları şarttır.
