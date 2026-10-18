@@ -26,7 +26,10 @@ post = halka("30", "cam.post", "post", "builtin_machines", "dialect_for", "read_
 
 CELL = 0.5
 ISO_DILLER = ("grbl", "fanuc", "haas")  # gcode_ref yalnız ISO dilini okur (Sinumerik / Heidenhain SPEC 31)
-MAKINELER = sorted(n for n, m in post.builtin_machines().items() if m.controller in ISO_DILLER)
+# Torna profili (SPEC 40 Ek E2) freze yolunu yazmaz; burada yalnız freze profilleri
+MAKINELER = sorted(
+    n for n, m in post.builtin_machines().items() if m.controller in ISO_DILLER and m.kind == "mill"
+)
 
 
 L_MAX = 110.0  # en uzun takımın ölçü boyu: tutucu 60 + matkap sarkması 50 (conftest)
