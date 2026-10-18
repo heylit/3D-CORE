@@ -25,7 +25,7 @@ import math
 from cam.gcode.cycles import DrillOp
 from cam.gcode.dialect import GRBL, Dialect
 from cam.gcode.modal import ModalState, fmt, snap
-from cam.model import ARCS, CamError, FeedMode, LatheTool, Move, MoveType, Plane, Setup, Toolpath
+from cam.model import ARCS, Z_AXIS, CamError, FeedMode, LatheTool, Move, MoveType, Plane, Setup, Toolpath
 from cam.setups import check_setup, clearance_height
 
 AXES = ("X", "Y", "Z")
@@ -215,6 +215,11 @@ class _Writer:
         self.state.end_cycle()
 
 
+def cevrim_op(op) -> bool:
+    """SPEC 04b op'u mu (G82 `DwellDrillOp`, G84 `TapOp`): `kind` ve kanonik açılımı olan op."""
+    return getattr(op, "kind", None) in ("G82", "G84") and hasattr(op, "to_toolpath")
+
+
 def _yazilabilir(tp: Toolpath) -> None:
     """Koruma (SPEC 00 Ek 2, SPEC 21'de kalıcı): bu yazıcı yalnız G17 / G94 / sabit devirli freze yolu yazar.
     Torna yolları `cam.gcode.lathe.write_lathe` ile yazılır; freze başlığındaki G90 / G94 Fanuc tornada
@@ -227,6 +232,11 @@ def _yazilabilir(tp: Toolpath) -> None:
         raise CamError(f"Takım yolu '{tp.name}': {tp.feed_mode.value} desteklenmiyor, yalnız G94 (mm/dk)")
     if tp.css is not None:
         raise CamError(f"Takım yolu '{tp.name}': G96 sabit kesme hızı desteklenmiyor (SPEC 21)")
+    # Çok eksen (SPEC 41–42): iş düzlemi ve eğik takım ekseni bu yazıcıda yok; WCS'deymiş gibi yazılmasın.
+    if tp.frame is not None:
+        raise CamError(f"Takım yolu '{tp.name}': iş düzlemi (frame) bu yazıcıda desteklenmiyor (SPEC 41)")
+    if any(m.axis is not None and m.axis != Z_AXIS for m in tp.moves):
+        raise CamError(f"Takım yolu '{tp.name}': eğik takım ekseni bu yazıcıda desteklenmiyor (SPEC 42)")
 
 
 def _z_kesme(ops: list[Toolpath | DrillOp]) -> float:
@@ -299,6 +309,10 @@ def write(
             _yazilabilir(op)
         elif isinstance(op, DrillOp):
             op.validate()
+        elif cevrim_op(op):
+            op.validate()
+            if op.kind == "G84" and not (dialect.canned_cycles and dialect.rigid_tap):
+                raise CamError(f"'{op.name}': {dialect.name} kılavuz çekemez (eşzamanlı iş mili / G84 yok)")
         else:
             raise CamError(f"Yazılamayan op tipi: {type(op).__name__}")
     z_top = max((op.start[2] for op in ops), default=0.0)
@@ -322,6 +336,13 @@ def write(
         _stok_ustu(ops, dialect, float(safe_z), stock_top)
     if length_offsets is not None:
         _ofsetler(length_offsets, ops, dialect)
+    if any(cevrim_op(op) for op in ops):  # G82 / G84 (SPEC 04b) yalnız blok planıyla yazılır (SPEC 30)
+        from cam.post.format_iso import format, plan  # geç import: cam.post cam.gcode'u kullanır
+
+        wcs = None if setup is None else setup.wcs.code
+        z_s = float(safe_z)
+        blocks = plan(ops, dialect, program_no, z_s, stock_top, wcs=wcs, length_offsets=length_offsets)
+        return format(blocks, dialect)
     w = _Writer(dialect, program_no)
     w.safe_z = float(safe_z)
     w.wcs = None if setup is None else setup.wcs.code
