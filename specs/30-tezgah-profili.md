@@ -313,3 +313,14 @@ doğrulama eki (E1, `kind = "lathe"`) "CAM model arayüzü" thread'inindir.
   `rpm_max = 4000`, `feed_max = 5000`, `tool_slots = 12`, `verified = false`. Bu dosya eklenince
   `builtin_machines()` dört profil verir (K3 testi o PR'da SPEC 40 test thread'iyle güncellenir).
 - Kabul: SPEC 40 K14–K16 (`tests/cam/test_post_lathe.py`, SPEC 40 test thread'i).
+
+## Ek B — Yay bloğunda yuvarlanmamış bitiş (SPEC 31 Heidenhain helisi; kullanıcı onayı 2026-10-18 13:58, 2 dakika kuralı)
+- `Arc(x, y, z, i, j, ccw, F, end=None)`: `end` yuvarlanmamış model bitişidir (`Move.end`); `plan()` her yayda doldurur.
+  Blok eşitliğine katılmaz (`compare=False`): yazılan metni belirlemez, K2 blok altın listeleri değişmez.
+- ISO (GRBL, Fanuc, Haas) ve Sinumerik biçimleyicileri `end`'i kullanmaz; çıktıları bayt bayt aynıdır.
+- Heidenhain `CP IPA IZ` bitişi yazmaz, tezgâh başlangıcı CC çevresinde döndürür. Biçimleyici CC'yi başlangıç
+  ile `end`'in orta dikmesine yuvarlanmış merkezin izdüşümü olarak alır, 4 ondalığa yuvarlar ve çevresindeki
+  ±2 ızgara noktasından okunan bitişi `end`'e en yakın yapanı seçer (merkez kayması ölçülen ≤ 2.1·10⁻³ mm).
+  Helis CC'si 4 ondalıkla yazılır: 3 ondalıklı ızgarada eksene paralel kirişte sapma 10⁻³ mm'ye çıkar.
+  Varsayım (doğrulanmalı): TNC 640 / 620 / 530 metrik giriş çözünürlüğü 0.1 µm. Gerekçe: yuvarlanmış başlangıç ve merkezden geçen çember model bitişinden
+  1.4·10⁻³ mm'ye kadar uzak geçebilir; yalnız yuvarlanmış değerle K5 (uç ≤ 0.5·10⁻³) tutmaz.

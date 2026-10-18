@@ -25,7 +25,8 @@ from tests.uctan_uca.conftest import STOK_UST, A, B, halka
 post = halka("30", "cam.post", "post", "builtin_machines", "dialect_for", "read_program")
 
 CELL = 0.5
-MAKINELER = sorted(post.builtin_machines())
+ISO_DILLER = ("grbl", "fanuc", "haas")  # gcode_ref yalnız ISO dilini okur (Sinumerik / Heidenhain SPEC 31)
+MAKINELER = sorted(n for n, m in post.builtin_machines().items() if m.controller in ISO_DILLER)
 
 
 L_MAX = 110.0  # en uzun takımın ölçü boyu: tutucu 60 + matkap sarkması 50 (conftest)
