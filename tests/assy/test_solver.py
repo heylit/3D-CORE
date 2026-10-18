@@ -449,16 +449,20 @@ def test_satisfied_between_two_fixed_components_ok():
     assert res.iterations == 0
 
 
-def test_wrong_branch_parallel_normals_raises():
-    """K10 / SPEC kenar durum: çakışık düzlemlerin normalleri tam aynı yönde (n_b = n_a) →
-    n_a + n_b = 2n, gradyeni n·(ω × n) = 0, çözücü ilerleyemez → AssyError (yerel minimum / çelişki)."""
+def test_wrong_branch_parallel_normals_escapes():
+    """SPEC kenar durum (kullanıcı kararı 2026-10-18): çakışık düzlemlerin normalleri tam aynı yönde
+    (n_b = n_a) → n_a + n_b = 2n, gradyen sıfır (durağan nokta). Çözücü küçük bir dönmeyle kaçar ve
+    doğru dalda kapanır: n_b = −n_a, B'nin düzlemi z = 0'da."""
     asm = Assembly(
         "yanlis_dal",
         [Component("A", "a", fixed=True), Component("B", "b", T=transform(None, (0, 0, 2)))],
         [Mate(C, plane("A"), plane("B"))],
     )
-    with pytest.raises(AssyError):
-        solve(asm)
+    res = solve(asm)
+    T = res.T["B"]
+    np.testing.assert_allclose(world_dir(T, (0, 0, 1)), [0.0, 0.0, -1.0], atol=TOL_POS)
+    assert world_point(T, (0, 0, 0))[2] == pytest.approx(0.0, abs=TOL_POS)
+    assert res.dof == 3
 
 
 # ---------------------------------------------------------------- K11: hata durumları

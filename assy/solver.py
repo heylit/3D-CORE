@@ -56,6 +56,17 @@ def _jacobian(assembly: Assembly, unknowns: list[str]) -> np.ndarray:
     return np.vstack([jacobian(assembly, m, unknowns) for m in assembly.mates])
 
 
+# Durağan noktadan kaçış: en fazla bu kadar itme; itme = sabit, genel yönlü küçük dönme (|ω| = 1e-3 rad)
+_MAX_KICKS = 3
+_KICK = 1e-3 * np.array([1.0, 2.0, 3.0]) / np.sqrt(14.0)
+
+
+def _stationary(J: np.ndarray, r: np.ndarray) -> bool:
+    """‖Jᵀ r‖ ≈ 0 iken r ≠ 0: Gauss–Newton adımı sıfır, ‖r‖² için durağan nokta (ör. yanlış dal)."""
+    g = np.linalg.norm(J.T @ r)
+    return bool(g <= 1e-9 * np.linalg.norm(J) * np.linalg.norm(r))
+
+
 def _scale(assembly: Assembly) -> np.ndarray:
     """Artık satırı başına ölçek: yön satırları L, uzunluk satırları 1 (bkz. modül açıklaması)."""
     if not assembly.mates:
@@ -137,6 +148,7 @@ def solve(assembly: Assembly, tol: float = 1e-10, max_iter: int = 50) -> SolveRe
 
     r = w * residuals(work)
     iterations = 0
+    kicks = 0
     while not (r.size == 0 or float(np.max(np.abs(r))) <= tol):
         if iterations >= max_iter:
             raise AssyError(
@@ -157,6 +169,15 @@ def solve(assembly: Assembly, tol: float = 1e-10, max_iter: int = 50) -> SolveRe
             if float(np.linalg.norm(r_try)) < norm0:
                 accepted = True
                 break
+        if not accepted and kicks < _MAX_KICKS and _stationary(J, r):
+            # Durağan nokta (ör. yanlış dal, n_a = n_b): küçük sabit dönmeyle it, artık artabilir.
+            # Gerçek çelişkide itmeden sonra yine buraya düşülür; hak bitince AssyError.
+            kick = np.tile(np.concatenate([np.zeros(3), _KICK]), len(unknowns))
+            _apply_step(work, T0, unknowns, kick)
+            kicks += 1
+            r = w * residuals(work)
+            iterations += 1
+            continue
         if not accepted:
             for name in unknowns:  # son kabul edilen konuma dön (mesaj o konumdan yazılsın)
                 work.component(name).T = T0[name]
