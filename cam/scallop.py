@@ -1,5 +1,6 @@
 """
-SPEC 06 — Küresel uç iz (scallop) yüksekliği: düzlem, dışbükey ve içbükey silindir / küre.
+SPEC 06 / 06b — İz (scallop) yüksekliği: küresel uç düzlem, dışbükey ve içbükey silindir / küre;
+torik ve konik uç yatay düzlem.
 
 Düzlemde komşu iki pasonun merkezleri s uzakta; eğri yüzeyde merkezler eğrilik merkezinden
 c = ρ ± R uzakta ve aralarındaki açı α. Sırt, iki takım dairesinin açıortaydaki kesişimidir:
@@ -67,10 +68,31 @@ def scallop_curved(R: float, rho: float, alpha: float, convex: bool) -> float:
 
 
 def scallop_torus(R: float, r_c: float, s: float) -> float:
-    """SPEC 06b — torik uç, yatay düzlem: s ≤ 2(R − r_c) → 0; değilse r_c − √(r_c² − (s/2 − R + r_c)²)."""
-    raise NotImplementedError("SPEC 06b: scallop_torus")
+    """SPEC 06b — torik uç, yatay düzlem: h = f(s/2); s ≤ 2R_t → 0, değilse r_c − √(r_c² − (s/2 − R_t)²).
+
+    R = D/2, r_c köşe radyüsü, R_t = R − r_c. İki komşu profilin sırtı orta noktadadır.
+    """
+    _sonlu("scallop_torus", R=R, r_c=r_c, s=s)
+    if R <= 0:
+        raise CamError(f"scallop_torus: R pozitif olmalı (R={R})")
+    if not 0 <= r_c <= R:
+        raise CamError(f"scallop_torus: 0 ≤ r_c ≤ R olmalı (r_c={r_c}, R={R})")
+    if not 0 <= s <= 2 * R:
+        raise CamError(f"scallop_torus: 0 ≤ s ≤ 2R olmalı (s={s}, R={R})")
+    Rt = R - r_c
+    if s <= 2 * Rt:
+        return 0.0
+    q = s / 2 - Rt
+    return r_c - math.sqrt(max(r_c * r_c - q * q, 0.0))
 
 
 def scallop_cone(R: float, theta: float, s: float) -> float:
-    """SPEC 06b — konik uç, yatay düzlem: h = (s/2)·cot θ; theta yarı açı [derece]."""
-    raise NotImplementedError("SPEC 06b: scallop_cone")
+    """SPEC 06b — konik uç, yatay düzlem: h = (s/2)·cot θ; theta yarı açı [derece], s ≤ 2R."""
+    _sonlu("scallop_cone", R=R, theta=theta, s=s)
+    if R <= 0:
+        raise CamError(f"scallop_cone: R pozitif olmalı (R={R})")
+    if not 0 < theta < 90:
+        raise CamError(f"scallop_cone: yarı açı 0..90 derece arasında olmalı (theta={theta})")
+    if not 0 <= s <= 2 * R:
+        raise CamError(f"scallop_cone: 0 ≤ s ≤ 2R olmalı (s={s}, R={R})")
+    return s / 2 / math.tan(math.radians(theta))
