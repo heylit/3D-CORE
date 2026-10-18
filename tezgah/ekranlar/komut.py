@@ -8,8 +8,20 @@ Birinci aşama uçları (gövde ve yanıtlar sema: 1):
                        yüzey, başlangıç yüzeyinden (z_ust) farklı her hücrede tek olay (olay k'si = k).
                        `kopru.sim_yuzey(veri, k)` / ön yüzde `yuzeyAt` bu yüzeyi verir. Bilinmeyen iş → 404,
                        k ∉ 0..n → 422.
-İkinci aşama (SPEC 37 / 58 / 72 bekliyor): POST /uygula, POST /surukle.
-Ctrl+K kabuğundur (KABUK_KISAYOLLARI); kanca gelene kadar palet "Komut" sekmesinde çalışır.
+İkinci aşama:
+    POST /uygula   {model_adi, adim, secim?} → {sema, model, fark}
+                   `adim` cozumle'nin yerleşimsiz adımı; `komut.yerlestir(adim, secim, model)` ile model
+                   ekranının ("model" bölümü) modeline eklenir, A3 `ice_aktar` ile yazılır. Geri al: SPEC 37
+                   kabuğunun ara katmanı isteği yakalar (etiket = X-Tezgah-Etiket başlığı).
+                   fark = `fark.fark_json(plan_farki(eski, yeni, süreler))`. model_adi güncel modelin adı
+                   değilse 404; KomutError → 422 (cozumle gibi); model kurulamazsa 422, model değişmez.
+    POST /surukle  {model_adi, adim, olcu, deger, sira} → {sema, fark, sira}
+                   Önizleme, modeli değiştirmez. `adim` adım kimliği; `olcu` o adımdaki ölçü yolu ("mesafe",
+                   "d", "derinlik", "olculer/<kısıt sırası>"); `deger` sayı ya da ifade. Bırakınca ön yüz
+                   modeli /api/ekran/model/ PUT ile yazar (geri al oradan). Bilinmeyen adım / ölçü → 422.
+    Plan ve süre: `artimli.Onbellek` (ekran başına bir), stok = parça kutusu + STOK_PAYI (alt 0),
+    kütüphane KUTUPHANE, malzeme MALZEME, süre `fark.islem_sureleri` (72'ye kadar), maliyet yok (58).
+Ctrl+K kabuğundur (KABUK_KISAYOLLARI); kancayla palet her ekranda açılır.
 """
 
 from __future__ import annotations
@@ -17,6 +29,7 @@ from __future__ import annotations
 import struct
 import threading
 import weakref
+from pathlib import Path
 
 import numpy as np
 from fastapi import APIRouter, HTTPException
@@ -32,6 +45,9 @@ from tezgah.sarma import Sarici
 
 router = APIRouter()
 IKILI = "application/octet-stream"
+KUTUPHANE = Path(__file__).resolve().parents[2] / "examples" / "takim_kutuphanesi.json"
+MALZEME = "AlMg3"
+STOK_PAYI = 1.0  # mm, XY ve üst stok payı (alt 0)
 
 _kilit = threading.Lock()
 _SARICI: dict[int, Sarici] = {}  # id(tanim) → Sarici; tanım silinince temizlenir
@@ -95,6 +111,30 @@ def sarma(is_adi: str, k: int) -> Response:
     except ModelError as e:
         raise HTTPException(422, str(e)) from None
     return Response(veri, media_type=IKILI)
+
+
+class UygulaIstek(BaseModel):
+    model_adi: str
+    adim: dict
+    secim: dict | None = None
+
+
+class SurukleIstek(BaseModel):
+    model_adi: str
+    adim: str
+    olcu: str
+    deger: float | str
+    sira: int
+
+
+@router.post("/uygula")
+def uygula(i: UygulaIstek) -> dict:
+    raise NotImplementedError("SPEC 62: /uygula")
+
+
+@router.post("/surukle")
+def surukle(i: SurukleIstek) -> dict:
+    raise NotImplementedError("SPEC 62: /surukle")
 
 
 def _sifirla() -> None:

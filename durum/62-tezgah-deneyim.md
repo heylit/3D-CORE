@@ -3,17 +3,28 @@
 Dal: `claude/spec-15-goruntuleyici-d318ku` (oturumun verdiği dal adı) · Oturum: bulut (kod), testler ayrı oturumda
 
 ## Aşamalar
-- **Birinci aşama (bu PR):** komut paleti dilbilgisi (`tezgah/komut.py`), ISO 286 (`tezgah/tolerans.py`), sarma
-  (`tezgah/sarma.py`), ekran uçları `POST /cozumle` ve `GET /sarma/{is}/{k}` (`tezgah/ekranlar/komut.py`),
-  ön yüz `src/ekranlar/komut.ts` (Ctrl+K açılır katmanı, sekme değil) ve `src/sarma.ts`. Kriterler: K1–K4, K7, K8 (sarma kısmı),
-  K9 (cozumle ve sıra atma kısmı).
-- **İkinci aşama (ayrı PR):** canlı fark (`fark.py`, K5; 58 ve 72 bekliyor), artımlı hesap (`artimli.py`, K6, K8),
-  `POST /uygula` ve `POST /surukle` (SPEC 37 geri al, #70 bekliyor), `surukle.ts`, uçtan uca K10.
-- **Kabuk kancası:** `Ctrl+K` → `komut` ekranının açılır katmanı; A3 sahibi (Tezgah thread'i) ayrı küçük PR.
+- **Birinci aşama (#134, birleşti e9e455c):** komut paleti dilbilgisi, ISO 286, sarma, `POST /cozumle`,
+  `GET /sarma/{is}/{k}`, `komut.ts` (Ctrl+K katmanı), `sarma.ts`. K1–K4, K7, K8 (sarma), K9.
+- **İkinci aşama a (bu PR):** `fark.py` (K5; süre 72 birleşene kadar SPEC 05 `move_time` ile, maliyet yok),
+  `artimli.py` (K6, K8 artımlı kısmı), `POST /uygula`, `POST /surukle`, `surukle.ts`.
+- **İkinci aşama b (sonra):** 72 süresi ve 58 maliyeti farka bağlanır; uçtan uca K10 (kanca PR'ı ve fark
+  paneli gerekiyor).
+- **Kabuk kancası:** `Ctrl+K` → palet; Tezgah thread'inin ayrı PR'ı.
 
 ## Sıradaki adım
-Birinci aşama kodu ve testleri dalda; CI yeşilse birleşir. Sonra ikinci aşama (#70, 58, 72 bekliyor) ve
-Tezgah thread'inin Ctrl+K kanca PR'ı.
+İkinci aşama a iskeleti push edildi; testleri ayrı thread yazacak, sonra kod ayrı commit'te.
+
+## İkinci aşama a arayüz notları
+- Plan ekranda `examples/takim_kutuphanesi.json` + `AlMg3`, stok = parça kutusu + 1 mm (XY ve üst, alt 0).
+  Not: SPEC 26 flanşında `plan_mill` stok payı 2 mm iken `CamError("Ofset halkası kapanmadı")` veriyor
+  (cam/offset, açık bölge); 0 ve 1 mm'de çalışıyor. Testler 1 mm payla kurulmalı.
+- `fark.plan_farki(eski, yeni, sure_eski, sure_yeni, maliyet=None)`: süreler `plan.ops` sırasıyla liste.
+  Anahtar `feature|kind` (+ "#k"). `fark_json` JSON biçimi.
+- `artimli.Onbellek(boyut=64)`: `insa`, `insa_ve_planla`, `istatistik()` = {adim_isabet, adim_kacirma,
+  plan_isabet, plan_kacirma}, `temizle()`. `olcu_degistir(model, adim, olcu, deger)` saf yardımcı.
+- `/surukle` önizlemedir; bırakınca ön yüz `/api/ekran/model/` PUT eder. `/uygula` modeli değiştirir, SPEC 37
+  ara katmanı geri al kaydını tutar.
+- `surukle.ts`: `geciktir(f, ms=150, zamanlayici)` → {cagir, hemen, iptal, bekliyor}; `SiraSayaci`.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
