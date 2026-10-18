@@ -725,6 +725,60 @@ class Frame:
         return cls(origin=tuple(d["origin"]), R=tuple(tuple(r) for r in d["R"]))
 
 
+# ---------------------------------------------------------------- yol bilgisi (CAM Ek 4)
+
+COORD_MODES = ("kartezyen", "polar", "silindirik")
+STRATEGIES = ("kaba", "yari_ince", "ince", "yanak", "delik", "dis", "kontur", "alin", "kanal")
+AXIS_MODES = ("3", "3+2", "5", "torna", "c_indeks", "polar", "silindirik")
+
+
+@dataclass(frozen=True)
+class PathMeta:
+    """Yolun ne olduğu (SPEC 50, 51, 53): geometriyi değiştirmez, taşınır ve doğrulanır."""
+
+    strategy: str
+    axis_mode: str = "3"
+    allowance: float = 0.0  # mm, yanal pay
+    allowance_z: float | None = None  # mm, taban payı; None → allowance
+    ap: float | None = None  # mm, eksenel kesme derinliği
+    ae: float | None = None  # mm, radyal kesme genişliği
+
+    def __post_init__(self) -> None:
+        nerede = "Yol bilgisi"
+        if self.strategy not in STRATEGIES:
+            raise CamError(f"{nerede}: strateji {', '.join(STRATEGIES)} olmalı ({self.strategy!r})")
+        if self.axis_mode not in AXIS_MODES:
+            raise CamError(f"{nerede}: eksen modu {', '.join(AXIS_MODES)} olmalı ({self.axis_mode!r})")
+        _sonlu(nerede, allowance=self.allowance)
+        if self.allowance < 0:
+            raise CamError(f"{nerede}: pay negatif olamaz ({self.allowance})")
+        if self.allowance_z is not None:
+            _sonlu(nerede, allowance_z=self.allowance_z)
+            if self.allowance_z < 0:
+                raise CamError(f"{nerede}: taban payı negatif olamaz ({self.allowance_z})")
+        for ad in ("ap", "ae"):
+            v = getattr(self, ad)
+            if v is not None:
+                _sonlu(nerede, **{ad: v})
+                if v <= 0:
+                    raise CamError(f"{nerede}: {ad} pozitif olmalı ({v})")
+
+    def to_dict(self) -> dict:
+        return {
+            "strategy": self.strategy,
+            "axis_mode": self.axis_mode,
+            "allowance": self.allowance,
+            "allowance_z": self.allowance_z,
+            "ap": self.ap,
+            "ae": self.ae,
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> PathMeta:
+        _alanlar("Yol bilgisi", d, {"strategy"}, {"axis_mode", "allowance", "allowance_z", "ap", "ae"})
+        return cls(**d)
+
+
 # ---------------------------------------------------------------- hareketler, takım yolu
 
 Z_AXIS = (0.0, 0.0, 1.0)
@@ -737,6 +791,9 @@ class Move:
     feed: float | None = None  # G1/G2/G3 için zorunlu; birimi Toolpath.feed_mode
     center: tuple[float, float] | None = None  # yay merkezi, mutlak; XY → (x, y), ZX → (x, z)
     axis: tuple[float, float, float] | None = None  # takım ekseni (uçtan iş miline), birim; None → +z
+    c: float | None = (
+        None  # derece, C ekseni açısı (torna-freze indeksleme, SPEC 49); yalnız kartezyen freze yolu
+    )
 
     def __post_init__(self) -> None:
         self.type = MoveType(self.type)
@@ -749,6 +806,8 @@ class Move:
             _sonlu(f"Hareket ({self.type.value})", feed=self.feed)
         if self.axis is not None:
             self.axis = _birim3(f"Hareket ({self.type.value})", "axis", self.axis)
+        if self.c is not None:
+            _sonlu(f"Hareket ({self.type.value})", c=self.c)
 
 
 # Düzlem → (u, v, w) eksen indisleri: G3 u'dan v'ye dönüştür, w düzleme dik (helis ekseni).
@@ -787,10 +846,18 @@ class Toolpath:
     feed_mode: FeedMode = FeedMode.PER_MIN
     css: float | None = None  # m/dk, G96 sabit kesme hızı
     frame: Frame | None = None  # start, end, center bu çerçevede (yaylar yerel XY'de); None → WCS
+    coord: str = "kartezyen"  # kartezyen | polar | silindirik (SPEC 49; silindirikte nokta = (s, z, r))
+    cyl_r: float | None = (
+        None  # mm, silindirik açılımın referans yarıçapı r_ref; yalnız silindirikte, zorunlu
+    )
+    station: int | None = None  # taret istasyonu (≥ 1); profile göre denetimi SPEC 49 / 30
+    meta: PathMeta | None = None  # yolun ne olduğu (strateji, eksen modu, pay); geometriyi değiştirmez
 
     def __post_init__(self) -> None:
         if self.frame is not None and not isinstance(self.frame, Frame):
             raise CamError(f"Takım yolu '{self.name}': frame Frame olmalı ({type(self.frame).__name__})")
+        if self.meta is not None and not isinstance(self.meta, PathMeta):
+            raise CamError(f"Takım yolu '{self.name}': meta PathMeta olmalı ({type(self.meta).__name__})")
         self.start = tuple(float(v) for v in self.start)
         self.plane = Plane(self.plane)
         self.feed_mode = FeedMode(self.feed_mode)
@@ -812,6 +879,7 @@ class Toolpath:
             if self.css <= 0:
                 raise CamError(f"{nerede}: sabit kesme hızı pozitif olmalı (css={self.css})")
         torna = isinstance(self.tool, LatheTool)
+        self._koordinat(nerede, torna)
         if torna and self.plane is not Plane.ZX:
             raise CamError(f"{nerede}: torna yolu ZX (G18) düzleminde olmalı")
         if torna and self.start[1] != 0:
@@ -826,6 +894,10 @@ class Toolpath:
                 _sonlu(f"Hareket {i} ({m.type.value})", feed=m.feed)
             if torna and p1[1] != 0:
                 raise CamError(f"Hareket {i}: torna yolunda y = 0 olmalı (y={p1[1]})")
+            if m.c is not None:
+                _sonlu(f"Hareket {i} ({m.type.value})", c=m.c)
+                if torna or self.coord != "kartezyen":
+                    raise CamError(f"Hareket {i}: C açısı yalnız kartezyen freze yolunda verilir")
             if m.axis is not None:
                 _birim3(f"Hareket {i} ({m.type.value})", "axis", m.axis)
                 if torna:
@@ -845,6 +917,47 @@ class Toolpath:
                 if abs(r0 - r1) > ARC_TOL:
                     raise CamError(f"Hareket {i}: yay yarıçapları tutmuyor (r0={r0}, r1={r1})")
             p0 = p1
+        self._meta(nerede, torna)
+
+    def _koordinat(self, nerede: str, torna: bool) -> None:
+        """Koordinat modu (SPEC 49): polar / silindirik yalnız XY'de, WCS'de, freze takımıyla, eksensiz."""
+        if self.coord not in COORD_MODES:
+            raise CamError(f"{nerede}: koordinat modu {', '.join(COORD_MODES)} olmalı ({self.coord!r})")
+        if self.coord == "silindirik":
+            if self.cyl_r is None:
+                raise CamError(f"{nerede}: silindirik yolda cyl_r zorunlu")
+            _sonlu(nerede, cyl_r=self.cyl_r)
+            if self.cyl_r <= 0:
+                raise CamError(f"{nerede}: cyl_r pozitif olmalı ({self.cyl_r})")
+        elif self.cyl_r is not None:
+            raise CamError(f"{nerede}: cyl_r yalnız silindirik yolda verilir")
+        if self.station is not None and (not _tam_sayi(self.station) or self.station < 1):
+            raise CamError(f"{nerede}: taret istasyonu ≥ 1 tam sayı olmalı ({self.station!r})")
+        if self.coord == "kartezyen":
+            return
+        if torna or self.plane is not Plane.XY or self.frame is not None:
+            raise CamError(f"{nerede}: {self.coord} yol freze takımıyla, XY düzleminde ve frame'siz olmalı")
+        for i, m in enumerate(self.moves):
+            if m.axis is not None:
+                raise CamError(f"Hareket {i}: {self.coord} yolda takım ekseni (axis) verilemez")
+            if self.coord == "silindirik" and m.type in ARCS:
+                raise CamError(f"Hareket {i}: silindirik yolda yay yok (açılmış düzlemde yay ileride)")
+
+    def _meta(self, nerede: str, torna: bool) -> None:
+        """Yol bilgisinin yolla tutarlılığı: eksen modu ↔ takım / koordinat modu / takım ekseni."""
+        if self.meta is None:
+            return
+        mod = self.meta.axis_mode
+        if (mod == "torna") != torna:
+            raise CamError(f"{nerede}: axis_mode 'torna' ancak ve ancak torna takımında")
+        for c in ("polar", "silindirik"):
+            if (mod == c) != (self.coord == c):
+                raise CamError(f"{nerede}: axis_mode {mod!r} ile koordinat modu {self.coord!r} uyuşmuyor")
+        eksenli = any(m.axis is not None for m in self.moves)
+        if mod == "5" and not eksenli:
+            raise CamError(f"{nerede}: axis_mode '5' iken en az bir harekette takım ekseni olmalı")
+        if mod == "3" and eksenli:
+            raise CamError(f"{nerede}: axis_mode '3' iken takım ekseni verilemez")
 
     def points(self) -> np.ndarray:
         """Başlangıç + her hareketin bitiş noktası, (n+1, 3)."""
@@ -908,6 +1021,10 @@ class Toolpath:
             "feed_mode": self.feed_mode.value,
             "css": self.css,
             "frame": None if self.frame is None else self.frame.to_dict(),
+            "coord": self.coord,
+            "cyl_r": self.cyl_r,
+            "station": self.station,
+            "meta": None if self.meta is None else self.meta.to_dict(),
             "moves": [
                 {
                     "type": m.type.value,
@@ -915,6 +1032,7 @@ class Toolpath:
                     "feed": m.feed,
                     "center": None if m.center is None else list(m.center),
                     "axis": None if m.axis is None else list(m.axis),
+                    "c": m.c,
                 }
                 for m in self.moves
             ],
@@ -931,6 +1049,10 @@ class Toolpath:
             feed_mode=d.get("feed_mode", FeedMode.PER_MIN),
             css=d.get("css"),
             frame=None if d.get("frame") is None else Frame.from_dict(d["frame"]),
+            coord=d.get("coord", "kartezyen"),
+            cyl_r=d.get("cyl_r"),
+            station=d.get("station"),
+            meta=None if d.get("meta") is None else PathMeta.from_dict(d["meta"]),
             moves=[
                 Move(
                     type=m["type"],
@@ -938,6 +1060,7 @@ class Toolpath:
                     feed=m.get("feed"),
                     center=None if m.get("center") is None else tuple(m["center"]),
                     axis=None if m.get("axis") is None else tuple(m["axis"]),
+                    c=m.get("c"),
                 )
                 for m in d["moves"]
             ],
@@ -1065,10 +1188,180 @@ class AxisLimits:
         return cls(min=d["min"], max=d["max"])
 
 
+# ---------------------------------------------------------------- torna-freze ve 5 eksen post (CAM Ek 4)
+
+MILLTURN_CONTROLLERS = ("fanuc", "sinumerik")
+TURRET_DIRECTIONS = ("radyal", "eksenel")
+TCP_MODES = ("traori", "m128", "tcpm", "g43.4", "g43.5", "yok")
+SWIVEL_MODES = ("cycle800", "plane_spatial", "g68.2", "yok")
+# dil → (izinli tcp, izinli swivel)
+MULTIAXIS_DIALECTS = {
+    "sinumerik": (("traori", "yok"), ("cycle800", "yok")),
+    "heidenhain": (("m128", "tcpm", "yok"), ("plane_spatial", "yok")),
+    "fanuc": (("g43.4", "g43.5", "yok"), ("g68.2", "yok")),
+    "haas": (("g43.4", "g43.5", "yok"), ("g68.2", "yok")),
+    "grbl": (("yok",), ("yok",)),
+}
+
+
+def _bool(nerede: str, ad: str, v) -> None:
+    if not isinstance(v, bool):
+        raise CamError(f"{nerede}: {ad} bool olmalı ({v!r})")
+
+
+def _pozitif_ya_da_yok(nerede: str, ad: str, v) -> None:
+    if v is not None:
+        _sonlu(nerede, **{ad: v})
+        if v <= 0:
+            raise CamError(f"{nerede}: {ad} pozitif olmalı ({v})")
+
+
+def _metin_ya_da_yok(nerede: str, ad: str, v) -> None:
+    if v is not None and (not isinstance(v, str) or not v):
+        raise CamError(f"{nerede}: {ad} boş olmayan metin ya da None olmalı ({v!r})")
+
+
+@dataclass(frozen=True)
+class CAxis:
+    """Torna-freze C ekseni: iş milinin açısal konumu (derece, +Z'den bakınca saat yönü tersi pozitif)."""
+
+    continuous: bool = True  # False → yalnız konumlama; polar / silindirik enterpolasyon yok
+    index_step: float = 0.001  # derece, en küçük indeks adımı
+    rpm_max: float | None = None  # C modunda iş mili dönüş üst sınırı
+    m_on: str | None = None  # C eksenini açan M kodu metni ("M45" gibi); None → yazılmaz
+    m_off: str | None = None
+
+    def __post_init__(self) -> None:
+        nerede = "C ekseni"
+        _bool(nerede, "continuous", self.continuous)
+        _sonlu(nerede, index_step=self.index_step)
+        if self.index_step <= 0:
+            raise CamError(f"{nerede}: index_step pozitif olmalı ({self.index_step})")
+        _pozitif_ya_da_yok(nerede, "rpm_max", self.rpm_max)
+        _metin_ya_da_yok(nerede, "m_on", self.m_on)
+        _metin_ya_da_yok(nerede, "m_off", self.m_off)
+
+    def to_dict(self) -> dict:
+        return {
+            "continuous": self.continuous,
+            "index_step": self.index_step,
+            "rpm_max": self.rpm_max,
+            "m_on": self.m_on,
+            "m_off": self.m_off,
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> CAxis:
+        _alanlar("C ekseni", d, set(), {"continuous", "index_step", "rpm_max", "m_on", "m_off"})
+        return cls(**d)
+
+
+@dataclass(frozen=True)
+class TurretStation:
+    """Taret istasyonu: sabit (torna) ya da canlı (freze / matkap) takım; yön radyal (−X) / eksenel (−Z)."""
+
+    no: int
+    live: bool = False
+    direction: str = "radyal"
+
+    def __post_init__(self) -> None:
+        nerede = f"Taret istasyonu {self.no!r}"
+        if not _tam_sayi(self.no) or self.no < 1:
+            raise CamError(f"{nerede}: no ≥ 1 tam sayı olmalı")
+        _bool(nerede, "live", self.live)
+        if self.direction not in TURRET_DIRECTIONS:
+            raise CamError(f"{nerede}: yön {', '.join(TURRET_DIRECTIONS)} olmalı ({self.direction!r})")
+
+    def to_dict(self) -> dict:
+        return {"no": self.no, "live": self.live, "direction": self.direction}
+
+    @classmethod
+    def from_dict(cls, d: dict) -> TurretStation:
+        _alanlar("Taret istasyonu", d, {"no"}, {"live", "direction"})
+        return cls(**d)
+
+
+@dataclass(frozen=True)
+class Turret:
+    """Taret: tekil numaralı istasyonlar; canlı istasyon varsa canlı takım devir sınırı zorunlu."""
+
+    name: str
+    stations: tuple[TurretStation, ...]
+    live_rpm_max: float | None = None
+
+    def __post_init__(self) -> None:
+        nerede = f"Taret '{self.name}'"
+        if not isinstance(self.name, str) or not self.name:
+            raise CamError(f"{nerede}: ad boş olmayan metin olmalı")
+        if not isinstance(self.stations, tuple) or any(
+            not isinstance(st, TurretStation) for st in self.stations
+        ):
+            raise CamError(f"{nerede}: stations TurretStation demeti olmalı")
+        if not self.stations:
+            raise CamError(f"{nerede}: en az bir istasyon olmalı")
+        nolar = [st.no for st in self.stations]
+        if len(set(nolar)) != len(nolar):
+            raise CamError(f"{nerede}: istasyon numaraları tekil olmalı ({nolar})")
+        _pozitif_ya_da_yok(nerede, "live_rpm_max", self.live_rpm_max)
+        if any(st.live for st in self.stations) and self.live_rpm_max is None:
+            raise CamError(f"{nerede}: canlı istasyon varken live_rpm_max zorunlu")
+
+    def to_dict(self) -> dict:
+        return {
+            "name": self.name,
+            "stations": [st.to_dict() for st in self.stations],
+            "live_rpm_max": self.live_rpm_max,
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> Turret:
+        _alanlar("Taret", d, {"name", "stations"}, {"live_rpm_max"})
+        d = dict(d)
+        if not isinstance(d["stations"], list):
+            raise CamError("Taret: stations liste olmalı")
+        d["stations"] = tuple(TurretStation.from_dict(st) for st in d["stations"])
+        return cls(**d)
+
+
+@dataclass(frozen=True)
+class MultiAxisPost:
+    """5 eksen post seçenekleri (SPEC 51): TCP modu, döndürülmüş düzlem komutu, yön vektörü yazımı.
+    Dil uyumu MachineProfile.validate'te (MULTIAXIS_DIALECTS)."""
+
+    tcp: str
+    swivel: str
+    vector: bool = False
+    swivel_data: str | None = None  # Sinumerik CYCLE800 döndürme veri kaydı adı
+
+    def __post_init__(self) -> None:
+        nerede = "5 eksen post"
+        if self.tcp not in TCP_MODES:
+            raise CamError(f"{nerede}: tcp {', '.join(TCP_MODES)} olmalı ({self.tcp!r})")
+        if self.swivel not in SWIVEL_MODES:
+            raise CamError(f"{nerede}: swivel {', '.join(SWIVEL_MODES)} olmalı ({self.swivel!r})")
+        _bool(nerede, "vector", self.vector)
+        _metin_ya_da_yok(nerede, "swivel_data", self.swivel_data)
+        if self.swivel_data is not None and self.swivel != "cycle800":
+            raise CamError(f"{nerede}: swivel_data yalnız cycle800'de verilir")
+
+    def to_dict(self) -> dict:
+        return {
+            "tcp": self.tcp,
+            "swivel": self.swivel,
+            "vector": self.vector,
+            "swivel_data": self.swivel_data,
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> MultiAxisPost:
+        _alanlar("5 eksen post", d, {"tcp", "swivel"}, {"vector", "swivel_data"})
+        return cls(**d)
+
+
 _PROFILE_KEYS = (
     "name", "controller", "kind", "x", "y", "z", "rpm_min", "rpm_max", "feed_max", "rapid",
     "tool_slots", "tool_change_z", "program_no_range", "decimals", "verified", "presets", "kinematics",
-    "spindle_power_kw", "spindle_torque_nm",
+    "spindle_power_kw", "spindle_torque_nm", "c_axis", "turrets", "multiaxis",
 )  # fmt: skip
 
 
@@ -1078,7 +1371,7 @@ class MachineProfile:
 
     name: str  # ASCII [A-Z0-9 _-], programa yorum olarak yazılır
     controller: str  # grbl | fanuc | haas | sinumerik | heidenhain
-    kind: str = "mill"  # mill | lathe (torna: SPEC 40)
+    kind: str = "mill"  # mill | lathe (torna: SPEC 40) | millturn (torna-freze: SPEC 49)
     x: AxisLimits | None = (
         None  # None → o eksen denetlenmez; tornada ÇAP cinsinden (yoldaki X yarıçaptır: 2·x ile karşılaştır)
     )
@@ -1097,6 +1390,9 @@ class MachineProfile:
     kinematics: Kinematics | None = None  # None → 3 eksen, döner eksen yok
     spindle_power_kw: float | None = None  # kW, S1 sürekli iş mili gücü; None → denetlenmez
     spindle_torque_nm: float | None = None  # N·m, S1 sürekli iş mili torku; None → denetlenmez
+    c_axis: CAxis | None = None  # torna-freze C ekseni (CAM Ek 4)
+    turrets: tuple[Turret, ...] = ()  # torna / torna-freze taretleri
+    multiaxis: MultiAxisPost | None = None  # 5 eksen post seçenekleri (SPEC 51)
 
     def validate(self) -> None:
         nerede = f"Tezgâh profili '{self.name}'"
@@ -1106,8 +1402,11 @@ class MachineProfile:
             raise CamError(f"{nerede}: bilinmeyen dil {self.controller!r} ({', '.join(CONTROLLERS)})")
         if self.kind == "lathe":
             self._torna(nerede)
+        elif self.kind == "millturn":
+            self._torna_freze(nerede)
         elif self.kind != "mill":
-            raise CamError(f"{nerede}: tür 'mill' veya 'lathe' olmalı ({self.kind!r})")
+            raise CamError(f"{nerede}: tür 'mill', 'lathe' veya 'millturn' olmalı ({self.kind!r})")
+        self._ek4(nerede)
         for ad in ("x", "y", "z"):
             lim = getattr(self, ad)
             if lim is not None:
@@ -1161,6 +1460,50 @@ class MachineProfile:
         if (self.x is None) != (self.z is None):
             raise CamError(f"{nerede}: tornada X ve Z kursu birlikte verilir ya da hiç verilmez")
 
+    def _torna_freze(self, nerede: str) -> None:
+        """Torna-freze profili (CAM Ek 4): fanuc / sinumerik; Y serbest; kinematikte yalnız kafada B ekseni;
+        X (çap) ve Z kursu birlikte ya da hiç; C ekseni ve en az bir canlı istasyonlu taret zorunlu."""
+        if self.controller not in MILLTURN_CONTROLLERS:
+            raise CamError(
+                f"{nerede}: torna-freze dili {', '.join(MILLTURN_CONTROLLERS)} olmalı ({self.controller!r})"
+            )
+        if (self.x is None) != (self.z is None):
+            raise CamError(f"{nerede}: torna-frezede X ve Z kursu birlikte verilir ya da hiç verilmez")
+        if self.kinematics is not None and isinstance(self.kinematics, Kinematics):
+            for a in self.kinematics.rotary:
+                if a.name != "B" or a.carrier != "kafa":
+                    raise CamError(
+                        f"{nerede}: torna-frezede yalnız kafada B ekseni olabilir ({a.name}, {a.carrier})"
+                    )
+        if self.c_axis is None:
+            raise CamError(f"{nerede}: torna-frezede C ekseni (c_axis) zorunlu")
+        if not self.turrets:
+            raise CamError(f"{nerede}: torna-frezede en az bir taret zorunlu")
+        if not any(st.live for t in self.turrets if isinstance(t, Turret) for st in t.stations):
+            raise CamError(f"{nerede}: torna-frezede en az bir canlı takım istasyonu zorunlu")
+
+    def _ek4(self, nerede: str) -> None:
+        """C ekseni, taret ve 5 eksen post seçenekleri: tip, türe göre izin, dil uyumu."""
+        if self.c_axis is not None and not isinstance(self.c_axis, CAxis):
+            raise CamError(f"{nerede}: c_axis CAxis olmalı")
+        if not isinstance(self.turrets, tuple) or any(not isinstance(t, Turret) for t in self.turrets):
+            raise CamError(f"{nerede}: turrets Turret demeti olmalı")
+        if self.kind == "mill" and (self.c_axis is not None or self.turrets):
+            raise CamError(f"{nerede}: freze profilinde C ekseni ve taret verilmez")
+        if self.multiaxis is None:
+            return
+        if not isinstance(self.multiaxis, MultiAxisPost):
+            raise CamError(f"{nerede}: multiaxis MultiAxisPost olmalı")
+        doner = self.kinematics is not None and len(self.kinematics.rotary) >= 1
+        if not (doner or self.kind == "millturn"):
+            raise CamError(f"{nerede}: multiaxis yalnız döner eksenli ya da torna-freze profilinde verilir")
+        tcp_izin, swivel_izin = MULTIAXIS_DIALECTS[self.controller]
+        if self.multiaxis.tcp not in tcp_izin or self.multiaxis.swivel not in swivel_izin:
+            raise CamError(
+                f"{nerede}: {self.controller} dilinde tcp={self.multiaxis.tcp!r}, "
+                f"swivel={self.multiaxis.swivel!r} desteklenmez"
+            )
+
     def _program_no(self, nerede: str) -> None:
         rng = tuple(self.program_no_range)
         if len(rng) != 2 or not all(_tam_sayi(n) for n in rng):
@@ -1196,6 +1539,9 @@ class MachineProfile:
             "kinematics": None if self.kinematics is None else self.kinematics.to_dict(),
             "spindle_power_kw": self.spindle_power_kw,
             "spindle_torque_nm": self.spindle_torque_nm,
+            "c_axis": None if self.c_axis is None else self.c_axis.to_dict(),
+            "turrets": [t.to_dict() for t in self.turrets],
+            "multiaxis": None if self.multiaxis is None else self.multiaxis.to_dict(),
         }
 
     @classmethod
@@ -1213,6 +1559,14 @@ class MachineProfile:
             d["program_no_range"] = tuple(d["program_no_range"])
         if d.get("kinematics") is not None:
             d["kinematics"] = Kinematics.from_dict(d["kinematics"])
+        if d.get("c_axis") is not None:
+            d["c_axis"] = CAxis.from_dict(d["c_axis"])
+        if "turrets" in d:
+            if not isinstance(d["turrets"], list):
+                raise CamError("Tezgâh profili: turrets liste olmalı")
+            d["turrets"] = tuple(Turret.from_dict(t) for t in d["turrets"])
+        if d.get("multiaxis") is not None:
+            d["multiaxis"] = MultiAxisPost.from_dict(d["multiaxis"])
         m = cls(**d)
         m.validate()
         return m
