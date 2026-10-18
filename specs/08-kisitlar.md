@@ -133,7 +133,7 @@ Konum toleransı `1e-9` mm, yön toleransı `1e-9` (birimsiz), aksi yazmadıkça
 - [ ] Tüm testler yeşil: `pytest` → 0 failed, bu SPEC'te 0 "uygulanmamış"; `ruff check .` temiz
 
 ## Kapsam dışı
-- Çakışık/zıt yön seçimi için kullanıcı bayrağı (`flip`, "aligned/anti-aligned"): `Mate` arayüzünde alan yok; gerekirse ayrı arayüz PR'ı
+- ~~Çakışık/zıt yön seçimi için kullanıcı bayrağı (`flip`)~~ → `Mate.flip` arayüz PR'ıyla eklendi (SPEC 00, Ek)
 - Dişli, kam, teğet, yuva (slot), sınır (min/max) kısıtları; simetri kısıtı
 - Sürükleme / kinematik simülasyon (serbest kalan serbestlikte hareket ettirme), çarpışma, girişim (SPEC 09)
 - Montaj ağacı, alt montajlar, STEP montajı (SPEC 07); parça geometrisinden referans çıkarma (yüz seçme)
