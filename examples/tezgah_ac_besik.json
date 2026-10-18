@@ -73,7 +73,9 @@
         0.0,
         0.0
       ]
-    }
+    },
+    "spindle_power_kw": null,
+    "spindle_torque_nm": null
   },
   "linear_carrier": {
     "X": "kafa",
