@@ -2,9 +2,13 @@
 
 Dal: `claude/project-thread-udniip` · PR #48 · Oturum: bulut
 
-## Sıradaki adım
-Kod yazıldı. Torna yarısı (K1–K7, K15, e2e'nin torna kısmı) SPEC 22 (`cam.sim.simulate_lathe`, `part_rmap`) `main`'e
-girmeden çalışamaz: SPEC 22 birleşince `main` bu dala merge edilir, torna testleri ve e2e koşulur, yeşilse PR birleşir.
+## Sıradaki adım (2026-10-18 19:15, kullanıcının durdurma isteğiyle duruldu)
+Nerede kaldı: main 386ac3f dala alındı; torna bölümü SPEC 37 biçimine (`{ad: {parametreler}}`) çevrildi; yerelde
+tüm testler ve e2e_25 geçti. #48 birleştirilmedi.
+Sırada: (1) GitHub'da pytest + kapı yeşilse ve main yine ilerlediyse main'i alıp #48'i birleştirmek (pytest-windows
+main'de de kırmızı: SPEC 19 `test_adaptive_pocket` ada_45, bu PR'ın değil). (2) SPEC 37 K14 testi
+(`test_kabuk_iplik.py`) montaj ucunu `/api/ekran/montaj/montaj/...` diye aradığı için atlanıyor; düzelirse
+`GET /api/is/kademeli_mil` 200 bekliyor ama SPEC 25/A3 testi 404 istiyor: test sahibine sorulacak.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
