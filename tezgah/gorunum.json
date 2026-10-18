@@ -1,0 +1,69 @@
+{
+  "_aciklama": "SPEC 65b görsel ön ayarları (fiziksel ölçüm değil). Anahtar: grup:<GRUPLAR>, id:<Malzeme.id>, bitim:<BITIMLER> (bitim için yalnız renk kullanılır: eloksal rengi).",
+  "grup:celik": {
+    "renk": "#b4b8bc",
+    "metalness": 1.0,
+    "roughness": 0.35
+  },
+  "grup:paslanmaz": {
+    "renk": "#c4c8cc",
+    "metalness": 1.0,
+    "roughness": 0.3
+  },
+  "grup:dokme_demir": {
+    "renk": "#5d6166",
+    "metalness": 1.0,
+    "roughness": 0.7
+  },
+  "grup:aluminyum": {
+    "renk": "#d5d9dd",
+    "metalness": 1.0,
+    "roughness": 0.35
+  },
+  "grup:bakir": {
+    "renk": "#c8794e",
+    "metalness": 1.0,
+    "roughness": 0.35
+  },
+  "grup:titanyum": {
+    "renk": "#a39d93",
+    "metalness": 1.0,
+    "roughness": 0.4
+  },
+  "grup:nikel": {
+    "renk": "#b9b39f",
+    "metalness": 1.0,
+    "roughness": 0.35
+  },
+  "grup:plastik": {
+    "renk": "#f2f0ea",
+    "metalness": 0.0,
+    "roughness": 0.55
+  },
+  "grup:diger": {
+    "renk": "#9aa1a8",
+    "metalness": 0.0,
+    "roughness": 0.6
+  },
+  "id:1.0503": {
+    "renk": "#b8bcc0",
+    "metalness": 1.0,
+    "roughness": 0.25
+  },
+  "id:EN-AW-6061-T6": {
+    "renk": "#dde1e5",
+    "metalness": 1.0,
+    "roughness": 0.35
+  },
+  "id:POM-C": {
+    "renk": "#f4f3ee",
+    "metalness": 0.0,
+    "roughness": 0.7
+  },
+  "bitim:eloksal": {
+    "renk": "#3a5f8f",
+    "metalness": 0.6,
+    "roughness": 0.3,
+    "clearcoat": 1.0
+  }
+}
