@@ -28,8 +28,12 @@
 | 05-cam-sim | 2 | tamamlandı (PR #54, `4084c2d`) | — | `durum/05-cam-sim.md` |
 | 24-tezgah | 3 | SPEC onaylı (PR #19, `97935da`); K3/K5/K6 SPEC 05'ten sonra yeniden onaylanacak | — | — |
 | 17-kroki | 3 | SPEC onaylı; `sketch/model.py` arayüzü birleşti (PR #55, `fb99eb6`) | — | — |
-| 09-girisim, 10-montaj-cam, 12-gmsh, 13-calculix, 21-torna-gcode | 3 | bekliyor | — | — |
-| 18-ozellik-agaci, 19-adaptif-kaba, 22-torna-sim | 4 | bekliyor | — | — |
+| 09-girisim, 12-gmsh, 13-calculix (von Mises + CalculiX) | 3 | SPEC onaylı (2026-10-18 10:38) | — | — |
+| 10-montaj-cam, 21-torna-gcode | 3 | bekliyor | — | — |
+| 22-torna-sim | 4 | SPEC onaylı (2026-10-18 10:38) | — | — |
+| 18-ozellik-agaci, 19-adaptif-kaba | 4 | bekliyor | — | — |
+| 03b-kalan-malzeme-cep, 06b-torik-konik-waterline, 25-tezgah-torna-montaj, 26-tezgah-modelleme, 27-ozellik-tanima, 28-kati-torna-profili, 30-tezgah-profili, 31-sinumerik-heidenhain, 41–44 çok eksen | — | SPEC onaylı (2026-10-18 10:38); dalgası henüz atanmadı | — | — |
+| 29-otomatik-islem-plani | — | SPEC yazılı onay bekliyor | — | — |
 
 ## Tamamlananlar
 | SPEC | Konu | Tarih | Test sayısı |
@@ -66,6 +70,7 @@
 | — | CI: kapı testi, hook içinde asıl reponun index'ini bozmuyor (PR #38, `75ba846`) | 2026-10-18 | — |
 | — | CI: LinuxCNC rs274 çapraz kontrolü Debian kapsayıcısında çalışıyor, web ekstrası kuruluyor (PR #47, `5383d2d`) | 2026-10-18 | — |
 | 00-arayuzler | `LatheHolder`, `LatheTool.edge_len` / `holder` (SPEC 22 arayüzü) (PR #52, `47082f6`) | 2026-10-18 | 64 |
+| 03-cam-2d, 04-gcode | CAM güvenliği: SPEC 03 Ek A (cep yan paso sınırı, merkezden kesme), SPEC 04 Ek C (güvenli Z, `stock_top`) (PR #33, `6eb07ec`) | 2026-10-18 | — |
 | 05-cam-sim | Talaş simülasyonu: z-map, dexel, süre, çarpışma, oyma (PR #54) | 2026-10-18 | 175 |
 | 17-kroki | `sketch/model.py` eskiz veri modeli arayüzü (PR #55, `fb99eb6`) | 2026-10-18 | 138 |
 | — | CI: gmsh (mesh ekstrası) ve sistem kütüphaneleri kuruluyor (PR #57, `49a739f`) | 2026-10-18 | — |
