@@ -14,8 +14,8 @@ Kod A1 arayüzü (`Joint`, `Assembly.joints`, dal `claude/arayuz-dalga2-0mc0ys`)
 ## Son oturum
 **2026-10-18 — İskelet**
 - Kullanıcı SPEC metnini önerilerle onayladı (11:13, toplu onay).
-- `assy/kinematik.py` `NotImplementedError` iskeleti; `Joint` henüz main'de olmadığı için yalnızca
-  `TYPE_CHECKING` altında içe aktarılıyor.
+- `assy/kinematik.py` `NotImplementedError` iskeleti; A1 arayüz dalı (`claude/arayuz-dalga2-0mc0ys`, 80fc6e9,
+  PR #85) dala merge edildi, `Joint` doğrudan içe aktarılıyor.
 
 **2026-10-18**
 - `specs/33-kinematik.md` taslağı yazıldı (K1–K16). Analitik değerler (Freudenstein, dönen kol `θ*`) sayısal

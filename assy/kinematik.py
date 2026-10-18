@@ -25,11 +25,10 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from assy.girisim import Clash
-from assy.model import Assembly
+from assy.model import Assembly, Joint
 from assy.solver import SolveResult
 
 if TYPE_CHECKING:
-    from assy.model import Joint
     from geometry.part import Part
 
 JointValue = float | tuple[float | None, float | None]  # CYLINDRICAL: (θ, s), None = serbest
