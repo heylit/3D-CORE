@@ -21,6 +21,7 @@ import math
 import numpy as np
 import pytest
 
+from cam.cutter import Cutter
 from cam.dropcutter import TriMesh, drop
 from cam.model import CamError, MoveType, Stock, Tool, ToolKind, Toolpath
 from cam.ops2d import depths
@@ -513,10 +514,13 @@ def test_k16_finish_yetersiz_z_safe(z_safe):
         finish(plane(2.0), ball(), raster(z_safe=z_safe))
 
 
-def test_k16_finish_desteklenmeyen_takim():
+def test_k16_finish_torik_kabul():
+    """SPEC 06b: köşe radyüslü düz takım artık desteklenir (önceden CamError); düzlemde her CL z₀."""
     torik = Tool(id=4, name="torik", kind=ToolKind.FLAT, D=8.0, flute_length=30.0, corner_r=1.0)
-    with pytest.raises(CamError):
-        finish(plane(2.0), torik, raster())
+    assert Cutter.from_tool(torik).R == pytest.approx(4.0)
+    rr = raster()
+    tp = finish(plane(2.0), torik, rr)
+    np.testing.assert_allclose(cl_points(tp, rr)[:, 2], 2.0, atol=EPS)
 
 
 @pytest.mark.parametrize(
