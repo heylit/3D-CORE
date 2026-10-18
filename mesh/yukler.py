@@ -57,8 +57,14 @@ def _dugum_yukleri(model: Model, tris, F_ucgen: np.ndarray) -> None:
                 model.loads.append(Load(nid, dof, float(v)))
 
 
+def _tri6_iskelet(tris) -> None:
+    if np.ndim(tris) == 2 and np.shape(tris)[1] == 6:
+        raise NotImplementedError("SPEC 67a: tri6 tutarlı yük")
+
+
 def add_traction(model: Model, tris: np.ndarray, t: Sequence[float]) -> None:
     """Yüzey çekmesi t (3,) [MPa]: her köşeye t A / 3, (düğüm, dof) başına tek Load."""
+    _tri6_iskelet(tris)
     t = np.asarray(t, dtype=float).ravel()
     if t.shape != (3,) or not np.all(np.isfinite(t)):
         raise ModelError(f"Yüzey çekmesi üç sonlu bileşenli olmalı (t={t})")
@@ -68,6 +74,7 @@ def add_traction(model: Model, tris: np.ndarray, t: Sequence[float]) -> None:
 
 def add_pressure(model: Model, tris: np.ndarray, p: float) -> None:
     """Basınç p [MPa] (pozitif: cisme bastırır): her köşeye −p n A / 3, (düğüm, dof) başına tek Load."""
+    _tri6_iskelet(tris)
     p = float(p)
     if not math.isfinite(p):
         raise ModelError(f"Basınç sonlu olmalı (p={p})")

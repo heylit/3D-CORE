@@ -48,6 +48,8 @@ def _denetle(model: Model) -> str:
     if len(tipler) > 1:
         raise ModelError(f"CalculiX yazıcısı: tek modelde tek eleman tipi olmalı ({sorted(tipler)})")
     (tip,) = tipler
+    if tip == "tet10":
+        raise NotImplementedError("SPEC 67a: CalculiX C3D10 yazımı")
     if tip not in CCX_TIPI:
         raise ModelError(f"CalculiX yazıcısı: desteklenmeyen eleman tipi '{tip}'")
     _, dim = CCX_TIPI[tip]

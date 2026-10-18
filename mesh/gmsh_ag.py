@@ -117,6 +117,7 @@ def tet_mesh(
     h: float,
     material: Material,
     *,
+    order: int = 1,
     refine: Sequence[Refine] = (),
     max_nodes: int = 200_000,
 ) -> Model:
@@ -127,6 +128,8 @@ def tet_mesh(
         raise ModelError(f"tet_mesh bir geometry.part.Part bekler ({type(part).__name__} verildi)")
     if not isinstance(material, Material):
         raise ModelError(f"tet_mesh bir core.model.Material bekler ({type(material).__name__} verildi)")
+    if order != 1:
+        raise NotImplementedError("SPEC 67a: tet_mesh order=2 (tet10)")
     h = _pozitif_sonlu("Eleman boyu h", h)
     refine = tuple(refine)
     if not all(isinstance(r, Refine) for r in refine):

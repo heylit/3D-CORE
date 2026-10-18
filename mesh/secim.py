@@ -47,6 +47,8 @@ def boundary_triangles(model: Model) -> np.ndarray:
     """Sınır üçgenleri (m, 3), düğüm id'leri, dışa bakan sırada."""
     if not model.elements:
         return np.zeros((0, 3), dtype=np.int64)
+    if any(len(e.nodes) == 10 for e in model.elements):
+        raise NotImplementedError("SPEC 67a: boundary_triangles tet10")
     E = np.array([e.nodes for e in model.elements], dtype=np.int64)
     if E.ndim != 2 or E.shape[1] != 4:
         raise ModelError("boundary_triangles sadece dört düğümlü (tet4) elemanlarla çalışır")
