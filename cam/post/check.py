@@ -11,7 +11,7 @@ from __future__ import annotations
 import numpy as np
 
 from cam.gcode.cycles import DrillOp
-from cam.gcode.writer import _yazilabilir
+from cam.gcode.writer import _yazilabilir, cevrim_op
 from cam.model import CamError, MachineProfile, MoveType, Setup, Toolpath
 
 EKSEN = ("X", "Y", "Z")
@@ -23,7 +23,7 @@ def _yol(op: Toolpath | DrillOp) -> Toolpath:
         op.validate()
         _yazilabilir(op)  # torna (G18 / G95 / G96), frame, eğik eksen → CamError
         return op
-    if isinstance(op, DrillOp):
+    if isinstance(op, DrillOp) or cevrim_op(op):  # SPEC 04b G82 / G84 da açılımıyla (kılavuz F dahil)
         op.validate()
         return op.to_toolpath()
     raise CamError(f"Denetlenemeyen op tipi: {type(op).__name__}")
@@ -119,7 +119,7 @@ def check_machine(
         tp = _yol(op)
         _takim(machine, tp.name, tp.tool.id)
         _devir(machine, tp.name, tp.rpm)
-        if isinstance(op, DrillOp):
+        if not isinstance(op, Toolpath):
             _ilerleme(machine, tp, 1, op.feed)
         L = _olcu_boyu(machine, tp)
         for k, m, pts in _parcalar(tp):
