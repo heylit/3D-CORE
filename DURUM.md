@@ -5,7 +5,7 @@
 > (kurallar: `BASLANGIC.md` bölüm 7). Sıra ve paralellik: `docs/yol-haritasi.md` → "Paralel çalışma: dalgalar".
 
 ## Açık dalga
-**Dalga 2 sürüyor.** Tamamlanan: 07, 11, 15, 16, 20, 23. Diğerleri bulut thread'lerinde (aşağıdaki tablo). Dalga 1 tamamlandı (01, 02, 03, 04, 08).
+**Dalga 2 sürüyor.** Tamamlanan: 06, 07, 11, 15, 16, 20, 23. Diğerleri bulut thread'lerinde (aşağıdaki tablo). Dalga 1 tamamlandı (01, 02, 03, 04, 08).
 
 ## SPEC tablosu
 | SPEC | Dalga | Durum | Kimde (dal / oturum) | Ayrıntı |
@@ -22,7 +22,7 @@
 | 16-teknik-resim | 2 | tamamlandı (PR #22, `778d29b`) | — | `durum/16-teknik-resim.md` |
 | 07-montaj-agaci | 2 | tamamlandı (PR #20, `9c60f14`) | — | `durum/07-montaj-agaci.md` |
 | 14-cam-kurulum | 2 | sürüyor (PR #27) | `claude/spec-14-cam-kurulum-05r8z1` | — |
-| 06-cam-3d | 2 | sürüyor | `claude/spec-06-cam-3d-09jwcj` | — |
+| 06-cam-3d | 2 | tamamlandı (PR #31, `b19271d`) | — | `durum/06-cam-3d.md` |
 | 23-parca-ek | 2 | tamamlandı (PR #28, `0bf3649`) | — | `durum/23-parca-ek.md` |
 | 20-torna-yol | 2 | tamamlandı (PR #34, `25548e0`) | — | `durum/20-torna-yol.md` |
 | 05-cam-sim | 2 | SPEC taslağı | — | — |
@@ -59,6 +59,8 @@
 | 16-teknik-resim | Teknik resim, DXF R12 / SVG (PR #22) | 2026-10-18 | 129 |
 | 23-parca-ek | Parça ekleri: delikler, havşa, eğik delik, pah/radyus (PR #28) | 2026-10-18 | 127 |
 | 07-montaj-agaci | Montaj ağacı (PR #20) | 2026-10-18 | 88 |
+| 06-cam-3d | 3B takım yolu (PR #31) | 2026-10-18 | 157 |
+| — | CI: test bağımsızlığı kapısı (PR #30, `45a73dc`) | 2026-10-18 | — |
 | 20-torna-yol | Torna takım yolları: alın, çap, kaba, finiş, kanal, diş, uç radyusu telafisi (PR #34) | 2026-10-18 | 220 |
 
 ## Kurulum kontrol listesi (bir kez, kullanıcı)
