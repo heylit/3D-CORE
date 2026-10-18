@@ -30,10 +30,15 @@ def parca_isil(
     """Parçayı ağlar, yüz seçicilerini uygular, ısıl çözümü döndürür.
 
     `malzeme` B2 kaydıdır (malzeme.model.Malzeme): ağ `malzeme.fem_malzemesi()` ile kurulur,
-    k = `malzeme.iste("k")` (k alanı yoksa B2 ModelError verir). Hiçbir şey bulamayan seçici → ModelError.
+    k = `malzeme.iste("k")`; B2'nin hatası (k alanı yok vb.) core.model.ModelError'a çevrilir.
+    Hiçbir şey bulamayan seçici → ModelError.
     """
-    k = malzeme.iste("k")
-    m = mesh.tet_mesh(part, h_ag, malzeme.fem_malzemesi())
+    try:
+        k = malzeme.iste("k")
+        fem_malzeme = malzeme.fem_malzemesi()
+    except ValueError as e:  # malzeme.model.ModelError, ValueError'dan türer
+        raise ModelError(str(e)) from e
+    m = mesh.tet_mesh(part, h_ag, fem_malzeme)
 
     sicakliklar = []
     for pred, T in sabit:

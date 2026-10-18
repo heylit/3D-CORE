@@ -3,12 +3,13 @@
 Dal: `claude/project-thread-67phxl` · Oturum: bulut thread "Isıl analiz (SPEC 56)"
 
 ## Sıradaki adım
-PR #118 birleştirme; K11 (`analiz.parca_isil`) B2 malzeme modeli main'e girince koşar.
+PR #118 birleştirme (B2 main'de, K11 koşuyor).
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
 |---|---|---|---|
 | 2026-10-18 | 74 | 0 | SPEC 56 testleri (`--uygulanmamis-hata`) yeşil; B2 gerektiren 5 test atlandı; ccx 2.21 DC3D4 çapraz kontrolü geçti. |
+| 2026-10-18 | 79 | 0 | B2 (#121) main'den alındı; K11 dahil tüm SPEC 56 testleri yeşil. B2'nin `malzeme.model.ModelError`'ı `parca_isil`'de `core.model.ModelError`'a çevrildi. |
 
 ## Son oturum
 **2026-10-18 — kod**
