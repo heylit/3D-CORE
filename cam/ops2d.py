@@ -10,18 +10,15 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
 
 import numpy as np
 
-from cam.geom2d import LINK_TOL, TOL, closest, intersect
-from cam.model import CamError, Move, MoveType, Stock, Tool, ToolKind, Toolpath
+from cam import giris
+from cam.geom2d import LINK_TOL, TOL, closest, distance_to_region, intersect
+from cam.model import CamError, EntryKind, EntryMode, Move, MoveType, Stock, Tool, ToolKind, Toolpath
 from cam.offset import offset
 from cam.profile import Arc, Line, Profile, Region, Segment
 from cam.rest import RingNode, ring_tree
-
-if TYPE_CHECKING:
-    from cam.model import EntryMode
 
 
 @dataclass
@@ -52,6 +49,10 @@ class Cut:
             raise CamError(f"clearance negatif olamaz ({self.clearance})")
         if self.stepover is not None and not self.stepover > 0:
             raise CamError(f"stepover pozitif olmalı ({self.stepover})")
+        if self.entry is not None and not isinstance(self.entry, EntryMode):
+            raise CamError(f"Cut.entry EntryMode veya None olmalı ({type(self.entry).__name__})")
+        if self.ramp_feed is not None and not (math.isfinite(self.ramp_feed) and self.ramp_feed > 0):
+            raise CamError(f"Cut.ramp_feed pozitif olmalı ({self.ramp_feed})")
 
 
 def depths(z_top: float, z_bottom: float, a_p: float) -> list[float]:
@@ -69,12 +70,6 @@ def _check_tool(tool: Tool) -> float:
     if tool.kind is not ToolKind.FLAT:
         raise CamError(f"SPEC 03 sadece düz parmak freze kabul eder ({tool.kind.value})")
     return tool.D / 2
-
-
-def _check_plunge(tool: Tool) -> None:
-    """Ek A2: düz dalan işlemler merkezden kesmeyen takımı reddeder (rampa / helis 03b'de)."""
-    if not tool.center_cutting:
-        raise CamError(f"Takım '{tool.name}' merkezden kesmiyor; düz dalma yapılamaz (Ek A2)")
 
 
 def _stepover(cut: Cut, tool: Tool) -> float:
@@ -124,8 +119,24 @@ class _Builder:
         """z_safe'te p üstüne hızlı, z_prev + clearance'a hızlı iniş, z'ye dalma ilerlemesiyle."""
         self.retract()
         self.rapid(p[0], p[1], self.cut.z_safe)
-        self.rapid(p[0], p[1], max(z_prev + self.cut.clearance, z))
+        self.rapid(p[0], p[1], self.z_entry(z, z_prev))
         self.line(p[0], p[1], z, self.cut.plunge_feed)
+
+    def enter_moves(self, p, z: float, z_prev: float, moves: list[Move]) -> None:
+        """SPEC 03c: z_safe'te p üstüne hızlı, z_prev + clearance'a hızlı iniş, sonra giriş hareketleri."""
+        self.retract()
+        self.rapid(p[0], p[1], self.cut.z_safe)
+        self.rapid(p[0], p[1], self.z_entry(z, z_prev))
+        for m in moves:
+            self.moves.append(m)
+            self.pos = np.array(m.end, dtype=float)
+
+    def z_entry(self, z: float, z_prev: float) -> float:
+        return max(z_prev + self.cut.clearance, z)
+
+    @property
+    def ramp_feed(self) -> float:
+        return self.cut.feed if self.cut.ramp_feed is None else self.cut.ramp_feed
 
     def loop(self, segs: list[Segment], z: float) -> None:
         for s in segs:
@@ -182,7 +193,7 @@ def contour(profile: Profile, tool: Tool, cut: Cut, side: str, climb: bool = Tru
     Tırmanma: dış kontur CW, iç kontur CCW; climb=False tersi.
     """
     r = _check_tool(tool)
-    _check_plunge(tool)
+    entry = giris.resolve(tool, cut.entry, "kontur")
     if side not in ("dis", "ic", "uzerinde"):
         raise CamError(f"contour: side 'dis', 'ic' veya 'uzerinde' olmalı ({side!r})")
     if side == "uzerinde":
@@ -200,12 +211,28 @@ def contour(profile: Profile, tool: Tool, cut: Cut, side: str, climb: bool = Tru
             loops = [rg.outer.segments for rg in res]  # CCW
         if not climb:
             loops = [Profile(lp).reversed().segments for lp in loops]
+    closed = side != "uzerinde" or profile.closed
+    ramp = entry.kind is EntryKind.RAMP
+    if ramp and not tool.center_cutting:
+        for lp in loops:
+            P = sum(sg.length for sg in lp)
+            if P < math.pi * r - TOL:
+                raise CamError(
+                    f"contour: kontur rampası için yol kısa (P = {P:.4f} mm < π r = {math.pi * r:.4f} mm; "
+                    f"takım '{tool.name}' merkezden kesmiyor)"
+                )
     b, start = _start_builder(cut, loops[0][0].p0)
     z_prev = cut.z_top
     for z in depths(cut.z_top, cut.z_bottom, cut.a_p):
         for lp in loops:
-            b.enter(lp[0].p0, z, z_prev)
-            b.loop(lp, z)
+            if ramp:
+                z0 = b.z_entry(z, z_prev)
+                moves, ring = giris.loop_ramp_moves(lp, closed, z0, z, entry.angle, b.ramp_feed)
+                b.enter_moves(lp[0].p0, z, z_prev, moves)
+                b.loop(ring, z)
+            else:
+                b.enter(lp[0].p0, z, z_prev)
+                b.loop(lp, z)
             b.retract()
         z_prev = z
     return b.toolpath(f"kontur_{side}", tool, start)
@@ -258,7 +285,7 @@ def pocket(region: Region, tool: Tool, cut: Cut, climb: bool = True) -> Toolpath
     halkalar arası mümkünse inmeden geçiş."""
     r = _check_tool(tool)
     s = _stepover(cut, tool)
-    _check_plunge(tool)
+    entry = giris.resolve(tool, cut.entry, "cep")
     roots = ring_tree(region, r, s)
     if not roots:
         raise CamError("pocket: takım cebe sığmıyor")
@@ -277,28 +304,76 @@ def pocket(region: Region, tool: Tool, cut: Cut, climb: bool = True) -> Toolpath
     b, start = _start_builder(cut, leaf_start(roots[0]))
     state = {"z": 0.0, "z_prev": 0.0, "down": False}
 
-    def cut_loop(lp: list[Segment], link_region: Region | None) -> None:
+    anchors: dict[int, np.ndarray] = {}
+
+    def enter_entry(lp: list[Segment], node: RingNode, root: RingNode) -> list[Segment]:
+        """SPEC 03c: çapa noktasında helis / zigzag, sonra halkaya bağlantı; döndürülmüş halkayı döner."""
+        z, z_prev = state["z"], state["z_prev"]
+        if id(node) not in anchors:
+            anchors[id(node)] = giris.deepest_point(node.region)[0]
+        c = anchors[id(node)]
+        R0 = root.region
+        i, t, _ = _nearest_on(lp, c)
+        lp = _rotate(lp, i, t)
+        q = np.asarray(lp[0].p0, dtype=float)
+        if not R0.contains(c):
+            raise CamError("pocket: giriş çapa noktası geçerli bölgenin dışında")
+        z0 = b.z_entry(z, z_prev)
+        if entry.kind is EntryKind.HELIX:
+            R_h = entry.radius
+            dc = distance_to_region(c, R0)
+            if dc < R_h - TOL:
+                raise CamError(
+                    f"pocket: helis sığmıyor (dist(c, ∂R₀) = {dc:.4f} mm < R_h = {R_h:.4f} mm); "
+                    "daha küçük helis yarıçapı veya rampa deneyin"
+                )
+            d = q - c
+            nd = float(np.hypot(*d))
+            u = d / nd if nd > TOL else np.array([1.0, 0.0])
+            moves = giris.helix_moves(c, R_h, u, z0, z, entry.angle, climb, b.ramp_feed, cut.feed)
+            p_start = c + R_h * u
+        else:
+            u, ell = giris.ramp_direction(c, R0, entry.length)
+            L_min = r if not tool.center_cutting else TOL
+            if 2 * ell < L_min:
+                raise CamError(
+                    f"pocket: zigzag rampa sığmıyor (2ℓ = {2 * ell:.4f} mm < {L_min:.4f} mm; "
+                    f"takım '{tool.name}' merkezden kesmiyor)"
+                )
+            moves = giris.zigzag_moves(c, u, ell, z0, z, entry.angle, b.ramp_feed, cut.feed)
+            p_start = c - ell * u
+        p_end = np.asarray(moves[-1].end[:2], dtype=float)
+        if not giris.segment_inside(p_end, q, R0):
+            raise CamError("pocket: giriş bağlantısı geçerli merkez bölgesinden çıkıyor")
+        b.enter_moves(p_start, z, z_prev, moves)
+        b.line(q[0], q[1], z)
+        return lp
+
+    def cut_loop(lp: list[Segment], node: RingNode, root: RingNode) -> None:
         z = state["z"]
-        if state["down"] and link_region is not None:
+        if state["down"]:
             q = b.pos[:2]
             i, t, p = _nearest_on(lp, q)
-            if _link_ok(q, p, link_region):
+            if _link_ok(q, p, node.region):
                 lp = _rotate(lp, i, t)
                 b.line(lp[0].p0[0], lp[0].p0[1], z)
                 b.loop(lp, z)
                 return
-        b.enter(lp[0].p0, z, state["z_prev"])
+        if entry.kind is EntryKind.PLUNGE:
+            b.enter(lp[0].p0, z, state["z_prev"])
+        else:
+            lp = enter_entry(lp, node, root)
         state["down"] = True
         b.loop(lp, z)
 
-    def cut_node(node: RingNode) -> None:
+    def cut_node(node: RingNode, root: RingNode) -> None:
         for k, child in enumerate(node.children):
             if k > 0:
                 b.retract()
                 state["down"] = False
-            cut_node(child)
+            cut_node(child, root)
         for lp in loops_of(node):
-            cut_loop(lp, node.region)
+            cut_loop(lp, node, root)
 
     z_prev = cut.z_top
     for z in depths(cut.z_top, cut.z_bottom, cut.a_p):
@@ -306,7 +381,7 @@ def pocket(region: Region, tool: Tool, cut: Cut, climb: bool = True) -> Toolpath
         for root in roots:
             b.retract()
             state["down"] = False
-            cut_node(root)
+            cut_node(root, root)
         b.retract()
         z_prev = z
     return b.toolpath("cep", tool, start)
