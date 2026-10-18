@@ -16,14 +16,16 @@ Aynı dalgadaki SPEC'ler birbirine bağlı değildir; her biri ayrı thread / ay
 |---|---|---|
 | **0** (tek iş, kısa) | `00-arayuzler`: `geometry/part.py`, `cam/model.py`, `assy/model.py` veri modelleri + testleri; bulut ve yerel için aynı kurulum (bulut başlangıç betiği, `occt` test işareti); hook'ların paralel dallara uyarlanması (`main` hep yeşil, TDD'nin kırmızı test commit'i engellenmeden) | Diğer her şey bu arayüzlere bağlı; önce bunlar sabitlenir |
 | **1** | `01-bar`, `02-parca`, `03-cam-2d`, `04-gcode`, `08-kisitlar` | Her biri sadece kendi paketine yazar; CAM ve montaj çözücüsü saf numpy ile, OCCT'siz test edilir |
-| **2** | `05-cam-sim`, `06-cam-3d`, `07-montaj-agaci`, `11-tet4` | 02 (katı parça) ve 03/04 (takım yolu) `main`'de |
-| **3** | `09-girisim`, `10-montaj-cam`, `12-gmsh`, `13-calculix` | Montaj ağacı, CAM simülasyonu ve tet4 `main`'de |
+| **2** | `05-cam-sim`, `06-cam-3d`, `07-montaj-agaci`, `11-tet4`, `14-cam-kurulum`, `15-goruntuleyici`, `16-teknik-resim` | 02 (katı parça) ve 03/04 (takım yolu) `main`'de |
+| **3** | `09-girisim`, `10-montaj-cam`, `12-gmsh`, `13-calculix`, `17-kroki` | Montaj ağacı, CAM simülasyonu, tet4 ve kısıt çözücü (08) `main`'de |
+| **4** | `18-ozellik-agaci`, `19-adaptif-kaba` | Kroki (17) ve talaş simülasyonu (05) `main`'de |
 
 Bağımlılıklar (→ "şuna ihtiyaç duyar"):
 - `03-cam-2d`, `04-gcode` → sadece `cam/model.py` (03 2D profillerle çalışır; parçadan özellik okuma 05/06'da)
 - `08-kisitlar` → sadece `assy/model.py` (dönüşüm matrisleri üzerinde saf matematik)
 - `05-cam-sim` → 02, 03, 04 · `06-cam-3d` → 02, 03 · `07-montaj-agaci` → 02
 - `09-girisim` → 07 · `10-montaj-cam` → 05, 07 · `11-tet4` → 01 · `12-gmsh` → 02, 11 · `13-calculix` → 12
+- `14-cam-kurulum` → 03, 04 · `15-goruntuleyici` → 02, 03 · `16-teknik-resim` → 02 · `17-kroki` → 08 · `18-ozellik-agaci` → 02, 17 · `19-adaptif-kaba` → 03, 05
 
 ## Aşama 0 — FEM iskeleti (hazır olanı bitir)
 | # | SPEC | Konu | Bitti sayılır |
@@ -42,6 +44,8 @@ Bağımlılıklar (→ "şuna ihtiyaç duyar"):
 | 4 | 04-gcode | G-code çıkışı (GRBL / Fanuc post-işlemcisi) + kendi G-code okuyucumuz; delik delme çevrimleri (G81/G83) | Üretilen G-code geri okununca takım yolu birebir aynı |
 | 5 | 05-cam-sim | Talaş kaldırma simülasyonu (dexel / voxel), işleme süresi tahmini | Simüle edilen son parça CAD hacmiyle tolerans içinde; çakma (gouge) ve hızlı harekette çarpma tespiti; parçadan işleme özelliklerini (düz yüz, cep, delik) okuma |
 | 6 | 06-cam-3d | 3D yüzey işleme (küresel uçlu takım, drop-cutter), kaba + ince işleme | Küre / silindir yüzeyde iz yüksekliği (scallop) formülle tutuyor |
+| 14 | 14-cam-kurulum | İş sıfırı (WCS), stok, bağlama; JSON takım kütüphanesi; kesme verisinden devir ve ilerleme: n = 1000·Vc / (π·D), F = n·z·fz | Bilinen Vc, fz, D, z için S ve F birebir; G-code'da WCS (G54) doğru |
+| 19 | 19-adaptif-kaba | Sabit takım temas açılı (trokoidal / adaptif) kaba işleme | Temas açısı her adımda sınır içinde; kalan malzeme simülasyonla doğru |
 
 ## Aşama 3 — Montaj (`assy/`)
 | # | SPEC | Konu | Bitti sayılır |
@@ -58,10 +62,24 @@ Bağımlılıklar (→ "şuna ihtiyaç duyar"):
 | 12 | 12-gmsh | Katı parçayı gmsh ile mesh'le → `core.model.Model` | Delikli plakada Kt ≈ 3 (Kirsch) |
 | 13 | 13-calculix | Von Mises + CalculiX çapraz kontrolü | Braket analizi fark < %1 |
 
+## Aşama 5 — Parametrik model ve görüntüleme
+| # | SPEC | Konu | Bitti sayılır |
+|---|------|------|---------------|
+| 15 | 15-goruntuleyici | `viz/` içinde pyvista ile parça, montaj ve takım yolunu 3D gösterme, ekran görüntüsü kaydetme | Bilinen sahnede sınır kutusu / piksel kontrolü; ekransız (off-screen) test çalışıyor |
+| 16 | 16-teknik-resim | OCCT gizli çizgi kaldırma ile ön / üst / yan görünüş ve kesit, temel ölçüler, DXF ve SVG çıkışı | Blok + delikte görünüş kenar uzunlukları analitik; DXF geri okununca aynı |
+| 17 | 17-kroki | 2D kroki (çizgi, yay, daire) + kısıtlar (yatay, dik, teğet, eş, mesafe, açı) ve çözücü; 08 ile aynı matematik (Newton, serbestlik derecesi sayımı) | Kapalı formlu üçgen / dörtgenler 1e-9; DOF sayımı doğru; çelişkili kısıt → hata |
+| 18 | 18-ozellik-agaci | Kroki → extrude / revolve / cep / delik / pah; parametre değişince yeniden hesap; yüzlere kararlı referans (topolojik adlandırma sorunu) | Parametre değişince hacim analitik; bağlı özellik doğru yüze kalıyor |
+
+Not: 14 (`cam/model.py`) ve 17 (yeni `sketch/model.py`) ortak arayüz değişikliği gerektirir; kurala göre önce ayrı küçük arayüz PR'ı açılır.
+
 ## İhtiyaç olursa (sıraya alınmadı)
-- Özellik ağacı (eskiz → extrude / revolve / fillet) ve 2D eskiz kısıt çözücü
-- Basit arayüz (PySide veya FastAPI + HTML)
+- 3+2 ve 5 eksen işleme, makine kinematiği (post-işlemcide döner eksenler)
+- Montajda hareket ve kinematik
+- Modal ve ısıl analiz
+- FEM'i özellik ağacı parametreleriyle döngüye sokan optimizasyon
+- Kullanıcı arayüzü (PySide veya FastAPI + HTML), 15'teki görüntüleyicinin üstüne
 
 ## Bağımlılık notu
 `cad` (build123d) zaten `pyproject.toml`'da isteğe bağlı. CAM için ofset kütüphanesi (ör. pyclipper / shapely)
 veya simülasyon için ek paket gerekirse ilgili SPEC'te önerilir ve kullanıcı onayı alınır.
+`pyvista` (SPEC 15, görüntüleyici) kullanıcı tarafından onaylandı (2026-10-18); `pyproject.toml`'a eklenmesi ayrı küçük PR olarak yapılır.
