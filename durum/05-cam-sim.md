@@ -3,15 +3,23 @@
 Dal: `claude/spec-05-cam-sim-ch33p2` · Oturum: bulut
 
 ## Sıradaki adım
-Bağımsız test oturumunun test commit'ini cherry-pick ile al, kodu ayrı commit'te yaz, testleri yeşile çek.
+PR'ın incelenip birleşmesi. Sonra: SPEC 24 köprüsü bu modülün `SimResult` çıktısını okuyabilir.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
 |---|---|---|---|
 | 2026-10-18 | — | — | Sadece SPEC taslağı; kod ve test yok. |
+| 2026-10-18 | 175 SPEC 05 | 0 | Bağımsız testler (86d9fec, cherry-pick) + kod; `ruff check`, `ruff format --check` temiz. |
 
 ## Son oturum
-**2026-10-18**
+**2026-10-18 — kod**
+- `cam/sim/`: `zmap.py`, `dexel.py`, `sweep.py` (düz kapalı form, küresel/köşe radyüslü altın oran araması,
+  gövde basamakları), `part.py` (barisentrik parça z-haritası), `timing.py`, `simulate.py` (alt adımlar,
+  hızlı/sap/tutucu çarpma, çakma, CSR olay listesi, `initial` ile devam).
+- Bağımsız test commit'i cherry-pick ile alındı, test dosyalarına dokunulmadı; 175 test ilk çalıştırmada yeşil.
+- En yavaş test 5.7 s (K19 iki model çapraz kontrol); `slow` işareti gerekmedi.
+
+**2026-10-18 — SPEC**
 - `specs/05-cam-sim.md` taslağı yazıldı: z-haritası, süpürme zarfı (düz kapalı form, küresel/köşe radyüslü
   dışbükey minimizasyon), gövde basamakları ile sap/tutucu çarpışması, hızlı çarpma, mesh'ten parça z-haritası
   ile çakma, trapez süre, SPEC 24 için olay listesi (CSR).
