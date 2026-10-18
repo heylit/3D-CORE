@@ -38,6 +38,7 @@ from geometry.dondur import dondur_arac, kenarlar, profil_yuzleri, uretilen, yuz
 from geometry.features import DV_MIN, PAY, block, cylinder, hole
 from geometry.holes import counterbore_hole, countersink_hole, inclined_hole, tapped_hole
 from geometry.part import FaceRef, GeometryError, Hole, Part
+from geometry.serbest import Cizgi, Spline, Yay, Yol, YolParcasi  # noqa: F401 - SPEC 65a arayüzü
 from sketch.model import Plane, SegArc, SegLine, Sketch, SketchRegion
 
 SEMA = 1  # to_dict / from_dict sürümü
@@ -200,6 +201,55 @@ class Ayna:
     bastir: bool = False
 
 
+@dataclass(frozen=True)
+class Loft:
+    """SPEC 65a: profiller (≥ 2, sırayla) arası katı. ruled=True regle, aksi tek B-spline yan yüz (G1).
+
+    Her profil tek, deliksiz, kapalı bölge. Adlar bas, son; yan (ruled=False) ya da yan_1..yan_k
+    (ruled=True, kesit aralığı başına). islem "cikar" = malzeme kaldırır (SPEC 18'deki "kes").
+    """
+
+    kimlik: str
+    profiller: tuple[str, ...]
+    ruled: bool = False
+    islem: Literal["ekle", "cikar", "yeni"] = "ekle"
+    bastir: bool = False
+
+
+@dataclass(frozen=True)
+class Sweep:
+    """SPEC 65a: profil, yol boyunca süpürülür. Adlar bas, son, yan_i (profil kenarı başına).
+
+    yonlendirme "yardimci" ise yardimci yön vektörü zorunlu. islem "cikar" = malzeme kaldırır.
+    """
+
+    kimlik: str
+    profil: str
+    yol: Yol
+    yonlendirme: Literal["frenet", "sabit", "yardimci"] = "frenet"
+    yardimci: tuple[float, float, float] | None = None
+    islem: Literal["ekle", "cikar", "yeni"] = "ekle"
+    bastir: bool = False
+
+
+@dataclass(frozen=True)
+class BSplineYuzey:
+    """SPEC 65a: m × n nokta ağından (m, n ≥ 4) derece 3 B-spline yüzey.
+
+    kullanim "kalinlastir": kalinlik (± yüzey normaline göre) kadar katı; gövde yoksa yeni gövde, varsa
+    ekle. Adlar ust, alt, kenar_i. kullanim "kes": mevcut gövde yüzeyle bölünür, sakla tarafı (yüzey
+    normaline göre "ust" ya da "alt") kalır; kesik yüz adı kesit.
+    """
+
+    kimlik: str
+    noktalar: tuple[tuple[tuple[float, float, float], ...], ...]
+    tol: float = 0.01
+    kullanim: Literal["kalinlastir", "kes"] = "kalinlastir"
+    kalinlik: float = 1.0
+    sakla: Literal["ust", "alt"] = "alt"
+    bastir: bool = False
+
+
 Ozellik = (
     Blok
     | Silindir
@@ -212,6 +262,9 @@ Ozellik = (
     | DogrusalDesen
     | DaireselDesen
     | Ayna
+    | Loft
+    | Sweep
+    | BSplineYuzey
 )
 
 
@@ -266,7 +319,11 @@ _TURLER = (
     DogrusalDesen,
     DaireselDesen,
     Ayna,
+    Loft,
+    Sweep,
+    BSplineYuzey,
 )
+_SERBEST = (Loft, Sweep, BSplineYuzey)
 _DESEN_KAYNAGI = (Ekstruzyon, Dondurme, Delik)
 TOL_DUZLEM = 1e-6  # mm: yüze bağlı eskizde parçaların eş düzlemliliği
 ASAGI = np.array([0.0, 0.0, -1.0])
@@ -284,8 +341,10 @@ def _referanslar(oz) -> list[str]:
         v = getattr(oz, ad, None)
         if isinstance(v, FaceRef):
             k.append(v.feature)
-    if isinstance(oz, Ekstruzyon | Dondurme):
+    if isinstance(oz, Ekstruzyon | Dondurme | Sweep):
         k.append(oz.profil)
+    if isinstance(oz, Loft):
+        k += list(oz.profiller)
     if isinstance(oz, Pah | Yuvarlatma):
         for e in oz.kenarlar:
             k += [e.a.feature, e.b.feature]
@@ -312,8 +371,12 @@ def dogrula(agac: Agac) -> None:
                 sonra = any(o.kimlik == r for o in agac.ozellikler)
                 neden = "ondan sonra geliyor" if sonra else "ağaçta yok"
                 raise GeometryError(f"'{k}' özelliği '{r}' özelliğine bağlı ama '{r}' {neden}")
-        if isinstance(oz, Ekstruzyon | Dondurme) and not isinstance(onceki[oz.profil], Profil):
+        if isinstance(oz, Ekstruzyon | Dondurme | Sweep) and not isinstance(onceki[oz.profil], Profil):
             raise GeometryError(f"'{k}': profil '{oz.profil}' bir Profil değil")
+        if isinstance(oz, Loft):
+            for r in oz.profiller:
+                if not isinstance(onceki[r], Profil):
+                    raise GeometryError(f"'{k}': profil '{r}' bir Profil değil")
         if isinstance(oz, DogrusalDesen | DaireselDesen | Ayna) and oz.ozellikler is not None:
             if not oz.ozellikler:
                 raise GeometryError(f"'{k}': kaynak özellik listesi boş")
@@ -916,6 +979,21 @@ def _ayna(d: _Durum, oz: Ayna) -> None:
     d.holes = d.holes + tuple(donustur_hole(h, T) for h in d.holes)
 
 
+# --- SPEC 65a: serbest yüzey (OCCT çağrıları geometry/serbest.py'de) ---------------------------------------
+
+
+def _loft(d: _Durum, oz: Loft) -> None:
+    raise NotImplementedError
+
+
+def _sweep(d: _Durum, oz: Sweep) -> None:
+    raise NotImplementedError
+
+
+def _bspline(d: _Durum, oz: BSplineYuzey) -> None:
+    raise NotImplementedError
+
+
 def _uygula(d: _Durum, oz, coz: Coz | None) -> None:
     if isinstance(oz, Blok):
         _blok(d, oz)
@@ -935,6 +1013,12 @@ def _uygula(d: _Durum, oz, coz: Coz | None) -> None:
         _desen(d, oz)
     elif isinstance(oz, Ayna):
         _ayna(d, oz)
+    elif isinstance(oz, Loft):
+        _loft(d, oz)
+    elif isinstance(oz, Sweep):
+        _sweep(d, oz)
+    elif isinstance(oz, BSplineYuzey):
+        _bspline(d, oz)
     else:  # dogrula yakalar
         raise GeometryError(f"bilinmeyen özellik türü: {type(oz).__name__}")
 
@@ -1082,6 +1166,8 @@ def _oku(ad: str, v):
 def _oz_sozluk(oz) -> dict:
     if not isinstance(oz, _TURLER):
         raise GeometryError(f"bilinmeyen özellik türü: {type(oz).__name__}")
+    if isinstance(oz, _SERBEST):  # SPEC 65a: yol / nokta ağı JSON'u
+        raise NotImplementedError
     d = {"tur": type(oz).__name__}
     for f in dataclasses.fields(oz):
         d[f.name] = _deger(f.name, getattr(oz, f.name))
@@ -1105,6 +1191,8 @@ def from_dict(d: dict) -> Agac:
         t = turler.get(o.get("tur"))
         if t is None:
             raise GeometryError(f"bilinmeyen özellik türü: {o.get('tur')!r}")
+        if t in _SERBEST:  # SPEC 65a: yol / nokta ağı JSON'u
+            raise NotImplementedError
         alanlar = {f.name for f in dataclasses.fields(t)}
         try:
             ozellikler.append(t(**{k: _oku(k, v) for k, v in o.items() if k != "tur" and k in alanlar}))
