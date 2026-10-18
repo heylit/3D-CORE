@@ -242,6 +242,21 @@ def residual(assembly: Assembly, mate: Mate) -> np.ndarray:
     return r
 
 
+def angular_rows(assembly: Assembly, mate: Mate) -> np.ndarray:
+    """Artığın hangi satırları birimsiz (sadece yönlere bağlı) — kalanlar mm.
+
+    Bir satır konumlara (p_a, p_b) bağlı değil ama yönlere bağlıysa yön satırıdır:
+    n_a + n_b, d_a × d_b, d_a·d_b − cos θ. Hiçbir türevi olmayan satır (ör. |v| ≈ 0'da
+    normlu mesafe) mm sayılır.
+    """
+    _, G = _terms(assembly, mate)
+
+    def bagli(*anahtarlar: str) -> np.ndarray:
+        return np.any(np.hstack([G[k] for k in anahtarlar]) != 0.0, axis=1)
+
+    return ~bagli("pa", "pb") & bagli("da", "db")
+
+
 def jacobian(assembly: Assembly, mate: Mate, unknowns: list[str]) -> np.ndarray:
     """∂r/∂x, boyut (m, 6·len(unknowns)); unknowns[i] sütunları [Δt, ω]."""
     r, G = _terms(assembly, mate)
