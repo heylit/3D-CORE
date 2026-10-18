@@ -19,5 +19,8 @@ birleşince yazılır (test bağımsızlığı akışıyla).
 - Arayüz (`*/model.py`, `geometry/part.py`) değişikliği gerekmiyor.
 - SPEC metni onaylandı (2026-10-18 10:46). SPEC 05 `main`'de; kod 27, 14, 21, 22'yi bekliyor.
 
+- İskelet: `cam/plan.py`, `cam/plan_turn.py`, `cam/plan_verify.py` (`NotImplementedError`); dal main + SPEC 27
+  (`claude/project-thread-ysr96h`) + SPEC 22 iskeleti (`claude/project-thread-012y8t`) üstünde. Testler ayrı oturumda.
+
 ## Açık sorular
 _(yok)_
