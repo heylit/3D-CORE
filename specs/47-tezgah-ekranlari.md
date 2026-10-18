@@ -1,6 +1,11 @@
 # SPEC 47 — Tezgah ekranları: otomatik CAM planı, çok eksen, analiz
 
-> **Durum: TASLAK** (kullanıcı onayı bekliyor). Onaylanmadan kod ve test yazılmaz.
+> **Durum: ONAYLANDI** (kullanıcı, 2026-10-18 11:13 UTC, proje sohbetinde yazılı toplu onay: "Dalga 5 SPEC … 47
+> metinlerini önerilerle, … A3 arayüz metinlerini … onaylıyorum"). Açık sorular önerilen varsayılanlarla kapandı:
+> üç alt PR (47a/b/c), düzlem tıklamayla / silindir elle, tri-dexel yalnız işlem sonları, eklem tablosu, %10 / %5
+> uyarı eşikleri. Ekran kaydı A3 sürüm 3'e (`/mnt/project-files/yol-haritasi/a3-ekran-kaydi.md`) göre adlar:
+> `Ekran.kimlik` → `ad`, `Ekran.ad` → `baslik`, `kayitli()` → `ekranlar()`, `EkranModulu.kimlik` → `ad`;
+> kullanılamaz ekranın uçları 503. Davranış ve kabul kriterleri aynı.
 > Dalga 5, hat H14 (`/mnt/project-files/yol-haritasi/dalga-5-onerisi.md`; kullanıcı 2026-10-18 10:51 UTC "Tam" kapsam).
 > Tezgah kabuğu, köprü kuralları, `Is` şeması, ikili dizi biçimi, zaman şeridi, kanıt paneli ve ön yüz araç zinciri
 > SPEC 24'ten, torna ve montaj ekranları SPEC 25'ten gelir; burada tekrar edilmez.
@@ -555,7 +560,7 @@ Ortak kriterler (K1, K21, K22, K24) her alt PR'da o ekranın kısmıyla kapanır
   örnek işler dışında parça girişi sonraki ek.
 - Gerçek şirket parçaları (gizlilik kuralı): bütün örnekler uydurmadır.
 
-## Açık sorular (onayda karar)
+## Açık sorular (2026-10-18 11:13'te önerilerle kapandı)
 1. **Alt PR bölünmesi:** üç ekran üç alt PR (47a/b/c) olarak ayrı dallarda mı (öneri), yoksa tek PR mı?
 2. **Analizde yüz seçimi:** düzlem tıklamayla, silindir müfettişte eksen + yarıçap yazarak mı (öneri), yoksa
    OCCT yüz kimliğinin ağa taşınması için SPEC 12'ye ek mi?
