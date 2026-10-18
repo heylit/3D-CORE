@@ -36,7 +36,9 @@ jobs:
           sudo apt-get install -y --no-install-recommends libosmesa6
           pip install -e ".[viz]"
           python -c "import pyvista as pv; p = pv.Plotter(off_screen=True, window_size=(64, 48)); p.add_mesh(pv.Cube()); assert p.screenshot(return_img=True).shape == (48, 64, 3)"
-      - run: pip install -e ".[dev,cad,web]"   # web: SPEC 24 Tezgah testleri (tests/tezgah) atlanmasın
+      - name: gmsh kur  # SPEC 12 ağ testleri atlanmasın; gmsh wheel'i bu sistem kütüphanelerini ister
+        run: sudo apt-get install -y --no-install-recommends libglu1-mesa libxcursor1 libxinerama1 libxft2
+      - run: pip install -e ".[dev,cad,web,mesh]"   # web: SPEC 24 Tezgah, mesh: gmsh (SPEC 12)
       - name: CalculiX (ccx) kur  # FEM çapraz kontrolü (tests/reference/test_calculix.py) atlanmasın
         run: |
           sudo apt-get update -qq
