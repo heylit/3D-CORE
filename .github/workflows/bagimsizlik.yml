@@ -18,6 +18,10 @@ permissions:
   issues: read
   pull-requests: read
 
+defaults:
+  run:
+    shell: cmd   # Windows runner'da PowerShell betik çalıştırma kapalı (ExecutionPolicy); Linux adımları bash'i açıkça seçer
+
 jobs:
   kapi:
     runs-on: self-hosted   # kendi Windows makinemiz; runner'da git PATH'te olmalı (geçmiş için)
