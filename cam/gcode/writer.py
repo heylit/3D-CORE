@@ -212,6 +212,20 @@ def _yazilabilir(tp: Toolpath) -> None:
         raise CamError(f"Takım yolu '{tp.name}': G96 sabit kesme hızı desteklenmiyor (SPEC 21)")
 
 
+def _z_kesme(ops: list[Toolpath | DrillOp]) -> float:
+    """Ek C1: XY'de yer değiştiren (uçlara göre > 1e-9 mm) kesme hareketlerinin en yüksek Z'si; yoksa −∞."""
+    z = -math.inf
+    for op in ops:
+        if not isinstance(op, Toolpath):
+            continue
+        p0 = op.start
+        for m in op.moves:
+            if m.type is not MoveType.RAPID and math.dist(p0[:2], m.end[:2]) > 1e-9:
+                z = max(z, p0[2], m.end[2])
+            p0 = m.end
+    return z
+
+
 def write(
     ops: list[Toolpath | DrillOp],
     dialect: Dialect = GRBL,
@@ -241,6 +255,8 @@ def write(
         safe_z = z_top
     elif not math.isfinite(safe_z) or safe_z < z_top:
         raise CamError(f"Güvenli Z ({safe_z}) en yüksek op başından ({z_top}) alçak olamaz")
+    if not safe_z > _z_kesme(ops):
+        raise NotImplementedError("SPEC 04 Ek C1: safe_z kesme seviyesinin üstünde olmalı")
     w = _Writer(dialect, program_no)
     w.safe_z = float(safe_z)
     w.header()
