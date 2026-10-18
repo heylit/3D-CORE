@@ -26,7 +26,7 @@ import os
 import re
 import zipfile
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 SEMA = 1
@@ -108,20 +108,96 @@ class Goc:
 class GocKaydi:
     """Göç adımlarının kaydı. Bir bölüm için en az bir adım kayıtlıysa o bölüm sahiplenilmiş sayılır."""
 
+    def __init__(self) -> None:
+        self._adimlar: dict[str, dict[int, Goc]] = {}
+
     def kaydet(self, g: Goc) -> None:
         """Adımı ekler; aynı (bolum, kaynak) ikinci kez, kaynak < 1 ya da boş açıklama → ProjeError."""
-        raise NotImplementedError("B1: GocKaydi.kaydet")
+        yer = g.bolum or "dosya"
+        if g.bolum and not BOLUM_ADI.fullmatch(g.bolum):
+            raise ProjeError(f"göç adımı: geçersiz bölüm adı {g.bolum!r}")
+        if type(g.kaynak) is not int or g.kaynak < 1:
+            raise ProjeError(
+                f"göç adımı {yer}: kaynak sürüm 1 ya da daha büyük tam sayı olmalı ({g.kaynak!r})"
+            )
+        if not callable(g.uygula):
+            raise ProjeError(f"göç adımı {yer} {g.kaynak} → {g.kaynak + 1}: uygula çağrılabilir değil")
+        if not isinstance(g.aciklama, str) or not g.aciklama.strip():
+            raise ProjeError(f"göç adımı {yer} {g.kaynak} → {g.kaynak + 1}: açıklama boş olamaz")
+        adimlar = self._adimlar.setdefault(g.bolum, {})
+        if g.kaynak in adimlar:
+            raise ProjeError(f"göç adımı {yer} {g.kaynak} → {g.kaynak + 1} zaten kayıtlı")
+        adimlar[g.kaynak] = g
+
+    def _sahip(self, bolum: str) -> bool:
+        """Bölüm için en az bir adım kayıtlı mı (kayıtsız bölüm göçe sokulmaz)."""
+        return bool(self._adimlar.get(bolum))
 
     def guncel(self, bolum: str) -> int:
         """S_g: bölüm için kayıtlı göçlerin en büyük hedefi; kayıt yoksa 1 (`""` için SEMA)."""
-        raise NotImplementedError("B1: GocKaydi.guncel")
+        if bolum == "":
+            return SEMA
+        adimlar = self._adimlar.get(bolum)
+        return max(adimlar) + 1 if adimlar else 1
 
     def zincir(self, bolum: str, k: int) -> list[Goc]:
         """k → guncel(bolum) adımları sırayla; boşluk ya da k > guncel → ProjeError."""
-        raise NotImplementedError("B1: GocKaydi.zincir")
+        hedef = self.guncel(bolum)
+        yer = bolum or "dosya"
+        if type(k) is not int or k < 1:
+            raise ProjeError(f"{yer}: geçersiz sema {k!r}")
+        if k > hedef:
+            raise ProjeError(f"{yer}: daha yeni bir sürümle yazılmış; programı güncelleyin")
+        adimlar = self._adimlar.get(bolum, {})
+        eksik = [i for i in range(k, hedef) if i not in adimlar]
+        if eksik:
+            raise ProjeError(f"{yer}: göç adımı eksik ({eksik[0]} → {eksik[0] + 1})")
+        return [adimlar[i] for i in range(k, hedef)]
 
 
 GOCLER = GocKaydi()  # varsayılan kayıt; ekranlar içe aktarılırken doldurur
+
+
+def _surum_hatasi(dosya: str, yer: str, ne: str, bulunan: int, guncel: int) -> ProjeError:
+    """B1 hata biçimi: "<dosya adı>: <bolum|dosya>: <ne oldu> (sema <bulunan>, beklenen ≤ <güncel>)"."""
+    return ProjeError(f"{dosya}: {yer}: {ne} (sema {bulunan}, beklenen ≤ {guncel})")
+
+
+def _adim_uygula(g: Goc, belge: dict, dosya: str) -> dict:
+    """Tek göç adımı: saflık, tek adım ve kanonik çıktı denetimiyle."""
+    yer = g.bolum or "dosya"
+    ad = f"{dosya}: {yer}: göç {g.kaynak} → {g.kaynak + 1} ({g.aciklama})"
+    once = kanonik(belge)
+    girdi = _kopya(belge)
+    try:
+        cikti = g.uygula(girdi)
+    except ProjeError as e:
+        raise ProjeError(f"{ad}: {e}") from None
+    if kanonik(girdi) != once:
+        raise ProjeError(f"{ad}: adım girdisini değiştirdi")
+    if not isinstance(cikti, dict):
+        raise ProjeError(f"{ad}: çıktı JSON nesnesi değil")
+    if type(cikti.get("sema")) is not int or cikti["sema"] != g.kaynak + 1:
+        raise ProjeError(f"{ad}: çıktının sema'sı {cikti.get('sema')!r}, {g.kaynak + 1} olmalı")
+    try:
+        return json.loads(kanonik(cikti))
+    except (ProjeError, ValueError, TypeError) as e:
+        raise ProjeError(f"{ad}: çıktı kanonik JSON değil ({e})") from None
+
+
+def _belge_goc(belge: dict, bolum: str, gocler: GocKaydi, dosya: str) -> dict:
+    """Belgeyi bölüm zincirinden güncele getirir; daha yeni sürüm ya da boşluk → ProjeError."""
+    k, hedef = belge["sema"], gocler.guncel(bolum)
+    yer = bolum or "dosya"
+    if k > hedef:
+        raise _surum_hatasi(dosya, yer, "daha yeni bir sürümle yazılmış; programı güncelleyin", k, hedef)
+    try:
+        zincir = gocler.zincir(bolum, k)
+    except ProjeError as e:
+        raise _surum_hatasi(dosya, yer, str(e), k, hedef) from None
+    for g in zincir:
+        belge = _adim_uygula(g, belge, dosya)
+    return belge
 
 
 # ---------------------------------------------------------------- kanonik JSON
@@ -238,7 +314,7 @@ def uygula(p: Proje, etiket: str, ekran: str, yeni: Mapping[str, dict | None]) -
     kayitlar = list(p.gecmis.kayitlar[: p.gecmis.konum])
     kayitlar.append({"etiket": etiket, "ekran": ekran, "bolumler": fark})
     kayitlar = kayitlar[-GECMIS_SINIRI:]
-    return Proje(p.ad, bolumler, p.onbellek, Gecmis(tuple(kayitlar), len(kayitlar)), p.uyarilar)
+    return replace(p, bolumler=bolumler, gecmis=Gecmis(tuple(kayitlar), len(kayitlar)))
 
 
 def _kaydi_uygula(p: Proje, kayit: dict, taraf: int, konum: int) -> Proje:
@@ -249,7 +325,7 @@ def _kaydi_uygula(p: Proje, kayit: dict, taraf: int, konum: int) -> Proje:
             bolumler.pop(ad, None)
         else:
             bolumler[ad] = _kopya(belge)
-    return Proje(p.ad, bolumler, p.onbellek, Gecmis(p.gecmis.kayitlar, konum), p.uyarilar)
+    return replace(p, bolumler=bolumler, gecmis=Gecmis(p.gecmis.kayitlar, konum))
 
 
 def geri_al(p: Proje) -> Proje:
@@ -311,6 +387,7 @@ def kaydet(p: Proje, yol: str | Path) -> None:
     if yol.suffix != UZANTI:
         raise ProjeError(f"proje dosyası {UZANTI} uzantılı olmalı: {yol.name}")
     girdiler = _girdiler(p)
+    _yedekle(p, yol)
     gecici = yol.with_name(yol.name + ".tmp")
     try:
         with open(gecici, "wb") as f:
@@ -324,6 +401,63 @@ def kaydet(p: Proje, yol: str | Path) -> None:
         except FileNotFoundError:
             pass
         raise
+
+
+def _eski_surumler(yol: Path) -> dict[str, int] | None:
+    """Diskteki dosyanın bildirim sürümleri {"": D, bolum: S_b}; okunamazsa None."""
+    try:
+        with zipfile.ZipFile(yol) as z:
+            b = json.loads(z.read(BILDIRIM).decode("utf-8"))
+        surumler = {"": int(b["sema"])}
+        surumler.update({ad: int(bilgi["sema"]) for ad, bilgi in b["bolumler"].items()})
+        return surumler
+    except (OSError, KeyError, TypeError, ValueError, zipfile.BadZipFile):
+        return None
+
+
+def _yedekle(p: Proje, yol: Path) -> None:
+    """B1 §4: göç edilmiş proje açıldığı dosyanın üstüne yazılırken özgün baytlar `.yedek` olarak kopyalanır.
+
+    Diskteki dosya artık eski sürümde değilse (proje bir kez kaydedilmiş) yedek gerekmez. Yedek yazılamazsa
+    ProjeError: kayıt yapılmaz, kullanıcının eski dosyası yedeksiz ezilmez.
+    """
+    if not p.goc or p.kaynak_yol is None or not yol.exists():
+        return
+    if yol.resolve() != Path(p.kaynak_yol).resolve():
+        return
+    surumler = _eski_surumler(yol)
+    eski = surumler is None or surumler[""] < SEMA
+    eski = eski or any(surumler.get(b, yeni) < yeni for b, (_, yeni) in p.goc.items() if b)
+    if not eski:
+        return
+    try:
+        ozgun = yol.read_bytes()
+    except OSError as e:
+        raise ProjeError(f"{yol.name}: özgün dosya okunamadı, kayıt yapılmadı ({e})") from None
+    d = (surumler or {}).get("", SEMA)
+    bolum_surumleri = {b: s for b, s in sorted((surumler or {}).items()) if b}
+    kok = f"{yol.stem}.sema{d}-{_sha(kanonik(bolum_surumleri))[:8]}"
+    for n in range(1, 1000):
+        yedek = yol.with_name(f"{kok}{'' if n == 1 else f'-{n}'}{UZANTI}.yedek")
+        if not yedek.exists():
+            break
+        if yedek.read_bytes() == ozgun:
+            return
+    else:
+        raise ProjeError(f"{yol.name}: yedek adı bulunamadı, kayıt yapılmadı")
+    gecici = yedek.with_name(yedek.name + ".tmp")
+    try:
+        with open(gecici, "wb") as f:
+            f.write(ozgun)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(gecici, yedek)
+    except OSError as e:
+        try:
+            gecici.unlink()
+        except FileNotFoundError:
+            pass
+        raise ProjeError(f"{yol.name}: yedek yazılamadı, kayıt yapılmadı ({e})") from None
 
 
 def proje_baytlari(p: Proje) -> bytes:
@@ -359,7 +493,7 @@ def _adlari_denetle(z: zipfile.ZipFile) -> list[str]:
     return adlar
 
 
-def _bildirim_oku(z: zipfile.ZipFile, adlar: list[str]) -> dict:
+def _bildirim_oku(z: zipfile.ZipFile, adlar: list[str], dosya: str = "") -> dict:
     if BILDIRIM not in adlar:
         raise ProjeError(f"{BILDIRIM} yok: proje dosyası değil")
     try:
@@ -372,7 +506,8 @@ def _bildirim_oku(z: zipfile.ZipFile, adlar: list[str]) -> dict:
     if type(sema) is not int or sema < 1:
         raise ProjeError(f"{BILDIRIM}: geçersiz sema {sema!r}")
     if sema > SEMA:
-        raise ProjeError(f"{BILDIRIM}: sema {sema} bu sürümden yeni (desteklenen {SEMA})")
+        ne = f"bu 3D-CORE en çok {SEMA} okuyabilir; programı güncelleyin"
+        raise _surum_hatasi(dosya, f"dosya ({BILDIRIM})", ne, sema, SEMA)
     for alan, tur in (("ad", str), ("bolumler", dict), ("onbellek", dict), ("gecmis", dict)):
         if not isinstance(b.get(alan), tur):
             raise ProjeError(f"{BILDIRIM}: '{alan}' alanı eksik ya da geçersiz")
@@ -460,7 +595,7 @@ def ac(yol: str | Path, gocler: GocKaydi = GOCLER) -> Proje:
         try:
             adlar = _adlari_denetle(z)
             _boyut_denetle(z)
-            b = _bildirim_oku(z, adlar)
+            b = _bildirim_oku(z, adlar, yol.name)
             bolumler = _bolumleri_oku(z, adlar, b)
             gecmis = _gecmisi_oku(z, adlar, b)
             uyarilar: list[dict] = []
@@ -474,7 +609,47 @@ def ac(yol: str | Path, gocler: GocKaydi = GOCLER) -> Proje:
                 uyarilar.append(_uyari("proje_fazla_girdi", f"{ad}: bildirimde yok; okunmadı"))
     if not b["ad"].strip():
         raise ProjeError(f"{BILDIRIM}: proje adı boş")
-    return Proje(b["ad"], bolumler, onbellek, gecmis, tuple(uyarilar))
+    p = Proje(b["ad"], bolumler, onbellek, gecmis, tuple(uyarilar), kaynak_yol=str(yol.resolve()))
+    return _goc_uygula(p, b["sema"], gocler, yol.name)
+
+
+def _goc_uygula(p: Proje, d: int, gocler: GocKaydi, dosya: str) -> Proje:
+    """B1 §3: denetlenmiş projede dosya düzeyi, bölümler ve geçmiş güncel şemaya getirilir."""
+    goc: dict[str, tuple[int, int]] = {}
+    uyarilar = list(p.uyarilar)
+    if d < SEMA:
+        # Dosya düzeyi adımları bildirimi taşır; bildirim okunduktan sonra yalnız sürüm bilgisi kalır.
+        _belge_goc({"sema": d}, "", gocler, dosya)
+        goc[""] = (d, SEMA)
+        aciklama = "; ".join(g.aciklama for g in gocler.zincir("", d))
+        uyarilar.append(_uyari("proje_goc", f"dosya: sema {d} → {SEMA} ({aciklama})"))
+    sahipli = sorted(b for b in set(p.bolumler) | _gecmis_bolumleri(p.gecmis) if gocler._sahip(b))
+    bolumler = dict(p.bolumler)
+    kayitlar = [dict(k, bolumler=dict(k["bolumler"])) for k in p.gecmis.kayitlar]
+    for b in sahipli:
+        hedef = gocler.guncel(b)
+        belgeler = [bolumler[b]] if b in bolumler else []
+        belgeler += [x for k in kayitlar for x in k["bolumler"].get(b, ()) if x is not None]
+        en_eski = min((x["sema"] for x in belgeler), default=hedef)
+        if b in bolumler:
+            bolumler[b] = _belge_goc(bolumler[b], b, gocler, dosya)
+        for k in kayitlar:
+            if b in k["bolumler"]:
+                k["bolumler"][b] = [
+                    None if x is None else _belge_goc(x, b, gocler, dosya) for x in k["bolumler"][b]
+                ]
+        if en_eski < hedef:
+            goc[b] = (en_eski, hedef)
+            aciklama = "; ".join(g.aciklama for g in gocler.zincir(b, en_eski))
+            uyarilar.append(_uyari("proje_goc", f"{b}: sema {en_eski} → {hedef} ({aciklama})"))
+    if not goc:
+        return p
+    gecmis = Gecmis(tuple(kayitlar), p.gecmis.konum)
+    return replace(p, bolumler=bolumler, gecmis=gecmis, uyarilar=tuple(uyarilar), goc=goc)
+
+
+def _gecmis_bolumleri(g: Gecmis) -> set[str]:
+    return {b for k in g.kayitlar for b in k["bolumler"]}
 
 
 def incele(yol: str | Path, gocler: GocKaydi = GOCLER) -> dict:
@@ -482,4 +657,32 @@ def incele(yol: str | Path, gocler: GocKaydi = GOCLER) -> dict:
 
     {"dosya": (D, D_g), "bolumler": {b: (S_b, S_g)}, "acilir": bool, "neden": str | None}
     """
-    raise NotImplementedError("B1: incele")
+    yol = Path(yol)
+    rapor: dict = {"dosya": None, "bolumler": {}, "acilir": True, "neden": None}
+    try:
+        with zipfile.ZipFile(yol) as z:
+            b = json.loads(z.read(BILDIRIM).decode("utf-8"), parse_constant=_nan_reddet)
+        d = b["sema"]
+        rapor["dosya"] = (d, SEMA)
+        for ad, bilgi in sorted(b["bolumler"].items()):
+            s = bilgi["sema"]
+            rapor["bolumler"][ad] = (s, gocler.guncel(ad) if gocler._sahip(ad) else s)
+    except (OSError, KeyError, TypeError, ValueError, AttributeError, zipfile.BadZipFile) as e:
+        return {**rapor, "acilir": False, "neden": f"{yol.name}: proje bildirimi okunamadı ({e})"}
+    try:
+        if type(d) is not int or d > SEMA:
+            raise _surum_hatasi(yol.name, "dosya", "bu 3D-CORE bu dosya şemasını okuyamaz", d, SEMA)
+        if d < SEMA:
+            gocler.zincir("", d)
+        for ad, (s, hedef) in rapor["bolumler"].items():
+            if gocler._sahip(ad):
+                if s > hedef:
+                    raise _surum_hatasi(yol.name, ad, "daha yeni bir sürümle yazılmış", s, hedef)
+                try:
+                    gocler.zincir(ad, s)
+                except ProjeError as e:
+                    raise _surum_hatasi(yol.name, ad, str(e), s, hedef) from None
+        ac(yol, GocKaydi())  # SPEC 37 okuma denetimleri; boş kayıtla hiçbir göç çağrılmaz
+    except ProjeError as e:
+        return {**rapor, "acilir": False, "neden": str(e)}
+    return rapor

@@ -38,4 +38,10 @@ _(yok)_
   `GocKaydi` (gövdeler NotImplementedError), `GOCLER`, `Proje.goc`, `Proje.kaynak_yol`, `ac(yol, gocler)`, `incele`.
 - Yorum (metindeki §3.3 + `guncel` "kayıt yoksa 1"): bir bölüm, `GocKaydi`'de en az bir adımı varsa sahiplenilmiş
   sayılır; adımı olmayan bölüm sahipsizdir ve SPEC 37 hoşgörüsüyle olduğu gibi korunur (K6).
-- Sıradaki: ayrı test oturumunun testleri cherry-pick edilir, kod ayrı commit'te yazılır. PR #70 birleşince B1 ayrı PR.
+- Testler: 54f85a1 (ayrı oturum, cherry-pick) `tests/fileio/test_proje_goc.py` 34/34 yeşil; SPEC 37 testleri değişmedi.
+- Kod: göç kaydı, `ac` sırası (denetim → dosya → bölümler → geçmiş), yedek (`<ad>.sema<D>-<8 hex>[-N].3dc.yedek`),
+  `incele`. Diskteki dosya artık eski sürümde değilse (proje bir kez kaydedilmiş) yedek üretilmez.
+- Dosya düzeyi mesajı iki biçimi birlikte taşır: `x.3dc: dosya (proje.json): … (sema 2, beklenen ≤ 1)`.
+- Açık iş (B1 kapsamı dışında, tezgah/ dokunulmadı): kabuk `_yukle` yeni `Proje` kurarken `goc` ve `kaynak_yol`'u
+  düşürüyor; Tezgah'tan kaydetmede yedek için bu iki alanın taşınması gerekir (SPEC 54 ya da küçük bir SPEC 37 düzeltmesi).
+- Sıradaki: #70 birleşince main'den ayrı PR.
