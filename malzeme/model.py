@@ -60,6 +60,10 @@ class SaltOkunurSozluk(Mapping):
         except KeyError:
             raise _EksikAnahtar(f"'{self._sahip}' malzemesinde '{self._alan}[{anahtar!r}]' yok") from None
 
+    def __contains__(self, anahtar: object) -> bool:
+        # `in` hata fırlatmaz: anahtar varsa True, yoksa False
+        return anahtar in self._veri
+
     def __iter__(self) -> Iterator[str]:
         return iter(self._veri)
 
