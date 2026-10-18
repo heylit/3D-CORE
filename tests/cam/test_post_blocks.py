@@ -99,6 +99,8 @@ def test_K2_blocks_carry_rounded_values():
     m = tp.moves
     m[1] = type(m[1])(m[1].type, (10.00049, 0.0, -1.0), feed=300.04)
     m[2] = type(m[2])(m[2].type, (10.0002, 10.0, -1.0), feed=300.0)
+    # yay geçerli kalsın: merkez (5.0001, 10) → r0 = r1 = 5.0001 (bitiş (0, 10) aynı)
+    m[3] = type(m[3])(m[3].type, m[3].end, feed=m[3].feed, center=(5.0001, 10.0))
     bl = plan([tp], GRBL)
     assert bl[5] == Linear(10.0, None, None, 300.0)
     assert bl[6] == Linear(None, 10.0, None, None)
