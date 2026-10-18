@@ -3,6 +3,8 @@
 Dal: `claude/project-thread-5ai6c8` · Oturum: bulut
 
 ## Sıradaki adım
+Ek C (güvenli Z kesme seviyesinin üstünde, `stock_top`) metni yazıldı, onay bekliyor · Dal: `claude/project-thread-ulgwqc`.
+
 Ek B (tezgâh güvenliği) düzeltme PR'ının incelemesi ve birleşmesi. Sonra: bağımsız yorumlayıcıyla
 çapraz kontrol (inceleme Y1), GRBL'de takım boyu.
 

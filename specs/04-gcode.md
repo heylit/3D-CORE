@@ -272,3 +272,45 @@ N120 M30
 %
 ```
 GRBL altın metni değişmedi (yol zaten güvenli Z'de bitiyor).
+
+## Ek C — Güvenli Z kesme seviyesinin üstünde (ikinci inceleme 2026-10-18, H2 ve H6; onay bekliyor)
+Ek B'deki varsayılan güvenli Z (op başlarının en yükseği) op parçanın içinden başlarsa yanlıştır.
+Deney: başlangıcı Z-1 olan iki `Toolpath` → `M5 / T2 M0 / S1000 M3 / G0 X100. Y100. Z-1.`, hata yok;
+takım Z-1'de değişiyor ve XY'de hızlı gidiyor. Yazıcı ham malzemeyi bilmiyor. Bu ek Ek B2'yi günceller.
+
+**C1 — Kesme seviyesi.** `z_kesme` = tüm `Toolpath`'lerdeki, XY'de yer değiştiren (`> 1e-9 mm`) kesme
+hareketlerinin (G1/G2/G3) başlangıç ve bitiş Z'lerinin en yükseği (yoksa `−∞`). Düz dalma ve geri çekme
+(yalnız Z) hesaba girmez. `safe_z` (verilen veya varsayılan) `z_kesme`'den **kesin büyük** olmalı, yoksa
+`CamError` (mesajda iki değer ve "safe_z verin" önerisi). `DrillOp` hesaba girmez (R düzlemi tanımı gereği
+malzemenin üstünde; `r ≤ start` denetimi zaten var).
+
+**C2 — Ham malzeme üstü.** `write(ops, dialect=GRBL, program_no=1, safe_z=None, stock_top=None)`
+(yeni anahtar, geriye uyumlu). `stock_top` verilirse:
+- `safe_z > stock_top` olmalı, yoksa `CamError`.
+- Hiçbir XY hızlı hareket (`G0`, XY yer değiştirmesi `> 1e-9 mm`) `stock_top`'un altında olamaz: `Toolpath`
+  hareketleri ve `DrillOp`'un kanonik açılımı (G99'da delikler arası R düzlemi dahil) denetlenir.
+  İhlal → `CamError` (op adı, hareket sırası, Z). Bu, `tests/reference/gcode_check.safety()`'nin `rapid`
+  ve `tc_z` kurallarının yazıcıdaki karşılığıdır (`tc_z`: takım değişimi `safe_z`'de, `safe_z > stock_top`).
+- Kurulum SPEC'i (14) `Setup.stock` üstünü buraya geçirebilir; bu ek `cam/model.py`'ye alan eklemez.
+
+**C3 — Merkezden kesmeyen takım.** `DrillOp.validate()`: `tool.center_cutting` `False` → `CamError`
+(delme düz dalmadır). Arayüz PR'ı (`Tool.center_cutting`) birleşince uygulanır.
+
+Ek kabul kriterleri:
+- [ ] K15 İnceleme deneyi (başı Z-1 iki yol, `safe_z` yok) → `CamError`; aynı yol `safe_z=5` ile yazılıyor ve
+  `gcode_check.safety(trace, z_safe=0)` boş — `tests/cam/test_gcode_safety.py`
+- [ ] K16 `z_kesme`: XY'li G1 Z0'da, `safe_z = 0` → `CamError`, `safe_z = 0.001` geçer; yalnız Z'li dalma/geri çekme
+  `z_kesme`'yi değiştirmez; yay ve helis uçları sayılır — `test_gcode_safety.py`
+- [ ] K17 `stock_top`: `safe_z ≤ stock_top` → `CamError`; yol içinde `stock_top` altında XY `G0` → `CamError`;
+  G99 delikte `r < stock_top` → `CamError`, `r ≥ stock_top` geçer; `stock_top` verilmeyince Ek B davranışı
+  aynı (altın metinler değişmez) — `test_gcode_safety.py`, `test_gcode_cycles.py`
+- [ ] K18 `center_cutting=False` takımla `DrillOp` → `CamError` — `test_gcode_cycles.py`
+
+Geçersiz kalan mevcut beklentiler (testler ayrı oturumda `safe_z` vererek güncellenir; beklenen metinler
+değişmez): başı kesme seviyesinde olan ya da başının üstünde XY kesen yolları `safe_z`'siz yazan 14 test
+(`test_gcode_safety.py`: kısa yay ×4, kısa helis, tam daireye yakın yay ×2; `test_gcode_roundtrip.py`:
+rastgele gidiş-dönüş ×5; `test_gcode_writer.py`: `test_modal_suppression_uses_rounded_text`,
+`test_arc_ij_from_rounded_center_and_start`).
+
+Kapsam dışı (ayrı karar): ilk op'un bilinmeyen makine konumundan üç eksenli `G0 X Y Z` ile açılması
+(önce `G0 Z`, sonra XY). Altın metinleri ve SPEC 14'ü etkiler.
