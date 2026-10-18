@@ -17,6 +17,14 @@ import numpy as np
 from core.model import Element, Material, Model, ModelError, Node
 
 GMSH_TET4 = 4  # gmsh eleman tipi: 4 düğümlü tetrahedron
+GMSH_TET10 = 11  # gmsh eleman tipi: 10 düğümlü tetrahedron
+
+# gmsh tet10 kenar sırası (0 tabanlı): 4 (0–1), 5 (1–2), 6 (2–0), 7 (3–0), 8 (3–2), 9 (3–1).
+# C3D10: 4 (0–1), 5 (1–2), 6 (2–0), 7 (0–3), 8 (1–3), 9 (2–3) → gmsh'in 8. ve 9. düğümü yer değiştirir.
+GMSH_C3D10 = np.array([0, 1, 2, 3, 4, 5, 6, 7, 9, 8])
+
+# Sol el tet10'da köşe 2 ↔ 3 (0 tabanlı 1 ↔ 2): kenarlar (0–1) ↔ (2–0), (1–3) ↔ (2–3) yer değiştirir
+SOL_EL_TET10 = np.array([0, 2, 1, 3, 6, 5, 4, 7, 9, 8])
 
 
 def _pozitif_sonlu(ad: str, deger) -> float:
@@ -82,8 +90,13 @@ def _boy_alanlari(gmsh, h: float, refine: Sequence[Refine]) -> None:
     gmsh.option.setNumber("Mesh.MeshSizeFromPoints", 0)
 
 
-def _gmsh_agi(part, h: float, refine: Sequence[Refine]) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """STEP -> gmsh OCC -> 3B ağ. Dönüş: düğüm etiketleri (n,), koordinatlar (n, 3), tet bağlantısı (m, 4)."""
+def _gmsh_agi(
+    part, h: float, refine: Sequence[Refine], order: int = 1
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """STEP -> gmsh OCC -> 3B ağ. Dönüş: düğüm etiketleri (n,), koord. (n, 3), tet bağlantısı (m, 4/10).
+
+    order=2: Mesh.ElementOrder = 2, Mesh.HighOrderOptimize = 0; bağlantı C3D10 sırasında.
+    """
     gmsh = _gmsh()
     with tempfile.TemporaryDirectory() as klasor:
         step = Path(klasor) / "parca.step"
@@ -99,9 +112,11 @@ def _gmsh_agi(part, h: float, refine: Sequence[Refine]) -> tuple[np.ndarray, np.
             if n_kati != 1:
                 raise ModelError(f"Parça '{part.name}' tek katı olmalı (gmsh'te {n_kati} katı)")
             _boy_alanlari(gmsh, h, refine)
+            gmsh.option.setNumber("Mesh.ElementOrder", order)
+            gmsh.option.setNumber("Mesh.HighOrderOptimize", 0)
             gmsh.model.mesh.generate(3)
             etiket, xyz, _ = gmsh.model.mesh.getNodes()
-            _, baglanti = gmsh.model.mesh.getElementsByType(GMSH_TET4)
+            _, baglanti = gmsh.model.mesh.getElementsByType(GMSH_TET4 if order == 1 else GMSH_TET10)
         except ModelError:
             raise
         except Exception as hata:  # gmsh hataları Exception olarak gelir
@@ -109,7 +124,11 @@ def _gmsh_agi(part, h: float, refine: Sequence[Refine]) -> tuple[np.ndarray, np.
         finally:
             gmsh.finalize()
     X = np.asarray(xyz, dtype=float).reshape(-1, 3)
-    return np.asarray(etiket), X, np.asarray(baglanti).reshape(-1, 4)
+    n = 4 if order == 1 else 10
+    T = np.asarray(baglanti).reshape(-1, n)
+    if order == 2:
+        T = T[:, GMSH_C3D10]
+    return np.asarray(etiket), X, T
 
 
 def tet_mesh(
@@ -121,21 +140,24 @@ def tet_mesh(
     refine: Sequence[Refine] = (),
     max_nodes: int = 200_000,
 ) -> Model:
-    """Parçayı tet4 ağına çevirir: Model(dim=3), düğümler 1..n, elemanlar 1..m, hepsi det C > 0."""
+    """Parçayı tet ağına çevirir: Model(dim=3), düğümler 1..n, elemanlar 1..m, hepsi sağ el (det > 0).
+
+    order=1 → "tet4", order=2 → "tet10" (C3D10 düğüm sırası). order ∉ {1, 2} → ModelError.
+    """
     from geometry.part import Part
 
     if not isinstance(part, Part):
         raise ModelError(f"tet_mesh bir geometry.part.Part bekler ({type(part).__name__} verildi)")
     if not isinstance(material, Material):
         raise ModelError(f"tet_mesh bir core.model.Material bekler ({type(material).__name__} verildi)")
-    if order != 1:
-        raise NotImplementedError("SPEC 67a: tet_mesh order=2 (tet10)")
+    if isinstance(order, bool) or order not in (1, 2):
+        raise ModelError(f"tet_mesh: order 1 (tet4) veya 2 (tet10) olmalı (order={order!r})")
     h = _pozitif_sonlu("Eleman boyu h", h)
     refine = tuple(refine)
     if not all(isinstance(r, Refine) for r in refine):
         raise ModelError("refine sadece Refine kayıtları içermeli")
 
-    etiket, xyz, baglanti = _gmsh_agi(part, h, refine)
+    etiket, xyz, baglanti = _gmsh_agi(part, h, refine, order)
     if len(baglanti) == 0:
         raise ModelError(f"Parça '{part.name}' için hiç tetrahedron üretilmedi")
 
@@ -148,15 +170,19 @@ def tet_mesh(
     yeni = {t: i + 1 for i, t in enumerate(kullanilan)}
     X = xyz[[sira[t] for t in kullanilan]]
 
-    # Yeni numaralı bağlantı; sol el sıralı elemanlarda 2. ve 3. düğüm yer değiştirir
+    # Yeni numaralı bağlantı; sol el sıralı elemanlarda 2. ve 3. köşe (tet10'da kenarları da) yer değiştirir
     T = np.vectorize(yeni.__getitem__)(baglanti.astype(np.int64))
-    P = X[T - 1]  # (m, 4, 3)
+    P = X[T[:, :4] - 1]  # (m, 4, 3) köşeler
     det = np.einsum("ij,ij->i", P[:, 1] - P[:, 0], np.cross(P[:, 2] - P[:, 0], P[:, 3] - P[:, 0]))
     sol = det < 0
-    T[sol, 1], T[sol, 2] = T[sol, 2].copy(), T[sol, 1].copy()
+    if order == 1:
+        T[sol, 1], T[sol, 2] = T[sol, 2].copy(), T[sol, 1].copy()
+    else:
+        T[sol] = T[sol][:, SOL_EL_TET10]
 
     model = Model(dim=3, name=part.name, materials=[material])
     model.nodes = [Node(i + 1, float(x), float(y), float(z)) for i, (x, y, z) in enumerate(X)]
-    model.elements = [Element(j + 1, "tet4", [int(v) for v in t], material.name) for j, t in enumerate(T)]
+    tip = "tet4" if order == 1 else "tet10"
+    model.elements = [Element(j + 1, tip, [int(v) for v in t], material.name) for j, t in enumerate(T)]
     model.validate()
     return model
