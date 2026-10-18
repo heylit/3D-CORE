@@ -25,6 +25,7 @@ from cam.model import (
     Setup,
     Stock,
     Tool,
+    ToolHolder,
     ToolKind,
     ToolLibrary,
     Toolpath,
@@ -122,11 +123,17 @@ def kutuphane() -> ToolLibrary:
     al_freze = {MALZEME: CuttingData(Vc=300.0, fz=0.05, ap=4.0, ae=4.0)}
     al_matkap = {MALZEME: CuttingData(Vc=80.0, fz=0.08)}
     al_torna = {MALZEME: CuttingData(Vc=250.0, fn=0.15, ap=1.5)}
+    # uydurma ER pens tutucu; ölçü boyu SPEC 30 tezgâh Z kursu denetimi için gerekir
+    er = ToolHolder("ER32", gauge_length=60.0, profile=((0.0, 20.0), (40.0, 25.0)))
+
+    def freze(id, ad, kind, D, kb, z, cd, sarkma):
+        return Tool(id, ad, kind, D=D, flute_length=kb, flutes=z, stickout=sarkma, holder=er, cutting=cd)
+
     return ToolLibrary(
         [
-            Tool(1, "freze16", ToolKind.FLAT, D=16.0, flute_length=30.0, flutes=3, cutting=al_freze),
-            Tool(2, "freze10", ToolKind.FLAT, D=10.0, flute_length=25.0, flutes=3, cutting=al_freze),
-            Tool(3, "matkap6.6", ToolKind.DRILL, D=D_KOSE, flute_length=30.0, flutes=2, cutting=al_matkap),
+            freze(1, "freze16", ToolKind.FLAT, 16.0, 30.0, 3, al_freze, 45.0),
+            freze(2, "freze10", ToolKind.FLAT, 10.0, 25.0, 3, al_freze, 40.0),
+            freze(3, "matkap6.6", ToolKind.DRILL, D_KOSE, 30.0, 2, al_matkap, 50.0),
             LatheTool(
                 11,
                 "dis_kalem",

@@ -3,8 +3,8 @@
 Dal: `claude/spec-46-uctan-uca-9q6dbf` · Oturum: bulut (Dalga 5, hat H17) · PR #83
 
 ## Sıradaki adım
-H1–H9, H12 ve H13 yeşil. Kalanlar bağlı SPEC `main`'e girince (koordinatör bildirir):
-22 → H10, 26 → H11 (17 main'de), 29 → H14, 30 → H15.
+H1–H9, H12, H13 ve H15 yeşil. Kalanlar bağlı SPEC `main`'e girince (koordinatör bildirir):
+22 → H10, 26 → H11 (17 main'de), 29 → H14.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
@@ -12,6 +12,7 @@ H1–H9, H12 ve H13 yeşil. Kalanlar bağlı SPEC `main`'e girince (koordinatör
 | 2026-10-18 | 25 | 0 | H1–H7; 2 atlama: `rs274` yerelde kurulu değil (CI kapsayıcısında var) |
 | 2026-10-18 | 29 | 0 | + H8 (09), H9 (21), H12 (27); uygulama hatası yok |
 | 2026-10-18 | 30 | 0 | + H13 (28); `outer` alın doğrusunu da içerir (pah + silindir elle profille aynı) |
+| 2026-10-18 | 40 | 0 | + H15 (30): 3 yerleşik profil; freze takımlarına uydurma ER32 tutucu + sarkma eklendi (Z kursu denetimi ölçü boyu ister); `gcode_ref` G53 desteklemediğinden G53 satırları karşılaştırmadan önce atılır |
 
 ## Son oturum
 **2026-10-18**
