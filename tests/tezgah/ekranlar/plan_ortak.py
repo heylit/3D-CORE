@@ -1,7 +1,7 @@
 """
 SPEC 47a testlerinin ortak yardımcıları: planı köprüden bağımsız olarak doğrudan SPEC 29 ile kurmak.
 
-Köprünün (`tezgah.ekranlar.plan_kopru`) çıktısı her zaman buradaki doğrudan çağrılarla karşılaştırılır:
+Köprünün (`tezgah.ekranlar._plan_kopru`) çıktısı her zaman buradaki doğrudan çağrılarla karşılaştırılır:
 `plan_mill` / `plan_mill_features` / `plan_turn` (SPEC 29), `turn_profile` (SPEC 28). Kütüphane süzgeci de
 burada elle yazılır (köprünün `kutuphane_suz`'u kullanılmaz).
 
@@ -47,11 +47,10 @@ def spec29():
 
 
 def girdi(ad: str):
-    """Örneğin girdisi (`plan_ornekler.ornek`); torna örneği SPEC 29 torna ve SPEC 28 ister."""
+    """Örneğin girdisi (`_plan_ornekler.ornek`); torna örneği SPEC 29 torna ve SPEC 28 ister."""
     spec29()
-    from tezgah.ekranlar import plan_ornekler
-
-    g = plan_ornekler.ornek(ad)
+    po = pytest.importorskip("tezgah.ekranlar._plan_ornekler", reason="47a iskeleti (_plan_ornekler) yok")
+    g = po.ornek(ad)
     if g.tur == "torna":
         pytest.importorskip("cam.plan_turn", reason="SPEC 29 torna (cam.plan_turn) henüz yok")
         pytest.importorskip("cam.turn_profile", reason="SPEC 28 (cam.turn_profile) henüz yok")
