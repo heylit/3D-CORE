@@ -2,6 +2,7 @@
 
 > **Durum: ONAYLANDI** (kullanıcı, 2026-10-18: 09:45 UTC kart "Önerilerle onayla": `LatheTool` arayüz eki ayrı PR,
 > profil çıkarma ayrı SPEC; 10:38 UTC yazılı onay). SPEC 40 ek E4 (eksenel takım) 11:13 UTC yazılı onayla eklendi.
+> Ek 1 (denetim sırası) ve Ek 2 (gövde uzantısı kırpma) 11:24 UTC onaylandı (kullanıcı kuralı 11:14: 2 dk itirazsız öneri kabul).
 > Metin kullanıcı onayı olmadan değişmez.
 
 ## Amaç
@@ -51,6 +52,9 @@ Takım `y = 0` düzleminde, kalınlığı ihmal edilen bir uçtur (uç ekseni me
 - **Gövde uzantısı** (SPEC 05'teki sapın karşılığı): kesici kenarların ötesi kesmez. `TURN/BORE/THREAD`'de
   `Q_B = {C + s·e₁ + t·e₂ : s, t ≥ 0, s + t ≥ l}`, `GROOVE`'da `Q`'nun `x ≥ C_L,x + l` yukarı uzantısı (aynı genişlik);
   gövde `B = Q_B ⊕ D(r)`. Sonsuz bölge, hesapta `l + 2·(nz·dz + D)` boyunda kesilir (ızgaradaki her malzemeyi aşar).
+  **Ek 2:** gövde uzantısı takımın yarı düzleminde kalır: `LatheTool`'da (dış ve iç) gövde süpürmesinin x aralığı
+  `x → r` dönüşümünden önce `a ← max(a, 0)` ile kırpılır (gerçek `x` koordinatında; `b ≤ 0` ise aralık boş sayılır);
+  gövde eksenin öbür tarafına geçmez. Eksenel takımda (E4) kırpma yok. Tutucu kırpılmaz.
 - **İç çerçeve:** `BORE`, iç `GROOVE` (`T ∈ {1, 2}`) ve iç `THREAD` için bütün şekil `x → −x` ile aynalanır
   (`C` etrafında, `C`'nin kendisi değişmez).
 - **Tutucu** (verilmişse): `C`'ye göre dış çerçevede tanımlı dışbükey çokgen `H`, `y` yönünde yarı kalınlık `b`;
@@ -91,8 +95,10 @@ SPEC 05 ile birebir: global adım indeksi `k`, nokta 0 = ilk yolun `start`'ı, y
 (`link = True`). Her adım, boyu `≤ min(l, 2r, 1 mm)/2`'yi aşmayan alt adımlara bölünür (`r = 0` ise `min(l, 1 mm)/2`).
 Malzeme sonucu alt adımlardan bağımsızdır; alt adımlar çarpışma denetiminin hareket içindeki ilerlemeyi görmesi içindir.
 
-Her alt adımda sıra: (1) gövde, tutucu ve ayna denetimleri **alt adımdan önceki** malzemeyle, (2) kesici süpürmenin
-aralığı her hücreden çıkarılır, (3) çıkarılan parçalar hızlı çarpma ve çakma için kaydedilir.
+Her alt adımda sıra (Ek 1): (1) kesici süpürmenin aralığı her hücreden çıkarılır (malzeme sonucu: hareketin başından
+alt adımın sonuna kadarki süpürme), (2) gövde, tutucu ve ayna denetimleri **alt adımın kesici süpürmesinden sonraki**
+malzemeyle yapılır, (3) çıkarılan parçalar hızlı çarpma ve çakma için kaydedilir. Böylece kesicinin aynı alt adımda
+kaldırdığı malzeme gövdeye çarpma sayılmaz ve derinlik alt adım boyuna bağlı olmaz.
 
 ### Çarpışma ve çakma denetimleri
 Kayıt SPEC 05'teki `Collision`: `kind`, `k`, `op`, `at = (x, 0, z)` (en derin hücrenin `z`'si, orada çakışan aralığın
@@ -109,8 +115,8 @@ Hücre başına çakışma derinliği: iki aralık listesinin kesişiminin en uz
    Bağlama elemanı malzeme değildir, kaldırılmaz.
 5. **Çakma (`cakma`):** parça haritası verilmişse, bir adımın kaldırdığı parçalar parça aralıklarıyla `gouge_tol`'dan
    (varsayılan 1e-3 mm) uzun çakışıyorsa. Kayıt hücreyi ilk kez çakan adıma aittir.
-- Bilinen sınır (SPEC 05 ile aynı): denetim alt adımdan önceki malzemeyle yapıldığından, alt adım içinde kesilecek
-  malzemeye gövde/tutucu en çok bir alt adım boyu kadar erken "dokunabilir" (yanlış alarm olabilir, kaçırma olmaz).
+- Bilinen sınır (Ek 1): denetim alt adımın kesiminden sonraki malzemeyle yapıldığından, gövde/tutucu çarpışması en çok
+  bir alt adım boyu kadar geç kaydedilebilir (kayıt aynı adıma aittir; derinlik o alt adımın sonundaki malzemeyle).
 
 ### Parça haritası
 Parça yarı kesiti aynı ızgarada aralık listesi olarak verilir (`RadialMap`).
@@ -241,7 +247,7 @@ Testlerde uydurma geometri; beklenen değerin kaynağı test yorumunda. Tolerans
   `test_lsim_collision.py`
 - [ ] K13 Tutucu: dikdörtgen tutucu ve yüksek omuz (tutucu omuza değiyor) → `tutucu_carpma`, `depth` kapalı form;
   tutucusuz aynı yol → kayıt yok; `half_width` ile delik içinde bor barı: düzlemde değmeyen ama `√(x² + b²)` ile değen
-  durum kayıt veriyor — `test_lsim_collision.py`
+  durum kayıt veriyor; iç tornalamada (bor barı) `kenar_asimi` kaydı yok (Ek 2) — `test_lsim_collision.py`
 - [ ] K14 Ayna: `Setup.fixtures`'ta ayna çenesi halkası; `z_end` çene yüzüne `cl`'den yakın boy pasosu → `ayna_carpma`,
   doğru `k` ve `depth`; güvenli `z_end` → kayıt yok; `G0` geri dönüşü çeneden geçiyorsa kayıt; ayna malzemesi
   hacimden düşülmüyor — `test_lsim_collision.py`
