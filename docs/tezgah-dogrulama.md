@@ -53,3 +53,28 @@ Bir madde tutmazsa program çalıştırılmaz, sebep bulunur.
 - [ ] İlk parça tezgâhtan çıkmadan ölçüldü (kritik ölçüler, derinlikler); sapma varsa takım boyu / çap ofseti
   ve iş sıfırı yeniden kontrol edildi.
 - [ ] Ölçüm sonuçları ve yapılan düzeltmeler kayda geçti; düzeltme kütüphaneye işlendi.
+
+## 6. İş föyü
+İş föyü (SPEC 38, `atolye/`) bu listenin **yanında** kullanılır, yerine geçmez: genel maddeler (1–5) her programda
+aynıdır, föy ise bu işe özel değerleri (kayıt kodu, ofsetler, kaydırma boyu, ölçüm kalemleri) verir.
+
+Föy şöyle üretilir:
+```python
+from atolye import build_job_sheet, write_job_sheet  # SPEC 29 planından: atolye.from_mill_plan
+
+job = build_job_sheet("Parça adı", [setup], [ops], kutuphane, "al", dialect=GRBL, machine=makine, n_max=12000)
+write_job_sheet(job, "cikti/is-foyu")  # is-foyu.html + baglama-<i>.svg; tarayıcıda açıp "Yazdır" → PDF
+```
+Föy güvensiz program için üretilmez: `check_tools` ve `check_setup` hatası föy yerine hata verir.
+
+| Föydeki yer | Bu listedeki bölüm |
+|---|---|
+| Özet: kontrol, program no; doğrulama maddesi "En yüksek devir S… ≤ tezgâh sınırı …" | 1. Masa başında |
+| Bağlama bölümü: WCS tablosu (kayıt, makine koordinatı, X0 / Y0 / Z0 tarifi) ve bağlama resmi | 2. İş sıfırı |
+| Takım tablosu: `L`, Fanuc `H` veya GRBL `G43.1 ΔL` (referans takım), gerekli kesici boy | 3. Takım boyu |
+| Doğrulama maddesi "Kuru çalıştırma: G5x Z'si +h mm kaydırıldı"; işlem tablosu ve süreler | 4. Kuru çalıştırma |
+| İlk parça ölçüm listesi (ISO 2768-1 genel tolerans, "Ölçülen" sütunu boş) | 5. İlk parça |
+
+Föydeki her doğrulama maddesi `data-bolum` ile yukarıdaki bölüm numarasına bağlıdır; bu yüzden bölüm 1–5'in
+başlık numaraları değiştirilmez. Süreler SPEC 05 modeline göre tahmindir (yazıcının eklediği güvenli Z geri
+çekmeleri ve bağlama değişimi hariç); tezgâhtaki gerçek süre kayda geçirilir.
