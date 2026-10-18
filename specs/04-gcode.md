@@ -273,7 +273,7 @@ N120 M30
 ```
 GRBL altın metni değişmedi (yol zaten güvenli Z'de bitiyor).
 
-## Ek C — Güvenli Z kesme seviyesinin üstünde (ikinci inceleme 2026-10-18, H2 ve H6; onay bekliyor)
+## Ek C — Güvenli Z kesme seviyesinin üstünde (ikinci inceleme 2026-10-18, H2 ve H6; onaylandı: kullanıcı, 2026-10-18 09:24 kart + 09:27 yazılı onay)
 Ek B'deki varsayılan güvenli Z (op başlarının en yükseği) op parçanın içinden başlarsa yanlıştır.
 Deney: başlangıcı Z-1 olan iki `Toolpath` → `M5 / T2 M0 / S1000 M3 / G0 X100. Y100. Z-1.`, hata yok;
 takım Z-1'de değişiyor ve XY'de hızlı gidiyor. Yazıcı ham malzemeyi bilmiyor. Bu ek Ek B2'yi günceller.

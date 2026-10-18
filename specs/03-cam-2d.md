@@ -163,7 +163,7 @@ Geometrik değerlerde tolerans aksi yazılmadıkça mutlak `1e-9 mm` (alan için
 - pyclipper ile çapraz kontrol: testler analitik çözümlerle yeterli; gerekirse ayrı karar (test bağımlılığı).
 - Sayısal sağlamlık için tam sayı (Clipper tarzı) aritmetik; `TOL` ile kayan nokta yeterli kabul edildi.
 
-## Ek A — Cep güvenliği (ikinci inceleme 2026-10-18, H1 ve H6; onay bekliyor)
+## Ek A — Cep güvenliği (ikinci inceleme 2026-10-18, H1 ve H6; onaylandı: kullanıcı, 2026-10-18 09:24 kart + 09:27 yazılı onay)
 İkinci inceleme (`inceleme/2026-10-18-ikinci-inceleme.md`) `pocket`'in kabul ettiği yan pasoda sessizce
 kesilmemiş ada bıraktığını buldu. Kullanıcı düzeltmenin başlatılmasını seçti ("Şimdi düzelt"). Bu ek
 SPEC'i günceller; **"Kontur-paralel cep" bölümündeki `s ≤ D` kabulünü cep için geçersiz kılar.**

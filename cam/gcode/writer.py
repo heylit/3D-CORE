@@ -217,13 +217,17 @@ def write(
     dialect: Dialect = GRBL,
     program_no: int = 1,
     safe_z: float | None = None,
+    stock_top: float | None = None,
 ) -> str:
     """Op listesini `dialect` diline çevirir. Önce her op doğrulanır (CamError).
 
     `safe_z`: op geçişlerinde, takım değişiminde ve program sonunda çekilen güvenli Z [mm].
     Verilmezse op başlarının en yüksek Z'si. Bir op başından alçaksa CamError.
+    `stock_top`: ham malzeme üstü [mm] (Ek C2); verilirse altında XY hızlı hareket yasak.
     Dönen metin satırları '\\n' ile ayrılır ve '\\n' ile biter.
     """
+    if stock_top is not None:
+        raise NotImplementedError("SPEC 04 Ek C2: stock_top")
     for op in ops:
         if isinstance(op, Toolpath):
             op.validate()
