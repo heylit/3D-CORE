@@ -21,6 +21,7 @@ import math
 import numpy as np
 import pytest
 
+from cam.cutter import Cutter
 from cam.dropcutter import TriMesh, drop
 from cam.model import CamError, MoveType, Stock, Tool, ToolKind, Toolpath
 from cam.ops2d import depths
@@ -350,9 +351,11 @@ def _k14(tool: Tool):
     return V, T, mesh, stock, rr, a_p, z_bottom, tp
 
 
-def _big(tool: Tool) -> Tool:
+def _big(tool: Tool) -> Tool | Cutter:
+    """Pay için büyütülmüş takım. SPEC 06b kesin ofset: küresel R → küresel R + δ; düz R → torik
+    (R + δ, r_c = δ) = Cutter.offset(δ) (SPEC 06'nın tutucu düz R + δ kuralının yerine)."""
     rad = tool.D / 2 + DELTA
-    return ball(rad) if tool.kind is ToolKind.BALL else flat(rad)
+    return ball(rad) if tool.kind is ToolKind.BALL else Cutter.from_tool(tool).offset(DELTA)
 
 
 def _rect_dist(xy: np.ndarray) -> np.ndarray:
@@ -513,10 +516,13 @@ def test_k16_finish_yetersiz_z_safe(z_safe):
         finish(plane(2.0), ball(), raster(z_safe=z_safe))
 
 
-def test_k16_finish_desteklenmeyen_takim():
+def test_k16_finish_torik_kabul():
+    """SPEC 06b: köşe radyüslü düz takım artık desteklenir (önceden CamError); düzlemde her CL z₀."""
     torik = Tool(id=4, name="torik", kind=ToolKind.FLAT, D=8.0, flute_length=30.0, corner_r=1.0)
-    with pytest.raises(CamError):
-        finish(plane(2.0), torik, raster())
+    assert Cutter.from_tool(torik).R == pytest.approx(4.0)
+    rr = raster()
+    tp = finish(plane(2.0), torik, rr)
+    np.testing.assert_allclose(cl_points(tp, rr)[:, 2], 2.0, atol=EPS)
 
 
 @pytest.mark.parametrize(
