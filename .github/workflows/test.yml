@@ -22,12 +22,20 @@ jobs:
   pytest:
     runs-on: ubuntu-latest   # Windows 2x, macOS 10x dakika sayar
     timeout-minutes: 10      # takılan test dakika yiyemez
+    env:
+      VTK_DEFAULT_OPENGL_WINDOW: vtkOSOpenGLRenderWindow   # ekran yok: VTK doğrudan OSMesa ile çizer
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"   # tek sürüm = tek iş
           cache: pip
+      - name: Görüntüleyici (pyvista) kur  # SPEC 15; ekransız çizim için OSMesa
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libosmesa6
+          pip install -e ".[viz]"
+          python -c "import pyvista as pv; p = pv.Plotter(off_screen=True, window_size=(64, 48)); p.add_mesh(pv.Cube()); assert p.screenshot(return_img=True).shape == (48, 64, 3)"
       - run: pip install -e ".[dev,cad]"
       - run: ruff check .
       - run: ruff format --check .
