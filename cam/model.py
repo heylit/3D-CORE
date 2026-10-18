@@ -35,6 +35,13 @@ class ToolKind(StrEnum):
     DRILL = "matkap"
 
 
+class LatheToolKind(StrEnum):
+    TURN = "tornalama"
+    BORE = "ic_tornalama"
+    GROOVE = "kanal"
+    THREAD = "dis"
+
+
 class MoveType(StrEnum):
     RAPID = "G0"
     LINEAR = "G1"
@@ -42,7 +49,22 @@ class MoveType(StrEnum):
     ARC_CCW = "G3"
 
 
+class Plane(StrEnum):
+    XY = "G17"
+    ZX = "G18"
+
+
+class FeedMode(StrEnum):
+    PER_MIN = "G94"  # mm/dk
+    PER_REV = "G95"  # mm/dev
+
+
 ARCS = {MoveType.ARC_CW, MoveType.ARC_CCW}
+
+
+def _ek2(*_args, **_kwargs):
+    """SPEC 00 Ek 2 iskeleti: henüz uygulanmadı."""
+    raise NotImplementedError("SPEC 00 Ek 2")
 
 
 def _sonlu(nerede: str, **degerler) -> None:
@@ -60,8 +82,16 @@ class Tool:
     D: float  # mm, takım çapı
     flute_length: float  # mm, kesici boy
     corner_r: float = 0.0  # mm, köşe radyüsü (küresel uçta D/2)
+    flutes: int | None = None  # z, diş sayısı
+    shank_d: float | None = None  # mm, sap çapı; None → D
+    stickout: float | None = None  # mm, tutucu ağzından takım ucuna boy
+    holder: ToolHolder | None = None
+    cutting: dict[str, CuttingData] = field(default_factory=dict)  # malzeme → kesme verisi (fz)
 
     def __post_init__(self) -> None:
+        yeni = (self.flutes, self.shank_d, self.stickout, self.holder, self.cutting)
+        if yeni != (None, None, None, None, {}):
+            raise NotImplementedError("Tool yeni alanları (SPEC 00 Ek 2)")
         self.kind = ToolKind(self.kind)
         _sonlu(f"Takım '{self.name}'", D=self.D, flute_length=self.flute_length, corner_r=self.corner_r)
         if self.D <= 0:
@@ -72,6 +102,21 @@ class Tool:
             self.corner_r = self.D / 2
         if not 0 <= self.corner_r <= self.D / 2:
             raise CamError(f"Takım '{self.name}': köşe radyüsü 0..D/2 olmalı ({self.corner_r})")
+
+    @property
+    def shank(self) -> float:
+        raise NotImplementedError("SPEC 00 Ek 2")
+
+    @property
+    def gauge_length(self) -> float | None:
+        raise NotImplementedError("SPEC 00 Ek 2")
+
+    def to_dict(self) -> dict:
+        raise NotImplementedError("SPEC 00 Ek 2")
+
+    @classmethod
+    def from_dict(cls, d: dict) -> Tool:
+        raise NotImplementedError("SPEC 00 Ek 2")
 
 
 @dataclass
@@ -97,6 +142,108 @@ class Stock:
     @property
     def volume(self) -> float:
         return float(np.prod(self.size))
+
+    to_dict = _ek2
+    from_dict = classmethod(_ek2)
+
+
+# ---------------------------------------------------------------- SPEC 00 Ek 2 iskeleti (uygulanacak)
+
+
+@dataclass
+class CuttingData:
+    Vc: float  # m/dk
+    fz: float | None = None  # mm/diş (freze)
+    fn: float | None = None  # mm/dev (torna)
+    ap: float | None = None  # mm
+    ae: float | None = None  # mm
+
+    __post_init__ = _ek2
+    to_dict = _ek2
+    from_dict = classmethod(_ek2)
+
+
+@dataclass
+class ToolHolder:
+    name: str
+    gauge_length: float  # mm, ölçü hattı → tutucu ağzı
+    profile: tuple[tuple[float, float], ...]  # (z, r)
+
+    __post_init__ = _ek2
+    to_dict = _ek2
+    from_dict = classmethod(_ek2)
+
+
+@dataclass
+class LatheTool:
+    id: int
+    name: str
+    kind: LatheToolKind
+    nose_r: float
+    tip: int
+    kappa_r: float
+    eps_r: float
+    width: float = 0.0
+    cutting: dict[str, CuttingData] = field(default_factory=dict)
+
+    __post_init__ = _ek2
+    to_dict = _ek2
+    from_dict = classmethod(_ek2)
+
+
+def tool_from_dict(d: dict) -> Tool | LatheTool:
+    raise NotImplementedError("SPEC 00 Ek 2")
+
+
+@dataclass
+class ToolLibrary:
+    tools: list[Tool | LatheTool] = field(default_factory=list)
+
+    __post_init__ = _ek2
+    validate = _ek2
+    get = _ek2
+    add = _ek2
+    to_dict = _ek2
+    from_dict = classmethod(_ek2)
+
+
+@dataclass
+class CylinderStock:
+    D: float
+    zmin: float
+    zmax: float
+    d: float = 0.0
+
+    __post_init__ = _ek2
+    length = property(_ek2)
+    volume = property(_ek2)
+    bbox = _ek2
+    to_dict = _ek2
+    from_dict = classmethod(_ek2)
+
+
+@dataclass
+class Wcs:
+    code: str = "G54"
+    origin: tuple[float, float, float] = (0.0, 0.0, 0.0)
+
+    __post_init__ = _ek2
+    to_machine = _ek2
+    to_work = _ek2
+    to_dict = _ek2
+    from_dict = classmethod(_ek2)
+
+
+@dataclass
+class Setup:
+    name: str
+    wcs: Wcs
+    stock: Stock | CylinderStock
+    fixtures: list[Stock | CylinderStock] = field(default_factory=list)
+
+    __post_init__ = _ek2
+    to_dict = _ek2
+    from_dict = classmethod(_ek2)
 
 
 @dataclass
@@ -134,12 +281,19 @@ def _arc_sweep(p0: np.ndarray, p1: np.ndarray, c: np.ndarray, cw: bool) -> tuple
 @dataclass
 class Toolpath:
     name: str
-    tool: Tool
+    tool: Tool | LatheTool
     start: tuple[float, float, float]
     moves: list[Move] = field(default_factory=list)
     rpm: float = 0.0
+    plane: Plane = Plane.XY
+    feed_mode: FeedMode = FeedMode.PER_MIN
+    css: float | None = None  # m/dk, G96 sabit kesme hızı
 
     def __post_init__(self) -> None:
+        if (self.plane, self.feed_mode, self.css) != (Plane.XY, FeedMode.PER_MIN, None) or isinstance(
+            self.tool, LatheTool
+        ):
+            raise NotImplementedError("Toolpath plane / feed_mode / css / torna (SPEC 00 Ek 2)")
         self.start = tuple(float(v) for v in self.start)
         _sonlu(f"Takım yolu '{self.name}'", start=self.start)
 
