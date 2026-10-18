@@ -25,7 +25,7 @@ import math
 from cam.gcode.cycles import DrillOp
 from cam.gcode.dialect import GRBL, Dialect
 from cam.gcode.modal import ModalState, fmt, snap
-from cam.model import ARCS, CamError, Move, MoveType, Toolpath
+from cam.model import ARCS, CamError, FeedMode, LatheTool, Move, MoveType, Plane, Toolpath
 
 AXES = ("X", "Y", "Z")
 
@@ -199,6 +199,19 @@ class _Writer:
         self.state.end_cycle()
 
 
+def _yazilabilir(tp: Toolpath) -> None:
+    """Geçici koruma (SPEC 00 Ek 2): bu yazıcı yalnız G17 / G94 / sabit devirli freze yolu yazar.
+    Torna yolları (G18, G95, G96) SPEC 21'in yazıcısına kadar sessizce yanlış yazılmasın diye reddedilir."""
+    if isinstance(tp.tool, LatheTool):
+        raise CamError(f"Takım yolu '{tp.name}': torna takımı bu yazıcıda desteklenmiyor (SPEC 21)")
+    if tp.plane is not Plane.XY:
+        raise CamError(f"Takım yolu '{tp.name}': {tp.plane.value} düzlemi desteklenmiyor, yalnız G17")
+    if tp.feed_mode is not FeedMode.PER_MIN:
+        raise CamError(f"Takım yolu '{tp.name}': {tp.feed_mode.value} desteklenmiyor, yalnız G94 (mm/dk)")
+    if tp.css is not None:
+        raise CamError(f"Takım yolu '{tp.name}': G96 sabit kesme hızı desteklenmiyor (SPEC 21)")
+
+
 def write(
     ops: list[Toolpath | DrillOp],
     dialect: Dialect = GRBL,
@@ -214,6 +227,7 @@ def write(
     for op in ops:
         if isinstance(op, Toolpath):
             op.validate()
+            _yazilabilir(op)
         elif isinstance(op, DrillOp):
             op.validate()
         else:
