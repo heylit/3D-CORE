@@ -25,7 +25,7 @@ import math
 from cam.gcode.cycles import DrillOp
 from cam.gcode.dialect import GRBL, Dialect
 from cam.gcode.modal import ModalState, fmt, snap
-from cam.model import ARCS, CamError, FeedMode, LatheTool, Move, MoveType, Plane, Setup, Toolpath
+from cam.model import ARCS, Z_AXIS, CamError, FeedMode, LatheTool, Move, MoveType, Plane, Setup, Toolpath
 from cam.setups import check_setup, clearance_height
 
 AXES = ("X", "Y", "Z")
@@ -227,6 +227,11 @@ def _yazilabilir(tp: Toolpath) -> None:
         raise CamError(f"Takım yolu '{tp.name}': {tp.feed_mode.value} desteklenmiyor, yalnız G94 (mm/dk)")
     if tp.css is not None:
         raise CamError(f"Takım yolu '{tp.name}': G96 sabit kesme hızı desteklenmiyor (SPEC 21)")
+    # Çok eksen (SPEC 41–42): iş düzlemi ve eğik takım ekseni bu yazıcıda yok; WCS'deymiş gibi yazılmasın.
+    if tp.frame is not None:
+        raise CamError(f"Takım yolu '{tp.name}': iş düzlemi (frame) bu yazıcıda desteklenmiyor (SPEC 41)")
+    if any(m.axis is not None and m.axis != Z_AXIS for m in tp.moves):
+        raise CamError(f"Takım yolu '{tp.name}': eğik takım ekseni bu yazıcıda desteklenmiyor (SPEC 42)")
 
 
 def _z_kesme(ops: list[Toolpath | DrillOp]) -> float:
