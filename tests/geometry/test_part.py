@@ -136,6 +136,15 @@ def test_hole_arrays_are_float_and_readonly():
         h.origin[0] = 9.0
 
 
+def test_hole_equality_and_hash():
+    """Aynı değerli iki kayıt eşit ve aynı hash'e sahip; farklı değer eşit değil."""
+    h1, h2 = make_hole(origin=[1, 2, 3]), make_hole(origin=(1.0, 2.0, 3.0))
+    assert h1 == h2 and hash(h1) == hash(h2) and len({h1, h2}) == 1
+    assert h1 != make_hole(origin=(1.0, 2.0, 4.0))
+    assert h1 != make_hole(origin=(1.0, 2.0, 3.0), d=7.0)
+    assert h1 != (1.0, 2.0, 3.0)
+
+
 def test_hole_threaded_and_countersunk_ok():
     """M8: kılavuz matkabı d = 8 − 1.25 = 6.75 mm."""
     h = make_hole(d=6.75, depth=15.0, through=False, thread="M8", thread_d=8.0, pitch=1.25, thread_depth=12.0)
