@@ -9,6 +9,7 @@ Birimler: mm, mm², mm³.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -71,17 +72,88 @@ class CylindricalFace:
     area: float  # mm²
 
 
-class Part:
-    """Tek bir katı parça: build123d Shape (Solid / Compound) + ad."""
+@dataclass(frozen=True)
+class Hole:
+    """Parçadaki bir deliğin tasarım kaydı (CAM delme / havşa / kılavuz çevrimleri bunu okur).
 
-    def __init__(self, shape, name: str = "parca") -> None:
+    origin: giriş noktası, delik ekseninin parça yüzeyini deldiği yer. axis: birim delme yönü (malzemeye
+    doğru); takım ekseni = −axis. d: matkap çapı (dişli delikte kılavuz matkabı). depth: eksen boyunca
+    girişten düz dibe; boydan boyada çıkış noktasına kadar. csk_d = 0 → havşa yok; thread = "" → dişsiz.
+    Kayıt geometriye göre yeniden doğrulanmaz; STEP / STL gidiş-dönüşünde taşınmaz.
+    """
+
+    origin: np.ndarray  # (3,) mm
+    axis: np.ndarray  # (3,) birim
+    d: float  # mm
+    depth: float  # mm
+    through: bool
+    csk_d: float = 0.0  # mm, havşa ağız çapı
+    csk_angle: float = 0.0  # derece, havşa tepe açısı
+    thread: str = ""  # "M8", "M8x1"
+    thread_d: float = 0.0  # mm, nominal diş çapı
+    pitch: float = 0.0  # mm, hatve
+    thread_depth: float = 0.0  # mm, diş derinliği
+
+    def __post_init__(self) -> None:
+        origin = np.array(self.origin, dtype=float)
+        axis = np.array(self.axis, dtype=float)
+        if origin.shape != (3,) or axis.shape != (3,):
+            raise GeometryError(f"Delik: origin ve axis (3,) olmalı ({origin.shape}, {axis.shape})")
+        sayilar = [
+            self.d,
+            self.depth,
+            self.csk_d,
+            self.csk_angle,
+            self.thread_d,
+            self.pitch,
+            self.thread_depth,
+        ]
+        if not (
+            np.all(np.isfinite(origin)) and np.all(np.isfinite(axis)) and all(map(math.isfinite, sayilar))
+        ):
+            raise GeometryError(f"Delik: değerler sonlu olmalı ({self})")
+        if abs(float(np.linalg.norm(axis)) - 1.0) > 1e-9:
+            raise GeometryError(f"Delik: axis birim olmalı (|axis|={np.linalg.norm(axis)})")
+        if self.d <= 0 or self.depth <= 0:
+            raise GeometryError(f"Delik: d > 0 ve depth > 0 olmalı (d={self.d}, depth={self.depth})")
+        if self.csk_d != 0 or self.csk_angle != 0:
+            if self.csk_d <= self.d or not 0 < self.csk_angle < 180:
+                raise GeometryError(
+                    f"Delik: havşada csk_d > d ve 0 < csk_angle < 180 olmalı ({self.csk_d}, {self.csk_angle})"
+                )
+        if self.thread or self.thread_d or self.pitch or self.thread_depth:
+            if not self.thread or self.thread_d <= self.d or self.pitch <= 0:
+                raise GeometryError(
+                    f"Delik: dişte thread, thread_d > d, pitch > 0 gerekli ({self.thread}, {self.thread_d})"
+                )
+            if not 0 < self.thread_depth <= self.depth:
+                raise GeometryError(f"Delik: 0 < thread_depth <= depth olmalı ({self.thread_depth})")
+        origin.flags.writeable = False
+        axis.flags.writeable = False
+        object.__setattr__(self, "origin", origin)
+        object.__setattr__(self, "axis", axis)
+
+
+class Part:
+    """Tek bir katı parça: build123d Shape (Solid / Compound) + ad + delik kayıtları."""
+
+    def __init__(self, shape, name: str = "parca", holes=()) -> None:
         _require_occt()
         if shape is None or not shape.is_valid:
             raise GeometryError(f"Parça '{name}': geçersiz şekil")
         if shape.volume <= 0:
             raise GeometryError(f"Parça '{name}': hacim pozitif olmalı (V={shape.volume})")
+        holes = tuple(holes)
+        if not all(isinstance(h, Hole) for h in holes):
+            raise GeometryError(f"Parça '{name}': holes sadece Hole kayıtları içermeli")
         self.shape = shape
         self.name = name
+        self._holes = holes
+
+    @property
+    def holes(self) -> tuple[Hole, ...]:
+        """Delik kayıtları, eklenme sırasıyla (değiştirilemez)."""
+        return self._holes
 
     @property
     def volume(self) -> float:
