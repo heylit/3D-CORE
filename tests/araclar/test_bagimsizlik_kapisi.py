@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import shutil
 import subprocess
 import sys
@@ -141,6 +142,10 @@ def test_istisna_baska_etiket_sayilmaz():
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git yok")
 def test_git_deposundan_okuma(tmp_path, monkeypatch):
+    # Hook içinden çalışınca git GIT_INDEX_FILE / GIT_DIR verir; geçici repo asıl repoya yazmasın.
+    for k in [k for k in os.environ if k.startswith("GIT_")]:
+        monkeypatch.delenv(k)
+
     def git(*args):
         subprocess.run(["git", "-C", str(tmp_path), *args], check=True, capture_output=True)
 
