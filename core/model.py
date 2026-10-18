@@ -35,9 +35,9 @@ DOFS_PER_NODE = {1: 1, 2: 2, 3: 3}
 @dataclass
 class Material:
     name: str
-    E: float               # MPa
-    nu: float = 0.3        # Poisson oranı
-    rho: float = 0.0       # t/mm³ (ileride dinamik analiz için)
+    E: float  # MPa
+    nu: float = 0.3  # Poisson oranı
+    rho: float = 0.0  # t/mm³ (ileride dinamik analiz için)
 
     def __post_init__(self) -> None:
         if self.E <= 0:
@@ -47,7 +47,7 @@ class Material:
 @dataclass
 class Section:
     name: str
-    A: float               # mm²
+    A: float  # mm²
 
     def __post_init__(self) -> None:
         if self.A <= 0:
@@ -69,26 +69,28 @@ class Node:
 @dataclass
 class Element:
     id: int
-    type: str              # "bar1d", ileride "truss2d", "tri3", "tet4"...
-    nodes: list[int]       # düğüm id'leri
-    material: str          # Material.name
-    section: str | None = None   # Section.name (çubuk/kafes elemanları için)
+    type: str  # "bar1d", ileride "truss2d", "tri3", "tet4"...
+    nodes: list[int]  # düğüm id'leri
+    material: str  # Material.name
+    section: str | None = None  # Section.name (çubuk/kafes elemanları için)
 
 
 @dataclass
 class BC:
     """Sınır koşulu: bir düğümün bir DOF'una değer atar (0 = ankastre)."""
+
     node: int
-    dof: str               # "ux", "uy", "uz"
-    value: float = 0.0     # mm
+    dof: str  # "ux", "uy", "uz"
+    value: float = 0.0  # mm
 
 
 @dataclass
 class Load:
     """Düğüm kuvveti."""
+
     node: int
     dof: str
-    value: float           # N
+    value: float  # N
 
 
 @dataclass
@@ -204,9 +206,10 @@ class Model:
 @dataclass
 class Result:
     """Çözüm sonucu. Tüm diziler global DOF sırasındadır."""
-    u: np.ndarray                                   # yer değiştirmeler [mm], boyut n_dof
-    reactions: np.ndarray                           # mesnet tepkileri [N], boyut n_dof (serbest DOF'larda 0)
-    element_forces: dict[int, float] = field(default_factory=dict)    # eleman id -> eksenel kuvvet [N]
+
+    u: np.ndarray  # yer değiştirmeler [mm], boyut n_dof
+    reactions: np.ndarray  # mesnet tepkileri [N], boyut n_dof (serbest DOF'larda 0)
+    element_forces: dict[int, float] = field(default_factory=dict)  # eleman id -> eksenel kuvvet [N]
     element_stresses: dict[int, float] = field(default_factory=dict)  # eleman id -> eksenel gerilme [MPa]
 
     def displacement(self, model: Model, node_id: int, dof: str = "ux") -> float:

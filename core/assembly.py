@@ -1,7 +1,7 @@
 """
 Global rijitlik matrisi ve yük vektörü birleştirme (tüm eleman tipleri için ortak).
 
-Uygulanacak: specs/01-bar.md
+Teori: specs/01-bar.md
 """
 
 from __future__ import annotations
@@ -9,14 +9,33 @@ from __future__ import annotations
 import numpy as np
 import scipy.sparse as sp
 
+from core import elements
 from core.model import Model
 
 
 def assemble_K(model: Model) -> sp.csr_matrix:
-    """Tüm elemanların ke matrislerini global K'ya ekler (n_dof x n_dof, seyrek)."""
-    raise NotImplementedError("specs/01-bar.md uygulanacak")
+    """Tüm elemanların ke matrislerini global K'ya ekler (n_dof x n_dof, seyrek).
+
+    COO biçiminde (satır, sütun, değer) üçlüleri toplanır; tocsr() aynı konumdaki
+    değerleri otomatik olarak TOPLAR, bu da birleştirmenin kendisidir.
+    """
+    rows: list[int] = []
+    cols: list[int] = []
+    vals: list[float] = []
+    for e in model.elements:
+        eleman = elements.get(e.type)
+        k = eleman.ke(e, model)
+        d = np.asarray(eleman.dofs(e, model))
+        rows.extend(np.repeat(d, len(d)))
+        cols.extend(np.tile(d, len(d)))
+        vals.extend(k.ravel())
+    n = model.n_dof
+    return sp.coo_matrix((vals, (rows, cols)), shape=(n, n)).tocsr()
 
 
 def assemble_F(model: Model) -> np.ndarray:
     """Düğüm kuvvetlerinden global F vektörü (n_dof). Aynı DOF'a birden fazla yük toplanır."""
-    raise NotImplementedError("specs/01-bar.md uygulanacak")
+    F = np.zeros(model.n_dof)
+    for ld in model.loads:
+        F[model.dof_index(ld.node, ld.dof)] += ld.value
+    return F
