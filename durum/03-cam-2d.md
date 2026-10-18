@@ -3,6 +3,8 @@
 Dal: `claude/project-thread-pzzbar` · Oturum: bulut · PR #5
 
 ## Sıradaki adım
+Ek A (cep güvenliği, ikinci inceleme H1/H6) onaylandı ve uygulandı: testler 95d273c (ayrı oturum), kod ayrı commit'te. Ek olarak dar dikdörtgende (30×12, D=6, s=3) yaprak ek halkası ofset kararsızlığı düzeltildi (`MIN_EXTRA`); testi ayrı oturumdan gelecek. · Dal: `claude/project-thread-ulgwqc`. Bulgu: yaprak olmayan halkada (L cep) `s > r` iken kolların ortası kesilmiyor; öneri cepte `s ≤ r`.
+
 SPEC 03 tamam (PR #5 kullanıcı onayıyla birleşiyor); sıradaki: 03b (rampa / helis giriş, giriş-çıkış yayları).
 
 ## Test durumu
