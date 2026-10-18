@@ -138,3 +138,8 @@ def me(element: Element, model: Model, lumped: bool = False) -> np.ndarray:
 def kt(element: Element, model: Model, k: float) -> np.ndarray:
     """Isıl iletkenlik matrisi kt = k V Bᵀ B (4 x 4), B sütunları ∇N_a (SPEC 56)."""
     raise NotImplementedError("SPEC 56: tet4.kt")
+
+
+def ct(element: Element, model: Model, rho_cp: float, lumped: bool = False) -> np.ndarray:
+    """Isıl kapasite matrisi (4 x 4): tutarlı ρcp V/20 (1 + δ_ab), topaklı ρcp V/4 I (SPEC 68b)."""
+    raise NotImplementedError("SPEC 68b: tet4.ct")

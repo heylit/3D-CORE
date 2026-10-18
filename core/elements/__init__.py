@@ -25,6 +25,10 @@ Her eleman modülü şu fonksiyonları sağlar (sözleşme):
     kt(element, model, k) -> np.ndarray              (isteğe bağlı; ısıl eleman)
         Isıl iletkenlik matrisi, düğüm başına bir sıcaklık serbestliği (specs/56-isil-analiz.md).
 
+    ct(element, model, rho_cp, lumped=False) -> np.ndarray   (isteğe bağlı; geçici ısıl)
+        Isıl kapasite matrisi, kt ile aynı boyut; tutarlı veya topaklı
+        (specs/68b-gecici-isil-termomekanik.md).
+
 ke ve dofs her elemanda zorunludur.
 
 Yeni eleman eklemek = bu klasöre bir dosya + aşağıdaki sözlüğe bir satır.

@@ -1,6 +1,6 @@
 """
 Analiz köprü paketi: parça → ağ → FEM (modal analiz, kesme kuvveti altında sehim, SPEC 45;
-kararlı hal ısıl analiz, SPEC 56).
+kararlı hal ısıl analiz, SPEC 56; termo-mekanik zincir, SPEC 68b).
 
 Dışarıya sadece buradaki adlar açılır. Bağımlılık yönü: analiz → core, mesh, geometry.
 """
@@ -8,6 +8,7 @@ Dışarıya sadece buradaki adlar açılır. Bağımlılık yönü: analiz → c
 from analiz.isil import parca_isil
 from analiz.parca import parca_modal, parca_sehimi
 from analiz.sehim import Sehim, kesme_sehimi, nokta_kuvveti
+from analiz.termomekanik import TermoMekanik, zincir
 
 __all__ = [
     "Sehim",
@@ -16,4 +17,6 @@ __all__ = [
     "parca_modal",
     "parca_sehimi",
     "parca_isil",
+    "TermoMekanik",
+    "zincir",
 ]
