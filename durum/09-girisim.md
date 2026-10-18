@@ -3,14 +3,19 @@
 Dal: `claude/project-thread-nkn98y` · Oturum: bulut
 
 ## Sıradaki adım
-Testler ayrı oturumda yazılıyor; test commit'i cherry-pick edilince kod ayrı commit'te yazılacak.
+PR CI yeşil olunca birleştirme.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
 |---|---|---|---|
 | 2026-10-18 | — | — | SPEC taslağı; test ve kod yok |
+| 2026-10-18 | 84 (SPEC 09: boolean 30, girişim 54) | 0 | testler ayrı oturumda (`6f868c3`, cherry-pick); kod commit'i testlere dokunmadı |
 
 ## Son oturum
+**2026-10-18 — kod**
+- `geometry/boolean.py`: OCCT `BRepAlgoAPI_*` doğrudan; `fuse` sonrası `ShapeUpgrade_UnifySameDomain` (tek katı). `distance`: `BRepExtrema_DistShapeShape` eğik kürelerde d'yi 1.7e-8, noktaları 1e-4 sapmayla veriyor; iki uç yüzün içindeyse noktalar `GeomAPI_ProjectPointOnSurf` ile dönüşümlü izdüşümle cilalanıyor (en çok 1e-3 mm kayma, uzaklık azalmazsa durur).
+- `assy/girisim.py`: dünya AABB + x'te sort and sweep; parçalar sadece aday çiftlerde (tembel) taşınıyor.
+
 **2026-10-18 — onay ve iskelet**
 - SPEC metni ve `Part` arayüz eki kullanıcı tarafından onaylandı (proje sohbeti, 10:38 UTC, yazılı).
 - `Part` arayüz eki (PR #53, `3fa6b5d`) dala merge edildi; `geometry/boolean.py` iskeleti oradan geldi.
