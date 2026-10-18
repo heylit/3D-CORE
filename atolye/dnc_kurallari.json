@@ -1,0 +1,50 @@
+{
+  "sema": 1,
+  "kurallar": [
+    {
+      "kontrolor": "sinumerik",
+      "ad_deseni": "[A-Z]{2}[A-Z0-9_]{0,22}",
+      "uzanti": ".MPF",
+      "satir_sonu": "\n",
+      "satir_uzunlugu": 512,
+      "sinirlayici": null,
+      "kaynak": "Siemens SINUMERIK 840D sl Programming Manual Fundamentals, Program names"
+    },
+    {
+      "kontrolor": "heidenhain",
+      "ad_deseni": "[A-Za-z0-9_]{1,24}",
+      "uzanti": ".H",
+      "satir_sonu": "\r\n",
+      "satir_uzunlugu": 254,
+      "sinirlayici": null,
+      "kaynak": "HEIDENHAIN TNC 640 User's Manual Klartext Programming, File management"
+    },
+    {
+      "kontrolor": "fanuc",
+      "ad_deseni": "O[0-9]{4}",
+      "uzanti": "",
+      "satir_sonu": "\r\n",
+      "satir_uzunlugu": 256,
+      "sinirlayici": "%",
+      "kaynak": "FANUC Series 0i-MF Operator's Manual, Program input/output (ISO code)"
+    },
+    {
+      "kontrolor": "haas",
+      "ad_deseni": "O[0-9]{5}",
+      "uzanti": ".NC",
+      "satir_sonu": "\r\n",
+      "satir_uzunlugu": 256,
+      "sinirlayici": "%",
+      "kaynak": "Haas Mill Operator's Manual, Program file format"
+    },
+    {
+      "kontrolor": "grbl",
+      "ad_deseni": "[A-Za-z0-9_-]{1,64}",
+      "uzanti": ".nc",
+      "satir_sonu": "\n",
+      "satir_uzunlugu": 80,
+      "sinirlayici": null,
+      "kaynak": "Grbl v1.1 config.h LINE_BUFFER_SIZE"
+    }
+  ]
+}
