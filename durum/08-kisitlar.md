@@ -8,7 +8,7 @@ PR #3 incelemesi ve birleşmesi; birleşince `DURUM.md` SPEC tablosunda 08 satı
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
 |---|---|---|---|
-| 2026-10-18 | 245 (SPEC 08) | 0 | `tests/assy/test_mates.py`, `test_solver.py`; tüm depo 333 geçti, 29 uygulanmamış (SPEC 01'e ait) |
+| 2026-10-18 | 245 (SPEC 08) | 0 | `tests/assy/test_mates.py`, `test_solver.py`; main (SPEC 01) birleştirildikten sonra tüm depo 362 geçti, 0 uygulanmamış |
 
 ## Son oturum
 **2026-10-18**
