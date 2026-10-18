@@ -31,15 +31,22 @@ KENARLAR = ((0, 1), (1, 2), (2, 0), (0, 3), (1, 3), (2, 3))  # C3D10 düğüm 5.
 
 
 def tet10_agi(m4: Model, name: str = "tet10_kutu") -> Model:
-    """tet4 ağından düz tet10 ağı: her kenara ortak bir orta düğüm (id'ler köşelerden sonra)."""
+    """tet4 ağından düz tet10 ağı: her kenara ortak bir orta düğüm (id'ler köşelerden sonra).
+
+    Sol el tet4 elemanlarında köşe 2 ↔ 3 değiştirilir; bütün tet10 elemanları sağ el (det J > 0) olur.
+    """
     nodes = [Node(n.id, n.x, n.y, n.z) for n in m4.nodes]
     sonraki = max(n.id for n in nodes) + 1
     orta: dict[frozenset[int], int] = {}
     elements = []
     for e in m4.elements:
+        kn = list(e.nodes)
+        X = np.array([m4.node(n).xyz for n in kn])
+        if np.linalg.det(X[1:] - X[0]) < 0:  # sol el → sağ el (tet10 det J > 0 ister, SPEC 67a K10)
+            kn[1], kn[2] = kn[2], kn[1]
         ek = []
         for i, j in KENARLAR:
-            a, b = e.nodes[i], e.nodes[j]
+            a, b = kn[i], kn[j]
             anahtar = frozenset((a, b))
             if anahtar not in orta:
                 p = (m4.node(a).xyz + m4.node(b).xyz) / 2
@@ -47,7 +54,7 @@ def tet10_agi(m4: Model, name: str = "tet10_kutu") -> Model:
                 orta[anahtar] = sonraki
                 sonraki += 1
             ek.append(orta[anahtar])
-        elements.append(Element(e.id, "tet10", list(e.nodes) + ek, e.material))
+        elements.append(Element(e.id, "tet10", kn + ek, e.material))
     return Model(dim=3, nodes=nodes, elements=elements, materials=list(m4.materials), name=name)
 
 
