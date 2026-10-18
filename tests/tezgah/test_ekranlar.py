@@ -749,7 +749,10 @@ def test_reset_restores_default_job_parameters():
 
 def test_spec24_endpoints_unchanged_with_screen_list():
     istemci = _istemci([Ekran(ad="alfa", baslik="Alfa", router=_yonlendirici("alfa"))])
-    assert istemci.get("/api/isler").json() == {"sema": SEMA, "isler": list(ORNEK_ISLER)}
+    J = istemci.get("/api/isler").json()
+    assert set(J) == {"sema", "isler"} and J["sema"] == SEMA
+    # Örnek freze işleri başta; gerçek ekranların sabit işleri (ör. torna) arkadan gelebilir.
+    assert J["isler"][: len(ORNEK_ISLER)] == list(ORNEK_ISLER)
     assert istemci.get("/api/is/olmayan-is").status_code == 404
     r = istemci.post(f"/api/is/{ORNEK_ISLER[0]}/parametre", json={"islem": 99, "anahtar": "D", "deger": 8.0})
     assert r.status_code == 422
