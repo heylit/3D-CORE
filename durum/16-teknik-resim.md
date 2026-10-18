@@ -1,24 +1,29 @@
 # DURUM — SPEC 16 teknik-resim
 
-Dal: `claude/spec-16-teknik-resim-u8ylv2` · Oturum: bulut
+Dal: `claude/spec-16-teknik-resim-u8ylv2` · PR #22 · Oturum: bulut
 
 ## Sıradaki adım
-SPEC metninin kullanıcı onayı (proje sohbeti); onaydan sonra ayrı bir `dogrulayici` oturumu `tests/geometry/drawing/` testlerini yazar.
+Test yazıcısının yorum noktaları için göndereceği ek test commit'ini dala almak, yeşil olduğunu görüp PR'ı hazır yapmak.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
 |---|---|---|---|
-| 2026-10-18 | — | — | Henüz test yok (SPEC taslağı) |
+| 2026-10-18 | 126 (tests/geometry/drawing) | 0 | `--uygulanmamis-hata` ile; tüm depo 0 failed |
 
 ## Son oturum
 **2026-10-18**
-- `specs/16-teknik-resim.md` taslağı yazıldı (K1–K13).
-- Ön deneme (build123d 0.13): `project_to_viewport` teğet (Rg1) kenarları da döndürüyor; OCP
-  `HLRBRep_HLRToShape` ile sadece `VCompound` / `OutLine*` alınınca cepte `L_h = 2t + w` tutuyor.
-- İzdüşen daireler dejenere B-spline doğru olarak geliyor; üst / alt kenarlar üst üste düşüyor → `clean_edges` gerekli.
-- Kod `geometry/drawing/` altına (yeni üst düzey paket `pyproject.toml` değişikliği isterdi).
-- `geometry/drawing/` iskeleti (veri tipleri + `NotImplementedError` gövdeli fonksiyonlar) test oturumu için push edildi.
+- SPEC kullanıcı tarafından onaylandı (proje sohbeti, 08:29 UTC).
+- Testler ayrı oturumda yazıldı (`d17ae3a`, dal `claude/spec-16-teknik-resim-testler-ertqoo`), bu dala cherry-pick edildi.
+- Kod `geometry/drawing/` altında testler görülmeden yazıldı; testler ilk çalıştırmada yeşil.
+- HLR doğrudan OCP `HLRBRep_HLRToShape` ile: sadece `VCompound`/`OutLine*` (teğet kenarlar yok). build123d
+  `project_to_viewport` teğet (Rg1) kenarları da verdiği için kullanılmadı.
+- İzdüşen daireler dejenere B-spline gelir; `classify` PCA ile doğru, Kåsa en küçük kareler ile çember tanır.
 
-## Açık sorular
-- SPEC onayı bekleniyor. Varsayılanlar: DXF/SVG kendi yazıcımız (yeni bağımlılık yok, `ezdxf` yalnızca test
-  çapraz kontrolü), ISO birinci açı yerleşimi, ondalık ayırıcı virgül.
+## Yorum notları (koordinatör ve test oturumu, 2026-10-18)
+1. Görünüşler arası boşluk kağıt üzerinde `g`'dir, ölçekten bağımsız (model biriminde `g/k`).
+2. Ön görünüş A-A kesitiyle değişince temel ölçüler kesit görünüşüne yazılır.
+3. DXF R12'de `Ø` → `%%c` (okurken geri çevrilir).
+
+## Açık sorular / notlar
+- DXF'te `Polyline2D` `LINE` dizisi olarak yazıldığı için geri okumada varlık sayısı artar (SPEC'e uygun).
+- `ARC` açıları DXF'te [0, 360) aralığına indirgenir; geri okunan `a0` farklı temsil olabilir (aynı yay).
