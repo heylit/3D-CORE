@@ -3,14 +3,19 @@
 Dal: `claude/spec-36-montaj-sirasi-3h5rr8` · Oturum: bulut
 
 ## Sıradaki adım
-Ayrı test oturumunun test commit'ini cherry-pick et, sonra kodu ayrı commit'te yaz.
+PR #68: CI yeşilse birleştir.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
 |---|---|---|---|
 | 2026-10-18 | — | — | SPEC taslağı; test ve kod yok |
+| 2026-10-18 | 119 (SPEC 36, K7 OCCT dahil) | 0 | kod commit'i sonrası |
 
 ## Son oturum
+**2026-10-18 — kod**
+- Testler ayrı oturumda yazıldı (`06107a6`, cherry-pick `b91d73d`); kod commit'i testlere dokunmadı.
+- `assy/sira.py` uygulandı. Test yazarının yorumu (koordinatör kabul etti): `scope` verilince kapsam dışındaki parçalar engel sayılmaz.
+
 **2026-10-18 — onay ve iskelet**
 - SPEC metni önerilen varsayılanlarla onaylandı (kullanıcının proje sohbetindeki Dalga 5 toplu yazılı onayı, 11:13 UTC).
 - `assy/sira.py` iskeleti (`NotImplementedError`) eklendi; SPEC 09 `main`'de.
