@@ -219,3 +219,8 @@ def offset(region: Region, d: float) -> list[Region]:
 def offset_profile(profile: Profile, d: float) -> list[Region]:
     """Kapalı profilin sınırladığı bölgenin d ofseti (kısayol)."""
     return offset(Region(profile), d)
+
+
+def offset_union(regions: list[Region], d: float) -> list[Region]:
+    """SPEC 03b — ayrık bölgelerin birleşiminin d ofseti (d < 0'da bileşenler birleşebilir)."""
+    raise NotImplementedError("SPEC 03b: offset_union")

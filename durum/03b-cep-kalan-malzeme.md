@@ -3,8 +3,7 @@
 Dal: `claude/project-thread-aeemx5` · Oturum: bulut
 
 ## Sıradaki adım
-SPEC onaylandı (kullanıcı, 2026-10-18 10:24 kart, 10:38 yazılı). PR #33 `main`'de; `NotImplementedError` iskeleti,
-ardından ayrı test oturumu, sonra kod.
+İskelet push edildi (`cam/rest.py`, `offset_union`, `pocket` s > r → NotImplementedError). Sıradaki: ayrı test oturumu testleri yazar, sonra kod.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |

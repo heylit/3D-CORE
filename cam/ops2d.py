@@ -289,7 +289,7 @@ def pocket(region: Region, tool: Tool, cut: Cut, climb: bool = True) -> Toolpath
     s = _stepover(cut, tool)
     _check_plunge(tool)
     if s > r + TOL:
-        raise CamError(f"pocket: cepte yan paso en fazla D/2 olabilir (s={s}, r = D/2 = {r}; Ek A1)")
+        raise NotImplementedError("SPEC 03b: r < s ≤ D kalan malzeme denetimli cep")
     first = offset(region, r)
     if not first:
         raise CamError("pocket: takım cebe sığmıyor")
