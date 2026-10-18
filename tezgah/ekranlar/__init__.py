@@ -104,8 +104,14 @@ def _yer_tutucu(modul: str, hata: Exception) -> Ekran:
     return Ekran(ad=modul, baslik=baslik, sira=1000, router=APIRouter(), hazir=lambda: neden)
 
 
+# Kabuğun parçaları (SPEC 37 kabuğu, SPEC 62 komut paleti): uçları olsa da sekme değildir.
+KABUK_PARCALARI = frozenset({"kabuk", "komut"})
+
+
 def sekme_mi(e: Ekran) -> bool:
-    """Sekme listesine (/api/ekranlar) girer mi: uçsuz ve tuşsuz ekran (ör. kabuk) sekme değildir."""
+    """Sekme listesine (/api/ekranlar) girer mi: uçsuz ve tuşsuz ekran ile kabuk parçası sekme değildir."""
+    if e.ad in KABUK_PARCALARI:
+        return False
     return e.router is not None or e.tus is not None
 
 
