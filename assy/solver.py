@@ -3,6 +3,9 @@ SPEC 08 — Montaj konum çözücü: Gauss–Newton, en küçük normlu adım; r
 
     δx = −J⁺ r   (np.linalg.lstsq),   x ← x + α δx   (geri izleme)
     DOF = 6·n_serbest − rank(J)
+Ölçekli artıklar: yön satırları (birimsiz) karakteristik uzunluk L ile çarpılır, böylece hem
+adım hem durma ölçütü (max|r| ≤ tol) mm cinsindendir. L = referans noktalarının başlangıçtaki
+dünya çapı, en az 1 mm: L boyundaki parçada ε rad'lık yön hatası uçta ≈ ε·L mm kayma demektir.
 Kaynak: Nocedal–Wright, Numerical Optimization, Bölüm 10.
 """
 
@@ -12,7 +15,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from assy.mates import jacobian, residual, rodrigues
+from assy.mates import angular_rows, jacobian, residual, rodrigues
 from assy.model import Assembly, AssyError, Component
 
 # Geri izlemede en küçük adım katsayısı: α = 2⁻¹⁰
@@ -25,7 +28,7 @@ _RANK_RTOL = 1e-8
 class SolveResult:
     T: dict[str, np.ndarray]
     iterations: int
-    residual: float
+    residual: float  # son ölçekli max|r| (mm; yön satırları L ile çarpılmış)
     dof: int
 
     def apply(self, assembly: Assembly) -> None:
@@ -51,6 +54,15 @@ def _jacobian(assembly: Assembly, unknowns: list[str]) -> np.ndarray:
     if not assembly.mates:
         return np.zeros((0, 6 * len(unknowns)))
     return np.vstack([jacobian(assembly, m, unknowns) for m in assembly.mates])
+
+
+def _scale(assembly: Assembly) -> np.ndarray:
+    """Artık satırı başına ölçek: yön satırları L, uzunluk satırları 1 (bkz. modül açıklaması)."""
+    if not assembly.mates:
+        return np.zeros(0)
+    p = np.array([assembly.world(ref)[0] for m in assembly.mates for ref in (m.a, m.b)])
+    L = max(1.0, float(np.max(np.linalg.norm(p[:, None, :] - p[None, :, :], axis=2))))
+    return np.concatenate([np.where(angular_rows(assembly, m), L, 1.0) for m in assembly.mates])
 
 
 def _rank(J: np.ndarray) -> int:
@@ -121,8 +133,9 @@ def solve(assembly: Assembly, tol: float = 1e-10, max_iter: int = 50) -> SolveRe
 
     work = _copy(assembly)
     unknowns = _unknowns(work)
+    w = _scale(work)  # satır ölçekleri başlangıç konumundan bir kez: çözüm boyunca sabit
 
-    r = residuals(work)
+    r = w * residuals(work)
     iterations = 0
     while not (r.size == 0 or float(np.max(np.abs(r))) <= tol):
         if iterations >= max_iter:
@@ -130,7 +143,7 @@ def solve(assembly: Assembly, tol: float = 1e-10, max_iter: int = 50) -> SolveRe
                 f"Çözücü {max_iter} iterasyonda yakınsamadı (çelişkili kısıt veya yerel minimum): "
                 + _worst_mate_message(work)
             )
-        J = _jacobian(work, unknowns)
+        J = w[:, None] * _jacobian(work, unknowns)
         # En küçük normlu Gauss–Newton adımı: δx = −J⁺ r
         dx = np.linalg.lstsq(J, -r, rcond=None)[0] if J.shape[1] else np.zeros(0)
 
@@ -140,7 +153,7 @@ def solve(assembly: Assembly, tol: float = 1e-10, max_iter: int = 50) -> SolveRe
         for k in range(_MIN_HALVINGS + 1):  # α = 1, ½, ..., 2⁻¹⁰
             alpha = 0.5**k
             _apply_step(work, T0, unknowns, alpha * dx)
-            r_try = residuals(work)
+            r_try = w * residuals(work)
             if float(np.linalg.norm(r_try)) < norm0:
                 accepted = True
                 break
@@ -155,7 +168,7 @@ def solve(assembly: Assembly, tol: float = 1e-10, max_iter: int = 50) -> SolveRe
         for name in unknowns:
             T = work.component(name).T
             T[:3, :3] = _nearest_rotation(T[:3, :3])
-        r = residuals(work)
+        r = w * residuals(work)
         iterations += 1
 
     return SolveResult(
