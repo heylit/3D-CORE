@@ -3,7 +3,7 @@
 Dal: `claude/spec-32-kuvvet-5x6f7q` · Oturum: bulut
 
 ## Sıradaki adım
-SPEC metninin kullanıcı onayı (koordinatör üzerinden). Onaydan sonra `NotImplementedError` iskeleti.
+İskelet push edildi; bağımsız test thread'inin test commit'ini cherry-pick edip kodu ayrı commit'te yazmak.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
@@ -17,13 +17,11 @@ SPEC metninin kullanıcı onayı (koordinatör üzerinden). Onaydan sonra `NotIm
   iş mili denetimi (`SpindleLimits`), talaş incelmesi + güç/tork kapalı form ilerleme ayarı, analiz bölütleri.
 - Kod bağımlılıkları: SPEC 05 (main), 14 (PR #27), 22 (PR #41), 30, arayüz A0 (`MachineProfile.spindle_power_kw`,
   `spindle_torque_nm`).
+- SPEC onaylandı; `NotImplementedError` iskeleti (`cam/kuvvet.py`, `cam/ilerleme_opt.py`) ve örnek malzeme dosyası push edildi.
+
+## Kararlar
+- 2026-10-18 11:13 UTC kullanıcı yazılı toplu onayı: SPEC 32 metni önerilerle, A0 arayüz eki onaylı. Önerilen
+  varsayılanlar (1 örnek JSON, 2 `eta = 0.8`, 3 `hex` hedefi, 4 `max_factor = 2.0`, 5 `air_feed = None`, 6 `split = False`) geçerli.
 
 ## Açık sorular
-1. Malzeme verisi: kodda yerleşik tablo yok; `examples/kienzle_malzemeler.json` kaynaklı örnek değerlerle
-   (öneri) mi, yoksa kodda küçük yerleşik tablo mu?
-2. İş mili verimi `η` varsayılanı 0.8 (öneri, temkinli) mi, 1.0 mı?
-3. Talaş incelmesi hedefi: programlanan `fz`'i `hex` (en büyük talaş kalınlığı) kabul etmek (öneri, Sandvik) mi,
-   ortalama `hm` sabit tutmak mı?
-4. `max_factor` varsayılanı 2.0 (öneri): ilerleme en çok iki katına çıkar.
-5. Hava hareketleri: `air_feed` varsayılanı `None` (öneri, değiştirme) mi, `feed_max` mı?
-6. Varsayılan `split=False` (öneri: hareket sayısı korunur, en kötü bölüte göre temkinli) mi, `True` (daha çok süre kazancı) mı?
+_(yok)_

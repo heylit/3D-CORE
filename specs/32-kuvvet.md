@@ -1,6 +1,9 @@
 # SPEC 32 — Kesme kuvveti, iş mili gücü ve ilerleme optimizasyonu (Kienzle)
 
-> **Durum: TASLAK** (kullanıcı onayı bekliyor). Açık sorular `durum/32-kuvvet.md`'de.
+> **Durum: ONAYLANDI** (kullanıcı, 2026-10-18 11:13 UTC yazılı toplu onay "önerilerle"; A0 arayüz eki de onaylı).
+> Önerilen varsayılanlar geçerli: malzeme verisi kodda değil `examples/kienzle_malzemeler.json`'da, `eta = 0.8`,
+> talaş incelmesi hedefi `hex` (programlanan `fz`), `max_factor = 2.0`, `air_feed = None`, `split = False`.
+> Metin kullanıcı onayı olmadan değişmez.
 
 ## Amaç
 Simüle edilmiş bir freze (SPEC 05) veya torna (SPEC 22) programının her hareketi için Kienzle modeliyle
