@@ -330,7 +330,7 @@ def test_times(yapici):
         assert isl["t0"] == pytest.approx(kum, rel=1e-12, abs=1e-9)
         kum += res.op_times[i]
         assert isl["t1"] == pytest.approx(kum, rel=1e-12, abs=1e-9)
-    assert J["sure"]["kumulatif_url"] == f"/api/is/{tanim.ad}/noktalar"
+    assert J["sure"]["kumulatif_url"] == f"/api/ekran/torna/is/{tanim.ad}/noktalar"
 
 
 def _alin_suresi(x1: float, x0: float, Vc: float, f: float, n_max: float) -> float:

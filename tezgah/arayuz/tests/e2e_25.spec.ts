@@ -1,25 +1,26 @@
 // SPEC 25 K18 + K19 — torna ve montaj ekranları uçtan uca (Playwright, @slow). Yalnızca yerelde (pre-push).
 // Sunucu playwright.config.ts'deki webServer ile açılır; sayılar arayüzden değil `window.__tezgah` kancasından
-// ve sunucu yanıtlarından okunur.
+// ve sunucu yanıtlarından okunur. Uçlar A3 ekran kaydına göre /api/ekran/torna/... ve /api/ekran/montaj/...
 //
-// SPEC 24 kancasına (src/kanca.ts) bu testin beklediği ekler (adlar test yazarının seçimi):
-//   ekran(): "freze" | "torna" | "montaj"     açık çalışma alanı
-//   kesitAcik(): boolean                       torna sahnesinde 270° kesit görünümü açık mı (S tuşu)
-//   capModu(): boolean                         DRO çap mı (varsayılan true; R tuşu yarıçap)
-//   seciliIslem(): number | null               torna ekranında seçili işlem indeksi
-//   montajU(): number                          montaj şeridinin konumu u ∈ [0, N]
-//   montajPoz(yol: string): number[]           sahnede gösterilen bileşen dönüşümü (16, satır öncelikli)
-// Ve SPEC 24 kancasındaki dro(), hayaletKonum(), gcodeSatirSayisi(), toplamSure() torna ekranında da çalışır
-// (dro()[0] DRO'da gösterilen X: çap modunda çap).
+// A3 ekran kancaları (src/kanca.ts: window.__tezgah.<ekran>):
+//   torna.kesitAcik(): boolean            torna sahnesinde 270° kesit görünümü açık mı (S tuşu)
+//   torna.capModu(): boolean              DRO çap mı (varsayılan true; R tuşu yarıçap)
+//   torna.seciliIslem(): number | null    torna ekranında seçili işlem indeksi
+//   torna.dro(), torna.hayaletKonum(), torna.gcodeSatirSayisi(), torna.toplamSure(), torna.zaman()
+//                                         SPEC 24 kancasının torna karşılıkları (dro()[0] çap modunda çap)
+//   montaj.montajU(): number              montaj şeridinin konumu u ∈ [0, N]
+//   montaj.montajPoz(yol): number[]       sahnede gösterilen bileşen dönüşümü (16, satır öncelikli)
+// Üst düzey dro / hayaletKonum / gcodeSatirSayisi / toplamSure freze'nindir. Etkin ekran `location.hash`'ten
+// okunur (#/<ekran>[?...]); kabuğa kanca eklenmez.
 //
 // DOM işaretleri (data-testid):
-//   sekme            üst çubuktaki sekme; `data-sekme` = "freze" | "torna" | "montaj"
+//   ekran-sekmesi    (A3) üst çubuktaki sekme; `data-ekran` = "freze" | "torna" | "montaj"
 //   gcode-satir      (SPEC 24) torna ekranında da G-code satırları; `data-satir` = gcode indeksi
 //   montaj-seridi    montaj sırası şeridi
 //   girisim-karti    iplik kartı (girişim yoksa "temiz" yazar)
 //   oner, uygula     kart düğmeleri
 //   sure-farki       uygulanınca torna işinin süre farkı rozeti
-//   tornada-goster   torna ekranını değişen işlem seçili açan bağlantı
+//   tornada-goster   torna ekranını değişen işlem seçili açan bağlantı: #/torna?islem=<i>&fark=<s>
 
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import type { Is, Nokta3 } from "../src/tipler";
@@ -28,18 +29,26 @@ import "../src/kanca";
 
 const EPS = 5e-4; // mm (K2 / K3 toleransı)
 
-interface Kanca25 {
-  hazir: boolean;
-  ekran(): "freze" | "torna" | "montaj";
+interface TornaKanca {
   kesitAcik(): boolean;
   capModu(): boolean;
   seciliIslem(): number | null;
-  montajU(): number;
-  montajPoz(yol: string): number[];
   dro(): Nokta3;
   hayaletKonum(): Nokta3 | null;
   gcodeSatirSayisi(): number;
   toplamSure(): number;
+  zaman(): number;
+}
+
+interface MontajKanca {
+  montajU(): number;
+  montajPoz(yol: string): number[];
+}
+
+interface Kanca25 {
+  hazir: boolean;
+  torna: TornaKanca;
+  montaj: MontajKanca;
 }
 
 interface Adim {
@@ -67,6 +76,12 @@ async function kanca<T>(page: Page, f: (k: Kanca25) => T): Promise<T> {
     },
     f.toString(),
   );
+}
+
+/** Etkin ekran adresten: "#/torna?islem=2" → "torna". */
+function etkin(page: Page): string | null {
+  const m = new URL(page.url()).hash.match(/^#\/([^?]+)/);
+  return m ? m[1] : null;
 }
 
 async function hazir(page: Page): Promise<void> {
@@ -133,19 +148,19 @@ test.describe("Tezgah torna ve montaj uçtan uca @slow", () => {
 
   test("1/2/3 sekmeleri ve adresler", async ({ page }) => {
     await page.keyboard.press("2");
-    await expect.poll(() => kanca(page, (k) => k.ekran())).toBe("torna");
+    await expect.poll(() => etkin(page)).toBe("torna");
     expect(new URL(page.url()).hash).toBe("#/torna");
     await page.keyboard.press("3");
-    await expect.poll(() => kanca(page, (k) => k.ekran())).toBe("montaj");
+    await expect.poll(() => etkin(page)).toBe("montaj");
     expect(new URL(page.url()).hash).toBe("#/montaj");
     await page.keyboard.press("1");
-    await expect.poll(() => kanca(page, (k) => k.ekran())).toBe("freze");
+    await expect.poll(() => etkin(page)).toBe("freze");
     expect(new URL(page.url()).hash).toBe("#/freze");
     await page.goto("/#/montaj");
     await hazir(page);
-    expect(await kanca(page, (k) => k.ekran())).toBe("montaj");
+    expect(etkin(page)).toBe("montaj");
     for (const s of ["freze", "torna", "montaj"]) {
-      await expect(page.locator(`[data-testid="sekme"][data-sekme="${s}"]`)).toBeVisible();
+      await expect(page.locator(`[data-testid="ekran-sekmesi"][data-ekran="${s}"]`)).toBeVisible();
     }
   });
 
@@ -153,12 +168,12 @@ test.describe("Tezgah torna ve montaj uçtan uca @slow", () => {
     page,
     request,
   }) => {
-    const is: Is = await (await request.get("/api/is/kademeli_mil")).json();
+    const is: Is = await (await request.get("/api/ekran/torna/is/kademeli_mil")).json();
     await page.keyboard.press("2");
-    await expect.poll(() => kanca(page, (k) => k.ekran())).toBe("torna");
-    expect(await kanca(page, (k) => k.gcodeSatirSayisi())).toBe(is.gcode.length);
-    expect(await kanca(page, (k) => k.toplamSure())).toBeCloseTo(is.sure.toplam, 9);
-    expect(await kanca(page, (k) => k.capModu())).toBe(true);
+    await expect.poll(() => etkin(page)).toBe("torna");
+    expect(await kanca(page, (k) => k.torna.gcodeSatirSayisi())).toBe(is.gcode.length);
+    expect(await kanca(page, (k) => k.torna.toplamSure())).toBeCloseTo(is.sure.toplam, 9);
+    expect(await kanca(page, (k) => k.torna.capModu())).toBe(true);
 
     const satirlar = is.satir_hareket
       .map((ar, i) => (ar !== null && xSozcugu(is.gcode[i].metin) !== null ? i : -1))
@@ -168,28 +183,28 @@ test.describe("Tezgah torna ve montaj uçtan uca @slow", () => {
       const el = page.locator(`[data-testid="gcode-satir"][data-satir="${i}"]`);
       await el.scrollIntoViewIfNeeded();
       await el.hover();
-      await expect.poll(() => kanca(page, (k) => k.hayaletKonum())).not.toBeNull();
+      await expect.poll(() => kanca(page, (k) => k.torna.hayaletKonum())).not.toBeNull();
       const son = (is.satir_hareket[i] as [number, number])[1];
-      yakin(await kanca(page, (k) => k.hayaletKonum()), is.hareketler[son].b);
-      const dro = await kanca(page, (k) => k.dro());
+      yakin(await kanca(page, (k) => k.torna.hayaletKonum()), is.hareketler[son].b);
+      const dro = await kanca(page, (k) => k.torna.dro());
       expect(Math.abs(dro[0] - (xSozcugu(is.gcode[i].metin) as number))).toBeLessThanOrEqual(EPS);
     }
 
     await page.locator("body").click({ position: { x: 1, y: 1 } });
-    const kesit0 = await kanca(page, (k) => k.kesitAcik());
+    const kesit0 = await kanca(page, (k) => k.torna.kesitAcik());
     await page.keyboard.press("s");
-    expect(await kanca(page, (k) => k.kesitAcik())).toBe(!kesit0);
+    expect(await kanca(page, (k) => k.torna.kesitAcik())).toBe(!kesit0);
     await page.keyboard.press("s");
-    expect(await kanca(page, (k) => k.kesitAcik())).toBe(kesit0);
+    expect(await kanca(page, (k) => k.torna.kesitAcik())).toBe(kesit0);
 
     await page.keyboard.press("r");
-    expect(await kanca(page, (k) => k.capModu())).toBe(false);
+    expect(await kanca(page, (k) => k.torna.capModu())).toBe(false);
     await page.keyboard.press("r");
-    expect(await kanca(page, (k) => k.capModu())).toBe(true);
+    expect(await kanca(page, (k) => k.torna.capModu())).toBe(true);
   });
 
   test("torna sim dizisi: tornaSimCoz + kesitAt bağımsız taramayla aynı (K6 verisi)", async ({ page }) => {
-    const buf = await ikili(page, "/api/is/kademeli_mil/sim");
+    const buf = await ikili(page, "/api/ekran/torna/is/kademeli_mil/sim");
     const S = tornaSimCoz(buf);
     expect(S.nz).toBeGreaterThan(0);
     for (const k of [0, 5, 50, 1_000_000]) {
@@ -213,40 +228,40 @@ test.describe("Tezgah torna ve montaj uçtan uca @slow", () => {
     page,
     request,
   }) => {
-    const M: Montaj = await (await request.get("/api/montaj/yatak_grubu")).json();
+    const M: Montaj = await (await request.get("/api/ekran/montaj/yatak_grubu")).json();
     const N = M.sira.length;
     await page.keyboard.press("3");
-    await expect.poll(() => kanca(page, (k) => k.ekran())).toBe("montaj");
+    await expect.poll(() => etkin(page)).toBe("montaj");
 
     const serit = page.getByTestId("montaj-seridi");
     await seritSurukle(page, serit, -1); // şeridin soluna taşma: başa kırpılır
-    await expect.poll(() => kanca(page, (k) => k.montajU())).toBe(0);
+    await expect.poll(() => kanca(page, (k) => k.montaj.montajU())).toBe(0);
     for (const a of M.sira) {
       const T = await page.evaluate(
-        (yol) => (window as unknown as { __tezgah: Kanca25 }).__tezgah.montajPoz(yol),
+        (yol) => (window as unknown as { __tezgah: Kanca25 }).__tezgah.montaj.montajPoz(yol),
         a.yol,
       );
       matYakin(T, duz(a.T_once[a.yol]));
     }
     await seritSurukle(page, serit, 2); // sağa taşma: sona kırpılır
-    await expect.poll(() => kanca(page, (k) => k.montajU())).toBe(N);
+    await expect.poll(() => kanca(page, (k) => k.montaj.montajU())).toBe(N);
     const son = M.sira[N - 1];
     for (const b of M.bilesenler) {
       const T = await page.evaluate(
-        (yol) => (window as unknown as { __tezgah: Kanca25 }).__tezgah.montajPoz(yol),
+        (yol) => (window as unknown as { __tezgah: Kanca25 }).__tezgah.montaj.montajPoz(yol),
         b.yol,
       );
       matYakin(T, duz(son.T_sonra[b.yol]));
     }
 
     await page.keyboard.press("e");
-    await expect.poll(() => kanca(page, (k) => k.montajU())).toBe(0);
+    await expect.poll(() => kanca(page, (k) => k.montaj.montajU())).toBe(0);
     await page.keyboard.press("e");
-    await expect.poll(() => kanca(page, (k) => k.montajU())).toBe(N);
+    await expect.poll(() => kanca(page, (k) => k.montaj.montajU())).toBe(N);
 
     // Şerit geri sürüklenince montaj patlar (u küçülür).
     await seritSurukle(page, serit, 0.4);
-    const u = await kanca(page, (k) => k.montajU());
+    const u = await kanca(page, (k) => k.montaj.montajU());
     expect(u).toBeGreaterThan(0);
     expect(u).toBeLessThan(N);
   });
@@ -255,22 +270,22 @@ test.describe("Tezgah torna ve montaj uçtan uca @slow", () => {
     page,
     request,
   }) => {
-    const M: Montaj = await (await request.get("/api/montaj/yatak_grubu")).json();
+    const M: Montaj = await (await request.get("/api/ekran/montaj/yatak_grubu")).json();
     expect(M.girisimler.length).toBe(1);
     await page.keyboard.press("3");
-    await expect.poll(() => kanca(page, (k) => k.ekran())).toBe("montaj");
+    await expect.poll(() => etkin(page)).toBe("montaj");
     const kart = page.getByTestId("girisim-karti");
     await expect(kart).toBeVisible();
     await expect(kart).not.toContainText(/temiz/i);
 
-    const oneriYaniti = page.waitForResponse((r) => r.url().includes("/api/montaj/yatak_grubu/oneri"));
+    const oneriYaniti = page.waitForResponse((r) => r.url().includes("/api/ekran/montaj/yatak_grubu/oneri"));
     await page.getByTestId("oner").click();
     const oneri = (await (await oneriYaniti).json()) as { deger: number | null };
     expect(oneri.deger).not.toBeNull();
     expect(Math.abs((oneri.deger as number) - 10)).toBeLessThanOrEqual(1e-3);
 
     const uygulaYaniti = page.waitForResponse(
-      (r) => r.url().endsWith("/api/montaj/yatak_grubu/parametre") && r.request().method() === "POST",
+      (r) => r.url().endsWith("/api/ekran/montaj/yatak_grubu/parametre") && r.request().method() === "POST",
     );
     await page.getByTestId("uygula").click();
     const yanit = await uygulaYaniti;
@@ -281,12 +296,16 @@ test.describe("Tezgah torna ve montaj uçtan uca @slow", () => {
     await expect(page.getByTestId("sure-farki")).toBeVisible();
 
     await page.getByTestId("tornada-goster").click();
-    await expect.poll(() => kanca(page, (k) => k.ekran())).toBe("torna");
-    expect(new URL(page.url()).hash.startsWith("#/torna")).toBe(true);
-    await expect.poll(() => kanca(page, (k) => k.gcodeSatirSayisi())).toBe(govde.is.gcode.length);
-    expect(await kanca(page, (k) => k.toplamSure())).toBeCloseTo(govde.is.sure.toplam, 9);
-    expect(await kanca(page, (k) => k.seciliIslem())).not.toBeNull();
-    const simdiki: Is = await (await request.get("/api/is/kademeli_mil")).json();
+    await expect.poll(() => etkin(page)).toBe("torna");
+    const [yol, sorgu] = new URL(page.url()).hash.split("?");
+    expect(yol).toBe("#/torna");
+    const q = new URLSearchParams(sorgu ?? "");
+    expect(q.get("islem")).toMatch(/^\d+$/);
+    expect(Number(q.get("fark"))).toBeCloseTo(govde.sure_farki, 3);
+    await expect.poll(() => kanca(page, (k) => k.torna.gcodeSatirSayisi())).toBe(govde.is.gcode.length);
+    expect(await kanca(page, (k) => k.torna.toplamSure())).toBeCloseTo(govde.is.sure.toplam, 9);
+    expect(await kanca(page, (k) => k.torna.seciliIslem())).toBe(Number(q.get("islem")));
+    const simdiki: Is = await (await request.get("/api/ekran/torna/is/kademeli_mil")).json();
     expect(simdiki.gcode).toEqual(govde.is.gcode);
   });
 
@@ -296,7 +315,7 @@ test.describe("Tezgah torna ve montaj uçtan uca @slow", () => {
       ["3", "montaj"],
     ]) {
       await page.keyboard.press(tus);
-      await expect.poll(() => kanca(page, (k) => k.ekran())).toBe(ad);
+      await expect.poll(() => etkin(page)).toBe(ad);
       for (const genislik of [400, 1440]) {
         await page.setViewportSize({ width: genislik, height: 900 });
         await page.waitForTimeout(200);
@@ -318,7 +337,7 @@ test.describe("Tezgah torna ve montaj uçtan uca @slow", () => {
       ["3", "montaj"],
     ]) {
       await page.keyboard.press(tus);
-      await expect.poll(() => kanca(page, (k) => k.ekran())).toBe(ad);
+      await expect.poll(() => etkin(page)).toBe(ad);
       const gorulen = new Set<string>();
       for (let i = 0; i < 25; i++) {
         await page.keyboard.press("Tab");

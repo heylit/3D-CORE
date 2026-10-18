@@ -9,6 +9,7 @@ kurar.
 
 from __future__ import annotations
 
+import importlib
 import json
 
 import pytest
@@ -27,7 +28,12 @@ def _istemci():
 
     from tezgah.sunucu import uygulama
 
-    return TestClient(uygulama(dist=None))
+    try:  # A3 (specs/24a-ekran-kaydi.md): SPEC 25 uçları ekran modüllerinde, /api/ekran/<ad> altında
+        torna_ekrani = importlib.import_module("tezgah.ekranlar.torna")
+        montaj_ekrani = importlib.import_module("tezgah.ekranlar.montaj")
+    except ModuleNotFoundError as e:
+        raise NotImplementedError(f"SPEC 25: ekran modülü henüz yok ({e.name})") from e
+    return TestClient(uygulama(None, ekranlar=[torna_ekrani.EKRAN, montaj_ekrani.EKRAN]))
 
 
 def _lsim():
@@ -146,47 +152,113 @@ def test_lathe_checks_clean_example():
 
 @pytest.mark.occt
 def test_lathe_job_endpoints():
-    """GET /api/is/kademeli_mil torna köprüsünden (`tur: torna`); /noktalar ve /sim ikili diziler."""
+    """GET /api/ekran/torna/is/kademeli_mil torna köprüsünden (`tur: torna`);
+    /noktalar ve /sim ikili diziler."""
     _lathe()
     _lsim()
     from tezgah.ornekler_25 import kademeli_mil
 
     ist = _istemci()
     tanim = kademeli_mil()
-    r = ist.get("/api/is/kademeli_mil")
+    r = ist.get("/api/ekran/torna/is/kademeli_mil")
     assert r.status_code == 200
     J = r.json()
     assert J["tur"] == "torna"
     assert J == _json_tur(torna.is_json(tanim))
-    r = ist.get("/api/is/kademeli_mil/noktalar")
+    r = ist.get("/api/ekran/torna/is/kademeli_mil/noktalar")
     assert r.status_code == 200 and r.headers["content-type"].startswith(OCTET)
     assert r.content == torna.noktalar_ikili(tanim)
-    r = ist.get("/api/is/kademeli_mil/sim")
+    r = ist.get("/api/ekran/torna/is/kademeli_mil/sim")
     assert r.status_code == 200 and r.headers["content-type"].startswith(OCTET)
     assert r.content == torna.sim_ikili(tanim)
 
 
+def _paso_islemi(tanim) -> tuple[int, float]:
+    """Müfettişte `a_p` (paso derinliği) taşıyan ilk işlemin indeksi ve güncel değeri."""
+    for i, isl in enumerate(tanim.islemler):
+        if "a_p" in isl.parametreler:
+            return i, isl.parametreler["a_p"]
+    raise AssertionError("kademeli_mil'de a_p parametreli işlem yok (SPEC 25: kaba boyuna)")
+
+
+def _torna_parametre(ist, islem, anahtar, deger, ad="kademeli_mil"):
+    return ist.post(
+        f"/api/ekran/torna/is/{ad}/parametre", json={"islem": islem, "anahtar": anahtar, "deger": deger}
+    )
+
+
+@pytest.mark.occt
+def test_lathe_param_endpoint():
+    """Müfettiş / "paso 2": POST /api/ekran/torna/is/kademeli_mil/parametre {islem, anahtar, deger}
+    → {sema, is, sure_farki} (SPEC 24 kuralı); dönen `is` = ardından gelen GET, yalnız o parametre değişir,
+    sure_farki = yeni − eski toplam süre; POST /api/sifirla eski işe döndürür."""
+    _lathe()
+    _lsim()
+    from tezgah.ornekler_25 import kademeli_mil
+
+    ist = _istemci()
+    i, a_p0 = _paso_islemi(kademeli_mil())
+    a_p1 = 2.0 if a_p0 != 2.0 else 1.0
+    eski = ist.get("/api/ekran/torna/is/kademeli_mil").json()
+    r = _torna_parametre(ist, i, "a_p", a_p1)
+    assert r.status_code == 200
+    Y = r.json()
+    assert set(Y) == {"sema", "is", "sure_farki"} and Y["sema"] == 1
+    yeni = Y["is"]
+    assert yeni == ist.get("/api/ekran/torna/is/kademeli_mil").json()
+    assert yeni["tur"] == "torna"
+    assert yeni["islemler"][i]["parametreler"]["a_p"] == a_p1
+    for k, (a, b) in enumerate(zip(eski["islemler"], yeni["islemler"], strict=True)):
+        if k != i:
+            assert a["parametreler"] == b["parametreler"]
+    assert yeni["gcode"] != eski["gcode"]  # paso derinliği değişince paso sayısı değişir
+    assert Y["sure_farki"] == pytest.approx(
+        yeni["sure"]["toplam"] - eski["sure"]["toplam"], rel=1e-9, abs=1e-9
+    )
+    assert ist.post("/api/sifirla").status_code == 200
+    assert ist.get("/api/ekran/torna/is/kademeli_mil").json() == eski
+
+
+@pytest.mark.occt
+def test_lathe_param_endpoint_errors():
+    """Bilinmeyen iş → 404; bilinmeyen işlem / anahtar ve geçersiz değer (a_p ≤ 0) → 422; iş değişmez."""
+    pytest.importorskip("build123d")
+    from tezgah.ornekler_25 import kademeli_mil
+
+    ist = _istemci()
+    i, a_p0 = _paso_islemi(kademeli_mil())
+    for yol in ("", "/noktalar", "/sim"):
+        assert ist.get(f"/api/ekran/torna/is/yok{yol}").status_code == 404
+    assert _torna_parametre(ist, i, "a_p", 2.0, ad="yok").status_code == 404
+    eski = ist.get("/api/ekran/torna/is/kademeli_mil").json()
+    assert _torna_parametre(ist, 99, "a_p", 2.0).status_code == 422
+    assert _torna_parametre(ist, i, "yok", 2.0).status_code == 422
+    for deger in (0.0, -1.0):
+        assert _torna_parametre(ist, i, "a_p", deger).status_code == 422
+    assert ist.get("/api/ekran/torna/is/kademeli_mil").json() == eski
+
+
 def test_assembly_list():
     ist = _istemci()
-    r = ist.get("/api/montajlar")
+    r = ist.get("/api/ekran/montaj/montajlar")
     assert r.status_code == 200
     assert r.json() == {"sema": 1, "montajlar": ["yatak_grubu"]}
 
 
 def test_unknown_assembly_404():
     ist = _istemci()
-    assert ist.get("/api/montaj/yok").status_code == 404
-    assert ist.get("/api/montaj/yok/ag/plaka").status_code == 404
+    assert ist.get("/api/ekran/montaj/yok").status_code == 404
+    assert ist.get("/api/ekran/montaj/yok/ag/plaka").status_code == 404
     assert (
         ist.post(
-            "/api/montaj/yok/parametre", json={"is": "kademeli_mil", "anahtar": "L", "deger": 9.5}
+            "/api/ekran/montaj/yok/parametre", json={"is": "kademeli_mil", "anahtar": "L", "deger": 9.5}
         ).status_code
         == 404
     )
 
 
 def test_assembly_endpoints():
-    """GET /api/montaj/yatak_grubu = montaj_json;
+    """GET /api/ekran/montaj/yatak_grubu = montaj_json;
     parça ve girişim ağları köprünün baytları; bilinmeyen parça 404."""
     _spec09()
     from tezgah.montaj import girisim_agi, montaj_json, parca_agi
@@ -194,38 +266,39 @@ def test_assembly_endpoints():
 
     ist = _istemci()
     tanim = yatak_grubu()
-    r = ist.get("/api/montaj/yatak_grubu")
+    r = ist.get("/api/ekran/montaj/yatak_grubu")
     assert r.status_code == 200
     J = r.json()
     assert J == _json_tur(montaj_json(tanim))
     for p in J["parcalar"]:
-        r = ist.get(f"/api/montaj/yatak_grubu/ag/{p['kimlik']}")
+        r = ist.get(f"/api/ekran/montaj/yatak_grubu/ag/{p['kimlik']}")
         assert r.status_code == 200 and r.headers["content-type"].startswith(OCTET)
         assert r.content == parca_agi(tanim, p["kimlik"])
-    assert ist.get("/api/montaj/yatak_grubu/ag/yok").status_code == 404
+    assert ist.get("/api/ekran/montaj/yatak_grubu/ag/yok").status_code == 404
     (g,) = J["girisimler"]
     r = ist.get(g["ag"])
     assert r.status_code == 200 and r.content == girisim_agi(tanim, 0)
-    assert ist.get("/api/montaj/yatak_grubu/ag/girisim/7").status_code == 404
+    assert ist.get("/api/ekran/montaj/yatak_grubu/ag/girisim/7").status_code == 404
 
 
 def test_suggestion_endpoint():
-    """GET /api/montaj/yatak_grubu/oneri → {deger, hacim}; girişimsiz durumda {deger: null, neden}."""
+    """GET /api/ekran/montaj/yatak_grubu/oneri → {deger, hacim}; girişimsiz durumda {deger: null, neden}."""
     _spec09()
     ist = _istemci()
-    (g,) = ist.get("/api/montaj/yatak_grubu").json()["girisimler"]
+    (g,) = ist.get("/api/ekran/montaj/yatak_grubu").json()["girisimler"]
     q = {"is": "kademeli_mil", "anahtar": "L", "cift": f"{g['a']},{g['b']}"}
-    r = ist.get("/api/montaj/yatak_grubu/oneri", params=q)
+    r = ist.get("/api/ekran/montaj/yatak_grubu/oneri", params=q)
     assert r.status_code == 200
     oneri = r.json()
     assert abs(oneri["deger"] - 10.0) <= 1e-3 and oneri["hacim"] == 0.0
     assert (
         ist.post(
-            "/api/montaj/yatak_grubu/parametre", json={"is": "kademeli_mil", "anahtar": "L", "deger": 9.5}
+            "/api/ekran/montaj/yatak_grubu/parametre",
+            json={"is": "kademeli_mil", "anahtar": "L", "deger": 9.5},
         ).status_code
         == 200
     )
-    oneri = ist.get("/api/montaj/yatak_grubu/oneri", params=q).json()
+    oneri = ist.get("/api/ekran/montaj/yatak_grubu/oneri", params=q).json()
     assert oneri["deger"] is None and oneri["neden"]
 
 
@@ -241,9 +314,9 @@ def test_param_link():
     from tezgah.ornekler_25 import kademeli_mil
 
     ist = _istemci()
-    eski = ist.get("/api/is/kademeli_mil").json()
+    eski = ist.get("/api/ekran/torna/is/kademeli_mil").json()
     r = ist.post(
-        "/api/montaj/yatak_grubu/parametre", json={"is": "kademeli_mil", "anahtar": "L", "deger": 9.5}
+        "/api/ekran/montaj/yatak_grubu/parametre", json={"is": "kademeli_mil", "anahtar": "L", "deger": 9.5}
     )
     assert r.status_code == 200
     Y = r.json()
@@ -251,7 +324,7 @@ def test_param_link():
     assert Y["montaj"]["girisimler"] == []
     (bag,) = Y["montaj"]["baglar"]
     assert bag["parametre"]["deger"] == 9.5
-    assert Y["is"] == ist.get("/api/is/kademeli_mil").json()
+    assert Y["is"] == ist.get("/api/ekran/torna/is/kademeli_mil").json()
     assert Y["is"] == _json_tur(torna.is_json(kademeli_mil({"L": 9.5})))
     t_yeni = torna.is_json(kademeli_mil({"L": 9.5}))["sure"]["toplam"]
     t_eski = torna.is_json(kademeli_mil({"L": 20.0}))["sure"]["toplam"]
@@ -261,10 +334,10 @@ def test_param_link():
     assert Y["is"]["gcode"] != eski["gcode"]
     r = ist.post("/api/sifirla")
     assert r.status_code == 200
-    J = ist.get("/api/montaj/yatak_grubu").json()
+    J = ist.get("/api/ekran/montaj/yatak_grubu").json()
     assert J["baglar"][0]["parametre"]["deger"] == 20.0
     assert len(J["girisimler"]) == 1
-    assert ist.get("/api/is/kademeli_mil").json() == eski
+    assert ist.get("/api/ekran/torna/is/kademeli_mil").json() == eski
 
 
 @pytest.mark.parametrize("deger", [0.0, -1.0, 4.0, 31.0])
@@ -277,7 +350,7 @@ def test_param_link_invalid_422(deger):
     with pytest.raises(CamError) as e:
         kademeli_mil({"L": deger})
     r = ist.post(
-        "/api/montaj/yatak_grubu/parametre", json={"is": "kademeli_mil", "anahtar": "L", "deger": deger}
+        "/api/ekran/montaj/yatak_grubu/parametre", json={"is": "kademeli_mil", "anahtar": "L", "deger": deger}
     )
     assert r.status_code == 422
     assert r.json()["detail"] == str(e.value)
@@ -290,7 +363,7 @@ def test_param_link_invalid_422(deger):
 def test_param_link_unknown_422(govde):
     """Bağ olmayan iş / anahtar → 422."""
     ist = _istemci()
-    assert ist.post("/api/montaj/yatak_grubu/parametre", json=govde).status_code == 422
+    assert ist.post("/api/ekran/montaj/yatak_grubu/parametre", json=govde).status_code == 422
 
 
 def test_reset_endpoint():
