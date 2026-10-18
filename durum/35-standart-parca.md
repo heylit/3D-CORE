@@ -26,6 +26,4 @@ Kod yazıldı, testler yeşil; PR #82 CI + kapı yeşilse birleştirilecek.
   olcu_uyusmuyor, lamba_somun, bas_sigmiyor, uzunluk_yok, dis_yetersiz.
 
 ## Açık sorular
-- K12 metni: "eklenen T'ler G·T" iddiası "en küçük dönme" kuralı yüzünden yalnız dizi eksenine dik
-  eksenli G için tam doğru; keyfi G'de konum ve eksen yönü G ile taşınır (testler böyle denetliyor).
-  SPEC metninin buna göre düzeltilmesi kullanıcı onayı bekliyor (kodu yazan oturum SPEC'i değiştirmez).
+_(yok; K12 metni 2026-10-18 kullanıcı onayıyla düzeltildi)_
