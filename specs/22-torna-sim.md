@@ -3,6 +3,7 @@
 > **Durum: ONAYLANDI** (kullanıcı, 2026-10-18: 09:45 UTC kart "Önerilerle onayla": `LatheTool` arayüz eki ayrı PR,
 > profil çıkarma ayrı SPEC; 10:38 UTC yazılı onay). SPEC 40 ek E4 (eksenel takım) 11:13 UTC yazılı onayla eklendi.
 > Ek 1 (denetim sırası) ve Ek 2 (gövde uzantısı kırpma) 11:24 UTC onaylandı (kullanıcı kuralı 11:14: 2 dk itirazsız öneri kabul).
+> Ek 3 (taraf kuralı: kuralı sağlayan ilk nokta) 11:42 UTC aynı kuralla onaylandı.
 > Metin kullanıcı onayı olmadan değişmez.
 
 ## Amaç
@@ -61,7 +62,9 @@ Takım `y = 0` düzleminde, kalınlığı ihmal edilen bir uçtur (uç ekseni me
   iç çerçevede aynalanır. Tutucu `K`'nin içine girmemeli (kesişim alanı > 1e-9 mm² → `CamError`).
 
 **Taraf** her yol için başlangıç noktasından belirlenir (SPEC 20 güvenli noktası `A` stoğun dışında / deliğin içindedir):
-`start.x ≥ D/2` → dış, `d > 0` ve `start.x ≤ d/2` → iç, aksi `CamError`. `TURN` yalnız dış, `BORE` yalnız iç; `GROOVE`
+`start.x ≥ D/2` → dış, `d > 0` ve `start.x ≤ d/2` → iç. **Ek 3:** başlangıç noktası ikisini de sağlamıyorsa (ör. `initial`
+ile stok içinde devam eden yol) yolun noktalarına sırayla bakılır (`start`, sonra her hareketin `end`'i); kuralı sağlayan
+ilk nokta tarafı belirler, hiçbiri sağlamıyorsa `CamError`. `TURN` yalnız dış, `BORE` yalnız iç; `GROOVE`
 dışta `T ∈ {3, 4}`, içte `T ∈ {1, 2}`; uyumsuzluk → `CamError`.
 
 ### Eksenel takım (SPEC 40 ek E4: matkap, punta matkabı)
