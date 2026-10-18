@@ -3,8 +3,7 @@
 Dal: `claude/spec-05-cam-sim-ch33p2` · Oturum: bulut
 
 ## Sıradaki adım
-SPEC metninin kullanıcı onayı; onaydan sonra `NotImplementedError` gövdeli `cam/sim/` iskeleti push edilir ve
-test dosyaları listesi bağımsız test oturumuna verilir.
+Bağımsız test oturumunun test commit'ini cherry-pick ile al, kodu ayrı commit'te yaz, testleri yeşile çek.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
@@ -18,7 +17,8 @@ test dosyaları listesi bağımsız test oturumuna verilir.
   ile çakma, trapez süre, SPEC 24 için olay listesi (CSR).
 - Kararlar koordinatöre gönderildi (aşağıda).
 
+- SPEC onaylandı (08:55 kapsam: tek yönlü dexel dahil, özellik okuma ayrı SPEC; 09:23 dexel eki).
+- `NotImplementedError` gövdeli `cam/sim/` iskeleti push edildi.
+
 ## Açık sorular
-- Dexel bu SPEC'te mi? Öneri: hayır; 3 eksende z-haritası tam, dexel ayrı SPEC.
-- Yol haritasında 05 satırındaki "parçadan işleme özelliği okuma": öneri ayrı SPEC.
-- Matkap uç açısı modelde yok; matkap düz uçlu kabul edildi.
+- Matkap uç açısı modelde yok; matkap düz uçlu kabul edildi (ileride arayüz PR'ı).

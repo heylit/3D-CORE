@@ -1,10 +1,11 @@
 # SPEC 05 — Talaş kaldırma simülasyonu, süre tahmini, çakma ve çarpışma
 
-> **Durum: TASLAK** (kullanıcı onayı bekliyor). Onaydan sonra metin kullanıcı onayı olmadan değişmez.
+> **Durum: ONAYLANDI** (kullanıcı, 2026-10-18: 08:55 UTC kapsam kararı "Dexel de ekle", parçadan özellik okuma ayrı
+> SPEC; 09:23 UTC dexel eki "Eki onayla"). Metin kullanıcı onayı olmadan değişmez.
 
 ## Amaç
-Bir freze programını (`Toolpath` / `DrillOp` listesi) kutu ham malzeme üzerinde **z-haritası** ile simüle
-eden saf numpy modülü: her hareketin kaldırdığı malzeme, son parça hacmi, işleme süresi (ilerleme ve
+Bir freze programını (`Toolpath` / `DrillOp` listesi) kutu ham malzeme üzerinde **z-haritası** ya da
+**tek yönlü (Z) dexel** ile simüle eden saf numpy modülü: her hareketin kaldırdığı malzeme, son parça hacmi, işleme süresi (ilerleme ve
 ivmeli trapez profil), **çakma** (takımın CAD parçasına girmesi), **hızlı harekette malzemeye çarpma**,
 **sap (kesici boy aşımı)** ve **takım tutucu** çarpışması. Çıktı, SPEC 24 Tezgah'ın okuyacağı olay listesi
 ve kümülatif süre dizisidir. Bu adım bitince `simulate(ops, stock)` bilinen bir cebin hacmini ızgara
@@ -30,8 +31,30 @@ malzemenin üst Z'sini tutar.
 **Neden z-haritası yeterli?** Takım ekseni düşey ve takım (kesici + sap + tutucu) yukarı doğru
 genişleyen bir dönel cisim olduğu için 3 eksende kaldırılan bölge her zaman "bir yükseklik fonksiyonunun
 üstü"dür; kalan malzeme yükseklik haritasıyla **tam** temsil edilir (hata yalnız ızgara örneklemesinden).
-Alt kesik (T kanal frezesi, 4–5 eksen) bu SPEC'te yok. Dexel'e geçiş ayrı SPEC'tir (Kapsam dışı).
+Z-haritasının yetmediği iki 3 eksen durumu için tek yönlü dexel (aşağıda) vardır: kesici boyunu aşan kesimde
+kesicinin üstünde kalan malzeme ve ikinci bağlamada (parça ters çevrilince) alttan açılmış boşluklar.
 Kaynak: CAM araştırma notları, "Simülasyon ve doğrulama"; Choi & Jerard, *Sculptured Surface Machining*, Z-map.
+
+### Tek yönlü dexel (Z yönü)
+Aynı XY ızgarasında her hücre merkezinden geçen düşey ışın üzerinde malzeme **aralık listesi** tutulur:
+`[(l_1, u_1), (l_2, u_2), …]`, `l_1 < u_1 < l_2 < u_2 < …` (sıralı, ayrık, her aralığın boyu > 0).
+Kaynak: CAM araştırma notları, "Dexel güncellemesi"; Abele vd., dexel tabanlı talaş kaldırma simülasyonu (2010).
+- Başlangıç (kutu stok): her hücrede tek aralık `[zmin, zmax]`.
+- **Kaldırma aralığı:** takımın **kesen** kısmı uçtan `L_f` (`flute_length`) yüksekliğe kadardır. Bir doğrusal hareketin
+  ışında kestiği küme tek aralıktır: `[e(q), e_üst(q)]`, `e(q)` z-haritasındaki zarf, `e_üst(q) = L_f + max{ z(t) : d(t) ≤ R }`
+  (her `t` için kesilen `[z(t) + h(d(t)), z(t) + L_f]` aralığı `t` ile sürekli değişir, birleşimleri bağlantılıdır).
+  Kesicinin üstünde kalan malzeme kaldırılmaz; ona gövde dokunur ve sap / tutucu çarpışması olarak raporlanır.
+- **Aralık farkı:** her `[l, u]`'dan `[a, b]` çıkarılır: sol parça `[l, min(u, a)]` (boyu > 0 ise), sağ parça
+  `[max(l, b), u]` (boyu > 0 ise). Bir aralık ikiye bölünebilir, tamamen silinebilir ya da değişmeyebilir.
+- Hacim `V = Σ_hücre Σ (u − l)·dx·dy`. Üst yüzey `top = max u` (aralık yoksa `zmin`).
+- **Ters çevirme (ikinci bağlama):** stok merkezinden geçen X eksenine paralel doğru etrafında 180°:
+  `y → ymin + ymax − y`, `z → zmin + zmax − z`. Izgara simetrik olduğundan hücre `j` hücre `ny − 1 − j`'ye,
+  `(l, u)` aralığı `(zmin + zmax − u, zmin + zmax − l)`'ye gider; iki kez çevirmek birebir aynı haritayı verir.
+  İkinci bağlamanın yolları çevrilmiş koordinatlarda yazılır.
+- **Z-haritasıyla ilişki (çapraz kontrol):** kutu stokta ve gövde çarpışması olmayan programda dexel her hücrede
+  tek aralık `[zmin, z]` tutar (malzeme kalmayan hücrede aralık yok) ve `top` z-haritasıyla **birebir** aynıdır.
+- Gövde denetimi ve olay listesi dexel'de üst yüzey (`top`) ile yapılır; adımın kaldırdığı hacim `ΔV_k` dexel
+  hacim farkıdır (üst yüzey değişmeden kaldırılan malzeme de sayılır).
 
 ### Takım alt yüzeyi h(d)
 Takım ucunun eksenden `d` uzaklıktaki alt yüzey yüksekliği, uç noktasına göre (`R = D/2`, `r_c = corner_r`):
@@ -73,11 +96,12 @@ olarak kalır (bir `k` indeksi, bir süre); kirişler yalnız malzeme ve çarpı
   alt adımlardan bağımsızdır (min); alt adımlar çarpışma denetiminin hareket içindeki ilerlemeyi görmesi içindir.
 
 ### Çarpışma ve çakma denetimleri
-Her kayıt: `kind`, `k`, `op`, en derin noktanın `(x, y, z)`'si ve `depth` [mm] (en büyük batma). Aynı
+Her kayıt: `kind`, `k`, `op`, en derin noktanın `(x, y, z)`'si (hücre merkezi ve orada takım yüzeyinin, çakma ve
+hızlı çarpmada kesimin ulaştığı Z'si) ve `depth` [mm] (en büyük batma). Aynı
 `(kind, k)` için **tek** kayıt (en büyük `depth`). Eşik `tol` (varsayılan 1e-6 mm): `depth > tol` ise kayıt.
 
-1. **Hızlı harekette çarpma (`hizli_carpma`):** bir `G0` (bağlantılar dahil) alt adımında herhangi bir hücre
-   `z_önce − z_sonra > tol` kadar alçalıyorsa. `depth` = en büyük alçalma. Malzeme yine kaldırılır
+1. **Hızlı harekette çarpma (`hizli_carpma`):** bir `G0` adımı (bağlantılar dahil) herhangi bir hücrede `tol`'dan
+   uzun malzeme kaldırıyorsa. `depth` = adım boyunca hücre başına kaldırılan en büyük boy (z-haritasında alçalma). Malzeme yine kaldırılır
    (simülasyon gerçekte olanı gösterir).
 2. **Gövde (sap ve tutucu):** takımın kesmeyen gövdesinin alt yüzeyi, uca göre, eksenden uzaklığın
    azalmayan basamak fonksiyonudur `h_B(d)`:
@@ -85,6 +109,8 @@ Her kayıt: `kind`, `k`, `op`, en derin noktanın `(x, y, z)`'si ve `depth` [mm]
    - Tutucu (`holder` ve `stickout` verilmişse): profilin her kesik konisi, yüksekliği ≤ 1 mm'lik silindirlere
      bölünür; her silindirin yarıçapı koninin o dilimdeki **büyük** ucu, alt yüzeyi `stickout + ζ_alt`
      (tutucu şişirilir → güvenli taraf). Profilin üstünde gövde son yarıçapla sonsuza sürer (iş mili yaklaşımı).
+   - Gövde, yarı sonsuz silindirlerin (basamakların) birleşimidir; daha alçak ve daha geniş bir basamağın
+     gölgesinde kalan basamak atılır, kalan basamaklar `ρ` ve `H`'de kesin artandır.
    - `h_B(d)` basamaklı olduğundan, basamak `j` (`d ≤ ρ_j` için yükseklik `H_j`) için
      `e_B(q) = min_j [ H_j + min{ z(t) : d(t) ≤ ρ_j } ]` kesindir; iç minimum düz takım zarfının aynısıdır.
    - Çarpışma: alt adımdan **önceki** yüksekliklerle `z_önce(q) − e_B(q) > tol`. Batan basamak sapa aitse
@@ -92,8 +118,9 @@ Her kayıt: `kind`, `k`, `op`, en derin noktanın `(x, y, z)`'si ve `depth` [mm]
      gövde dokunur. Sap çapı ≤ D iken sap boyunca dalma, kesici boyu aşsa da çarpma değildir: kesici yolu açar.)
    - Bilinen sınır: alt adım içindeki kesim ilerlemesi görülmez; rampada gövde, uç önündeki hücreyi en çok
      `alt adım · tan(α)` kadar erken "görür" (yanlış alarm olabilir, kaçırma olmaz).
-3. **Çakma (`cakma`):** parça z-haritası `z_P` verilmişse (aşağıda), bir adım bir hücreyi
-   `z_sonra < z_P − gouge_tol` yapıyorsa (varsayılan `gouge_tol` = 1e-3 mm). `depth = z_P − z_sonra`.
+3. **Çakma (`cakma`):** parça z-haritası `z_P` verilmişse (aşağıda), bir adım bir hücrede en alçak kaldırdığı nokta
+   `z_k < z_P − gouge_tol` ise (varsayılan `gouge_tol` = 1e-3 mm). `depth = z_P − z_k`. Z-haritasında `z_k = z_sonra`.
+   (Takım yukarıdan geldiği için parçanın üst yüzeyinin altında kesmek her iki modelde de çakmadır.)
    Yalnız o adımda alçalan hücreler denetlenir; kayıt hücreyi ilk kez çakan adıma aittir.
 
 ### Parça z-haritası
@@ -111,7 +138,8 @@ Makine parametreleri `Machine(rapid=(5000, 5000, 3000), accel=None, tool_change=
 `rapid` eksen başına hızlı ilerleme [mm/dk], `accel` yol ivmesi [mm/s²] (`None` → sonsuz), `tool_change` [s].
 - Hareket boyu `L` (`Toolpath.length` ile aynı formül; yayda `√((rΔθ)² + Δz²)`), birim yön `u`.
 - Hız sınırı `v` [mm/s]: kesme hareketinde `v = F/60`; `G0`'da `v = min_i (rapid_i / |u_i|) / 60`
-  (eksen hızlarını aşmayan doğrusal hızlı hareket). Kesme hareketinde de `v ≤ min_i (rapid_i/|u_i|)/60`.
+  (eksen hızlarını aşmayan doğrusal hızlı hareket). Doğrusal kesme hareketinde de `v ≤ min_i (rapid_i/|u_i|)/60`;
+  yayda `v ≤ min(rapid_x, rapid_y)/60`.
   Yayda merkezcil ivme sınırı: `v ≤ √(accel · r)` (accel verilmişse).
 - `accel = None`: `t = L / v` (G1 için `t = 60·L/F`, SPEC 24 K3).
 - `accel = a`: her hareket durarak başlar ve durarak biter (tam duruş, G61; ileriye bakışlı planlayıcı kapsam dışı):
@@ -128,11 +156,11 @@ Her adımın kaldırdığı hacim `ΔV_k = Σ (z_önce − z_sonra)·dx·dy` [mm
 ### Olay listesi (SPEC 24 `sim` ikili dizisi)
 Bir adım bir hücreyi alçaltırsa (`z_sonra < z_önce`) olay `(hücre, k, z_sonra)` yazılır; hücre indeksi
 `c = j·nx + i`. Olaylar `(c, k)` sırasıyla dizilir ve CSR ofsetleri `offsets` (uzunluk `nx·ny + 1`) verilir.
-`k` anındaki yüzey: her hücrede `k' ≤ k` olan son olayın `z`'si, olay yoksa `zmax`. Bu yüzey, aynı programın ilk
+`k` anındaki yüzey: her hücrede `k' ≤ k` olan son olayın `z`'si, olay yoksa başlangıç üst yüzeyi (kutu stokta `zmax`). Bu yüzey, aynı programın ilk
 `k` adımı simüle edildiğinde çıkan z-haritasıyla **birebir** aynıdır. Olayın `op`'u `moves[k].op`'tan okunur.
 
 ## Dosyalar
-- Yeni: `cam/sim/__init__.py`, `cam/sim/zmap.py` (ızgara, hacim), `cam/sim/sweep.py` (`h(d)`, zarf, gövde
+- Yeni: `cam/sim/__init__.py`, `cam/sim/zmap.py` (ızgara, hacim), `cam/sim/dexel.py` (aralık listesi), `cam/sim/sweep.py` (`h(d)`, zarf, gövde
   basamakları), `cam/sim/part.py` (ağdan parça z-haritası), `cam/sim/timing.py` (`Machine`, süre),
   `cam/sim/simulate.py` (sürücü, çarpışma, olaylar); `tests/cam/test_sim_*.py`; `durum/05-cam-sim.md`
 - Dokunulmayacak: `cam/model.py` ve tüm `*/model.py`, `geometry/part.py`, SPEC 03 / 04 dosyaları,
@@ -147,10 +175,16 @@ Hepsi `cam.sim`'den dışa açılır. Hatalar `cam.model.CamError`.
   - `ZMap.from_stock(stock: Stock, cell: float, max_cells: int = 20_000_000) -> ZMap` — `cell ≤ 0` veya sonsuz,
     `nx·ny > max_cells` → `CamError`.
   - `centers() -> (X, Y)` (her biri `(ny, nx)`), `volume() -> float`, `copy() -> ZMap`
+- `@dataclass DexelMap` — `ZMap` ile aynı ızgara alanları (`x0, y0, dx, dy, nx, ny, zmin, zmax`); iç saklama serbest.
+  - `DexelMap.from_stock(stock, cell, max_cells=20_000_000)` (hatalar `ZMap` ile aynı)
+  - `intervals(i: int, j: int) -> list[tuple[float, float]]` — hücre (sütun i, satır j) aralıkları, sıralı ve ayrık
+  - `subtract(i, j, a, b)` — tek hücreden `[a, b]` çıkarır (`a ≥ b` → `CamError`); test ve açıklama için
+  - `top() -> np.ndarray` `(ny, nx)`, `volume() -> float`, `flipped() -> DexelMap`, `copy()`, `centers()`
+- `sweep_top(tool: Tool, p0, p1, X, Y) -> np.ndarray` — `e_üst(q) = L_f + max{z(t) : d(t) ≤ R}` (dokunmayan `-inf`).
 - `tool_height(tool: Tool, d: np.ndarray) -> np.ndarray` — `h(d)`; `d > R` → `inf`.
 - `sweep_envelope(tool: Tool, p0, p1, X, Y) -> np.ndarray` — doğrusal hareketin `e(q)`'su (dokunmayan hücre `inf`).
 - `body_steps(tool: Tool, dz: float = 1.0) -> list[tuple[float, float, str]]` — `(ρ_j, H_j, "sap" | "tutucu")`,
-  `ρ` artan; tutucu dilim yüksekliği ≤ `dz`.
+  `ρ` ve `H` kesin artan (gölgede kalanlar atılmış); tutucu dilimleri yüksekliği ≤ `dz`, yarıçapı dilimdeki büyük uç.
 - `mesh_zmap(V: np.ndarray, T: np.ndarray, grid: ZMap) -> np.ndarray` — `(ny, nx)` `z_P`, değmeyen `-inf`.
 - `part_zmap(part: Part, grid: ZMap, tol: float = 0.01) -> np.ndarray` — `part.mesh(tol)` + `mesh_zmap`.
 - `@dataclass Machine(rapid: tuple[float, float, float] = (5000.0, 5000.0, 3000.0), accel: float | None = None,
@@ -161,18 +195,21 @@ Hepsi `cam.sim`'den dışa açılır. Hatalar `cam.model.CamError`.
 - `@dataclass SimStep(k: int, op: int, type: MoveType, start, end, center, feed, link: bool, t0: float,
   duration: float, removed: float, mrr: float)` — `t0` adım başlangıç zamanı (takım değişimi dahil).
 - `@dataclass SimResult`:
-  - `zmap: ZMap` (son durum), `steps: list[SimStep]` (`steps[k-1]` adım `k`), `start: tuple` (nokta 0)
+  - `zmap: ZMap` (son üst yüzey; dexel modelinde `top()`), `dexel: DexelMap | None` (dexel modelinde son durum), `steps: list[SimStep]` (`steps[k-1]` adım `k`), `start: tuple` (nokta 0)
   - `points() -> np.ndarray` `(n+1, 3)`, `cumulative_time() -> np.ndarray` `(n+1,)` (nokta 0'da 0; ilk yol için takım değişimi süresi yok), `total_time: float`, `op_times: list[float]`
   - `event_cell: np.ndarray[int32]`, `event_k: np.ndarray[int32]`, `event_z: np.ndarray[float64]`, `offsets: np.ndarray[int64]`
   - `zmap_at(k: int) -> np.ndarray` — olaylardan yüzey; `0 ≤ k ≤ n`, aksi `CamError`
   - `collisions: list[Collision]` (`k` sırasıyla), `removed_volume: float`
   - `part_z: np.ndarray | None`, `rest_volume() -> float`, `gouge_volume() -> float` (parça yoksa `CamError`)
-- `simulate(ops: list[Toolpath | DrillOp], stock: Stock, cell: float = 1.0, machine: Machine = Machine(),
+- `simulate(ops: list[Toolpath | DrillOp], stock: Stock, cell: float = 1.0, machine: Machine | None = None,
   part_z: np.ndarray | None = None, arc_tol: float = 1e-3, tol: float = 1e-6, gouge_tol: float = 1e-3,
-  dialect=GRBL, max_cells: int = 20_000_000) -> SimResult`
+  dialect=GRBL, max_cells: int = 20_000_000, model: str = "zmap", initial: ZMap | DexelMap | None = None) -> SimResult`
+  - `model ∈ {"zmap", "dexel"}`. `initial` verilirse simülasyon o haritadan başlar (ör. ikinci bağlama:
+    `onceki.dexel.flipped()`); türü `model` ile ve ızgarası (`x0, y0, dx, dy, nx, ny, zmin, zmax`) `stock` ve `cell`'den
+    kurulan ızgarayla aynı olmalı. `initial` kopyalanır, değiştirilmez. `zmap_at(0)` başlangıç üst yüzeyidir.
   - Her yol önce `validate()`'ten geçer. `CamError`: boş `ops`; `Stock` olmayan stok (`CylinderStock`);
     `LatheTool`, `plane != XY`, `feed_mode != PER_MIN`; `part_z` şekli ızgarayla uyuşmuyor; `arc_tol`, `tol`,
-    `gouge_tol ≤ 0`.
+    `gouge_tol ≤ 0`; bilinmeyen `model`; `initial` türü veya ızgarası uyuşmuyor. `machine=None` → `Machine()`.
 
 ## Kabul kriterleri
 Testlerde uydurma geometri; beklenen değerin kaynağı test yorumunda.
@@ -202,8 +239,8 @@ Testlerde uydurma geometri; beklenen değerin kaynağı test yorumunda.
   kayıt yok; sap ≤ D ile 15 mm dalma → kayıt yok; `shank_d > D` ile tek paso sığ kanal ama sapın değdiği yüksek
   komşu duvar → `sap_carpma` — `test_sim_collision.py`
 - [ ] K12 Tutucu: kısa `stickout` ve geniş tutucuyla yüksek bir duvarın yanında kontur → `tutucu_carpma`, `depth`
-  bilinen değer (silindir tutucuda 1e-9); tutucusuz aynı yol → kayıt yok; `body_steps` konik profilde dilim
-  yüksekliği ≤ `dz` ve yarıçap büyük uç — `test_sim_collision.py`
+  bilinen değer (silindir tutucuda 1e-9); tutucusuz aynı yol → kayıt yok; `body_steps` yukarı genişleyen konik
+  profilde ardışık `H` farkı ≤ `dz` ve yarıçap dilimin büyük ucu; daralan bölümün basamakları atılmış — `test_sim_collision.py`
 - [ ] K13 Parça z-haritası: elle kurulmuş kutu ağı (12 üçgen) ve basamaklı blok ağı için `mesh_zmap` hücre başına
   beklenen değer; ortak kenar ve köşe üstündeki merkezlerde delik yok; ağ dışında `-inf` — `tests/cam/test_sim_part.py`
 - [ ] K14 Çakma: blok parçanın üst yüzünden 0.2 mm aşağı inen yol → `cakma`, `depth = 0.2` (1e-9), doğru `k`;
@@ -216,13 +253,32 @@ Testlerde uydurma geometri; beklenen değerin kaynağı test yorumunda.
   `ΔV_k` toplamı `removed_volume` ve `stok − son hacim` rel 1e-9 — `tests/cam/test_sim_events.py`
 - [ ] K17 Hatalar: boş program, `CylinderStock`, `LatheTool`, `G18`, `G95`, geçersiz `Toolpath`, yanlış `part_z` şekli,
   `tol/arc_tol/gouge_tol ≤ 0`, geçersiz `Machine`, `zmap_at` aralık dışı → `CamError` — `tests/cam/test_sim_errors.py`
+- [ ] K18 Dexel aralıkları: `from_stock` tek aralık; `subtract` ile ortadan bölme, alttan / üstten kırpma, tamamen
+  silme, değmeyen aralık, sınıra değen (`a = u`) aralık; sonuç sıralı, ayrık, boyları > 0; `volume` ve `top` formülle;
+  `flipped` aralık ve hücre eşlemesi formülle, iki kez çevirmek birebir aynı — `tests/cam/test_sim_dexel.py`
+- [ ] K19 Çapraz kontrol: K16'daki rastgele program (kesici boyu yeterli, gövde çarpışması yok) iki modelde:
+  her hücrede dexel aralıkları `[(zmin, z)]` (malzemesiz hücrede boş), `top()` z-haritasıyla birebir, hacimler rel 1e-12,
+  olay listeleri, çarpışma kayıtları ve süreler aynı; düz, küresel ve köşe radyüslü takımla — `test_sim_dexel.py`
+- [ ] K20 Kesici boyu: `L_f = 10`, düz takımla stok dışında 15 mm derine inip yandan giren yatay kanal dexel'de:
+  kanal hücrelerinde aralıklar
+  `[(zmin, zmax − 15), (zmax − 5, zmax)]` (1e-12), `sap_carpma` iki modelde aynı `k` ve `depth = 5`, hacim farkı
+  `5 · (kanal hücre sayısı)·dx·dy`; `sweep_top` eğik harekette kapalı formla 1e-12 — `test_sim_dexel.py`
+- [ ] K21 İki bağlama: üstten `a×b×H1` cep, `flipped()`, çevrilmiş koordinatlarda `c×d×H2` cep (ayak izleri kesişen):
+  iki cebin içindeki hücrelerde tek aralık, boyu `(zmax − zmin) − H1 − H2` (1e-12); son hacim `stok − V1 − V2`
+  (ızgara toleransıyla, K7'deki gibi); z-haritası bu sonucu temsil edemez (`top` yalnız üst cebi gösterir) —
+  `test_sim_dexel.py`
+- [ ] K22 `initial`: z-haritası modelinde `initial` ile iki parça halinde simüle edilen program, tek seferde simüle
+  edilenle aynı son haritayı verir; `initial` değişmiyor; tür veya ızgara uyuşmazlığı ve bilinmeyen `model` `CamError` —
+  `test_sim_dexel.py`
 - [ ] Tüm testler yeşil, `ruff check .` ve `ruff format --check .` temiz, bu SPEC'in testlerinde 0 "uygulanmamış";
   10 s'den uzun testler `@pytest.mark.slow`
 
 ## Kapsam dışı
-- **Dexel / tri-dexel / voksel** stok: 3 eksende z-haritası tam olduğu için bu SPEC'te yok. Alt kesik, 4–5 eksen,
-  dökme stok boşlukları için ayrı SPEC (araştırma önerisi: arayüz dexel'e geçişe uygun; `ZMap` yerine aynı
-  `simulate` sözleşmesini sağlayan başka bir stok sınıfı).
+- **Tri-dexel / voksel** stok, X ve Y yönlü dexel ışınları, dexel'den yüzey ağı çıkarma; alt kesik takımlar (T kanal),
+  4–5 eksen; ters çevirme dışında bağlama dönüşümleri (90° yan bağlama); parça ağından dexel stok kurma
+  (dökme / önceden işlenmiş stok).
+- Dexel'de parçanın tam aralık listesiyle kalan malzeme: `rest_volume` / `gouge_volume` iki modelde de parça üst
+  yüzeyi `z_P` ile hesaplanır.
 - **Parçadan işleme özelliği tanıma** (düz yüz, cep, delik): yol haritasında 05'in satırındaydı; araştırma
   önerisiyle kendi başına büyük bir konu (feature recognition), ayrı SPEC önerilir.
 - Fikstür (bağlama) çarpışması: SPEC 10 (`Setup.fixtures`). Torna simülasyonu: SPEC 22. `CylinderStock` frezede.
