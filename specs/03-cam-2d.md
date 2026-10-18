@@ -48,8 +48,8 @@ Analitik sonuçlar (testler bunlara dayanır):
 ### Kontur-paralel cep ve kalan malzeme
 Halkalar `d_k = r + k·s` (`r = D/2`, `s` yan paso) ofsetleriyle, ofset boşalana kadar üretilir. Halkalar
 bir ağaç kurar (bir halka dar boğazda ikiye bölünebilir). Her **yaprak** halka `L` için içinde kalan
-malzeme: `L`'nin iç yarıçapı `t*` (L'nin `t` iç ofsetinin boşaldığı en küçük `t`, ikiye bölme ile `1e-6·D`
-hassasiyetle) `r`'den büyükse `L`'nin `t* − r` iç ofseti ek halka olarak eklenir (ortada ada kalmasın).
+malzeme: `L`'nin iç yarıçapı `t*` (L'nin `t` iç ofsetinin boşaldığı en küçük `t`, ikiye bölme ile `1e-9·D`
+hassasiyetle) `r`'den büyükse `L`'nin `t* − r` (+ `LINK_TOL` pay) iç ofseti ek halka olarak eklenir (ortada ada kalmasın).
 
 Açısı `θ` olan bir köşede ardışık iki keskin halka arasında kesilmemiş ada kalmaması koşulu
 (açıortay boyunca `min(t, (s−t)/sin(θ/2))` mesafesinin en büyüğü ≤ r):
