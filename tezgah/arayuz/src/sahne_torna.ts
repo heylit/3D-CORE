@@ -2,11 +2,13 @@
 // Yalnızca gösterir: kesit, yol ve takım geometrisi sunucudan gelir.
 // Sahne eşlemesi: three X = z (iş mili ekseni), three Y = r·cosθ, three Z = r·sinθ. Yol θ = 0 düzlemindedir
 // (Y = x, Z = 0); kesit görünümünde θ ∈ [0°, 90°] çeyreği açıktır, kesit yüzü kameraya bakar.
+// A3: kendi çizicisi yok; kabuğun sahnesinde "torna" katmanına çizer (kök grup Z yukarı sahneye döndürülür).
 
 import * as THREE from "three";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
-import type { Nokta3, TornaIs, TornaNoktalar } from "./tipler";
+import type { Sahne } from "./sahne";
+import type { Nokta3 } from "./tipler";
+import type { TornaIs, TornaNoktalar } from "./tipler_25";
 import { type TornaSim, kesitAt, kesitIslem, tornaHareketKonum, tornaYayAci } from "./torna";
 
 const RENK = {
@@ -88,10 +90,8 @@ function takimModeli(r: number, q: [number, number], saydam: boolean): THREE.Gro
 }
 
 export class TornaSahne {
-  readonly renderer: THREE.WebGLRenderer;
-  readonly kamera: THREE.PerspectiveCamera;
-  readonly kontrol: OrbitControls;
-  private sahne = new THREE.Scene();
+  /** Torna koordinatları (Y yukarı) → kabuk sahnesi (Z yukarı): X ekseni etrafında +90°. */
+  private kok = new THREE.Group();
   private sabit = new THREE.Group(); // ayna, ham malzeme izi, hedef profil
   private yolG = new THREE.Group();
   private parcaAg?: THREE.Mesh;
@@ -111,52 +111,25 @@ export class TornaSahne {
   private kesitDurum = true;
   private sonDis: Float32Array = new Float32Array(0);
   private sonIc: Float32Array = new Float32Array(0);
-  private cizimIstegi = true;
 
-  constructor(private kap: HTMLElement) {
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    kap.appendChild(this.renderer.domElement);
-    this.kamera = new THREE.PerspectiveCamera(30, 1, 1, 5000);
-    this.kontrol = new OrbitControls(this.kamera, this.renderer.domElement);
-    this.kontrol.enableDamping = true;
-    this.kontrol.addEventListener("change", () => this.ciz());
-    this.sahne.add(new THREE.HemisphereLight(0xe2ebf3, 0x2a2f36, 1.3));
-    const gunes = new THREE.DirectionalLight(0xffffff, 1.5);
-    gunes.position.set(-80, 160, 220);
-    const kenar = new THREE.DirectionalLight(0x9fc4ff, 0.5);
-    kenar.position.set(200, -120, 80);
-    this.sahne.add(gunes, kenar, this.sabit, this.yolG, this.takim, this.hayaletG);
+  /** `S`: kabuğun ortak sahnesi (kamera, kontrol, çizici); çizim yalnız `bagla` ile verilen katmana. */
+  constructor(private S: Sahne) {
+    this.kok.rotation.x = Math.PI / 2;
+    this.kok.add(this.sabit, this.yolG, this.takim, this.hayaletG);
     this.hayaletG.visible = false;
-    new ResizeObserver(() => this.boyutla()).observe(kap);
-    this.boyutla();
-    const dongu = () => {
-      this.kontrol.update();
-      if (this.cizimIstegi) {
-        this.cizimIstegi = false;
-        this.renderer.render(this.sahne, this.kamera);
-      }
-      requestAnimationFrame(dongu);
-    };
-    requestAnimationFrame(dongu);
   }
 
-  ciz(): void {
-    this.cizimIstegi = true;
-  }
-
-  private boyutla(): void {
-    const w = this.kap.clientWidth;
-    const h = this.kap.clientHeight;
-    if (!w || !h) return;
-    this.renderer.setSize(w, h);
-    this.kamera.aspect = w / h;
-    this.kamera.updateProjectionMatrix();
-    if (this.cerceveBekliyor && this.is) this.cercevele();
+  /** Ekran açılınca: torna çizimi ekranın sahne katmanına bağlanır (kabuk kapanınca katmanı kaldırır). */
+  bagla(katman: THREE.Group): void {
+    katman.add(this.kok);
+    this.kok.updateMatrixWorld(true);
+    if (this.is) this.cercevele();
     this.ciz();
   }
 
-  private cerceveBekliyor = false;
+  ciz(): void {
+    this.S.ciz();
+  }
 
   /** Yeni iş: yol, kesit, ayna yeniden kurulur. */
   isKur(is: TornaIs, nk: TornaNoktalar | null, sim: TornaSim | null, renkler: string[], kameraKoru: boolean): void {
@@ -167,14 +140,14 @@ export class TornaSahne {
     this.sabitKur();
     this.yolKur();
     if (this.parcaAg) {
-      this.sahne.remove(this.parcaAg);
+      this.kok.remove(this.parcaAg);
       this.parcaAg.geometry.dispose();
     }
     this.parcaAg = new THREE.Mesh(
       new THREE.BufferGeometry(),
       new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0.45, roughness: 0.42, side: THREE.DoubleSide }),
     );
-    this.sahne.add(this.parcaAg);
+    this.kok.add(this.parcaAg);
     this.sonDis = new Float32Array(0);
     this.kSon = -2;
     this.takimAnahtar = "";
@@ -183,17 +156,18 @@ export class TornaSahne {
     this.ciz();
   }
 
+  /** Kamera torna koordinatında kurulur, kökün dönüşümüyle kabuk sahnesine taşınır. */
   private cercevele(): void {
-    // görünüm boyu bilinmiyorsa (ekran gizli) ilk boyutlamada çerçevelenir
-    this.cerceveBekliyor = !this.kap.clientWidth || !this.kap.clientHeight;
     const s = this.is!.kurulum.stok;
+    const kamera = this.S.kamera;
     const boy = Math.max(s.zmax - s.zmin, s.D);
-    const uzak = (boy * 2.6) / Math.min(Math.max(this.kamera.aspect, 0.6), 1.8);
-    const m = new THREE.Vector3((s.zmin + s.zmax) / 2, s.D * 0.15, 0);
-    this.kontrol.target.copy(m);
-    this.kamera.up.set(0, 1, 0);
-    this.kamera.position.set(m.x + uzak * 0.13, m.y + uzak * 0.3, uzak);
-    this.kontrol.update();
+    const uzak = (boy * 2.6) / Math.min(Math.max(kamera.aspect, 0.6), 1.8);
+    this.kok.updateMatrixWorld(true);
+    const m = this.kok.localToWorld(new THREE.Vector3((s.zmin + s.zmax) / 2, s.D * 0.15, 0));
+    const p = this.kok.localToWorld(new THREE.Vector3((s.zmin + s.zmax) / 2 + uzak * 0.13, s.D * 0.15 + uzak * 0.3, uzak));
+    this.S.kontrol.target.copy(m);
+    kamera.position.copy(p);
+    this.S.kontrol.update();
   }
 
   private sabitKur(): void {
@@ -511,16 +485,19 @@ export class TornaSahne {
 
   /** Ekran noktasının θ = 0 düzlemindeki (z, r) karşılığı (kesit büyüteci için); düzlemi kesmiyorsa null. */
   duzlemNokta(istemciX: number, istemciY: number): { z: number; r: number } | null {
-    const kutu = this.renderer.domElement.getBoundingClientRect();
+    const kutu = this.S.renderer.domElement.getBoundingClientRect();
     if (!kutu.width || !kutu.height) return null;
     const ndc = new THREE.Vector2(
       ((istemciX - kutu.left) / kutu.width) * 2 - 1,
       -((istemciY - kutu.top) / kutu.height) * 2 + 1,
     );
     const ray = new THREE.Raycaster();
-    ray.setFromCamera(ndc, this.kamera);
+    ray.setFromCamera(ndc, this.S.kamera);
+    this.kok.updateMatrixWorld(true);
+    const duzlem = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0).applyMatrix4(this.kok.matrixWorld);
     const p = new THREE.Vector3();
-    if (!ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 0, 1), 0), p)) return null;
+    if (!ray.ray.intersectPlane(duzlem, p)) return null;
+    this.kok.worldToLocal(p);
     return { z: p.x, r: Math.abs(p.y) };
   }
 }

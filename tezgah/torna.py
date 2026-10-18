@@ -467,7 +467,7 @@ def is_json(tanim: TornaIsi) -> dict:
         "sure": {
             "toplam": float(sim.total_time),
             "islem": [float(t) for t in sim.op_times],
-            "kumulatif_url": f"/api/is/{tanim.ad}/noktalar",
+            "kumulatif_url": f"/api/ekran/torna/is/{tanim.ad}/noktalar",
             "n_max": float(max(g96)) if g96 else None,
         },
         "kontroller": _kontroller(tanim, sim),

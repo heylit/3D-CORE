@@ -2,7 +2,7 @@
 // n = n_max (G50) bölgeleri taralı, G96 / G97 geçişleri işaretli. Yalnızca çizim.
 
 import { pxZaman, zamanPx } from "./zaman";
-import type { TornaIs, TornaNoktalar } from "./tipler";
+import type { TornaIs, TornaNoktalar } from "./tipler_25";
 import { devirSinirBolgeleri } from "./torna";
 
 export class DevirSeridi {

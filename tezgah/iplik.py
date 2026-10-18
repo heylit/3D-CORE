@@ -224,3 +224,52 @@ class Depo:
             self.islem_parametreleri = onceki
             raise
         return {"is": Is, "sure_farki": Is["sure"]["toplam"] - eski_sure}
+
+    def disa_aktar(self) -> dict:
+        """A3 "torna_isleri" bölümü: {"sema", "parametreler", "islem_parametreleri"}.
+
+        islem_parametreleri'nde işlem sırası metin anahtardır (JSON).
+        """
+        from tezgah import SEMA
+
+        return {
+            "sema": SEMA,
+            "parametreler": copy.deepcopy(self.parametreler),
+            "islem_parametreleri": {
+                ad: {str(i): dict(d) for i, d in sorted(P.items())}
+                for ad, P in self.islem_parametreleri.items()
+            },
+        }
+
+    def ice_aktar(self, belge: dict) -> None:
+        """`disa_aktar` belgesini yükler. Önce hepsi doğrulanır.
+
+        Bozuk belge → ValueError / KeyError / TypeError, çekirdeğin reddettiği değer → CamError.
+        Atomik: hata olursa depo değişmez.
+        """
+        from tezgah import SEMA
+        from tezgah import ornekler_25 as o
+
+        sema = belge["sema"]
+        if not isinstance(sema, int) or isinstance(sema, bool) or sema != SEMA:
+            raise ValueError(f"'torna_isleri' bölümünün şeması {SEMA} olmalı, {sema!r} verildi")
+        P = belge["parametreler"]
+        if not isinstance(P, dict):
+            raise TypeError(f"parametreler sözlük olmalı, {type(P).__name__} verildi")
+        bilinmeyen = sorted(set(P) - set(o.TORNA_ISLERI))
+        if bilinmeyen:
+            raise KeyError(f"Bilinmeyen torna işi: {bilinmeyen}")
+        yeni = _varsayilan()
+        for ad, p in P.items():
+            yeni[ad] = o.parametre_dogrula(ad, p)
+        Q = belge["islem_parametreleri"]
+        if not isinstance(Q, dict):
+            raise TypeError(f"islem_parametreleri sözlük olmalı, {type(Q).__name__} verildi")
+        yeni_q: dict[str, dict[int, dict[str, float]]] = {}
+        for ad, q in Q.items():
+            if ad not in o.TORNA_ISLERI:
+                raise KeyError(f"Bilinmeyen torna işi: {ad!r}")
+            yeni_q[ad] = {int(i): {str(k): v for k, v in d.items()} for i, d in q.items()}
+            o.islem_parametre_dogrula(yeni_q[ad])
+            yeni_q[ad] = {i: {k: float(v) for k, v in d.items()} for i, d in yeni_q[ad].items()}
+        self.parametreler, self.islem_parametreleri = yeni, yeni_q

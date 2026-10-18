@@ -36,8 +36,16 @@ girmeden çalışamaz: SPEC 22 birleşince `main` bu dala merge edilir, torna te
   - `kademeli_mil`: kaba / ince / kanal alın yüzü alınmış ham (zmax = 0) üzerinde; profil SPEC 28 `turn_profile`
     dış çizgisinden, ham yarıçapına (25) ulaşan uç segmentler atılarak. Ø44 üzerinde Ø50 omzuna dayalı 3 × 1 kanal.
   - Bilinmeyen iş/anahtar bağı → `CamError` (sunucuda 422); bilinmeyen montaj / parça / girişim indisi → 404.
-  - Müfettiş: `POST /api/is/kademeli_mil/parametre {islem, anahtar, deger}` (SPEC 24 biçimi) → `{sema, is, sure_farki}`;
+  - Müfettiş: `POST /api/ekran/torna/is/{ad}/parametre {islem, anahtar, deger}` (SPEC 24 biçimi) → `{sema, is, sure_farki}`;
     değiştirilebilen kesme değerleri `ornekler_25.ISLEM_VARSAYILAN` (Vc, f, n_max / n, a_p). "paso 2" komutu bunu kullanır.
+  - A3 (specs/24a) taşıması (koordinatör kabulü 12:08): uçlar `tezgah/ekranlar/torna.py` (`/api/ekran/torna/is/{ad}…`) ve
+    `montaj.py` (`/api/ekran/montaj/…`), router'lar `sunucu_25.py`'de. Parametreler tek yerde (`sunucu_25.DEPO`, `iplik.Depo`):
+    "torna_isleri" bölümünü torna ekranı dışa/içe aktarır; montaj bağı aynı depoya yazar, `bagimli=("torna_isleri",)`.
+    "montajlar" bölümü yalnız adlar. Bilinmeyen torna işi / montaj / parça / girişim → 404 (router'da).
+    Dinamik torna işleri (`is_kaydet`): `sunucu_25.kaydet` / `adlar`, `depo.kaydedici_ekle` kancasıyla (#105) kayıtlı;
+    `/api/isler`'de freze işlerinden sonra, `/api/ekran/torna/is/{ad}` ile sunulur, `/api/sifirla` siler.
+  - Ön yüz: `src/ekranlar/torna.ts`, `montaj.ts` (EkranModulu); türler `tipler_25.ts`. e2e kancaları `__tezgah.torna.*`,
+    `__tezgah.montaj.*` altında (kabuk etkin ekrana yönlendirmiyor).
   - `Depo`, parametre değerleriyle anahtarlanmış önbellek tutar (tanım, Is, Montaj): aynı değerde yeniden hesap yok.
 
 ## Açık sorular

@@ -57,7 +57,6 @@ kbd {
 .alanlar button[aria-selected="true"] { background: var(--panel-2); color: var(--yazi); box-shadow: inset 0 -2px 0 var(--pirinc); }
 .alanlar button:disabled, .alanlar button[aria-disabled="true"] { cursor: not-allowed; opacity: .55; }
 .alanlar .rozet { font-size: 11px; color: var(--pirinc); }
-.alanlar kbd { font-size: 10px; padding: 0 4px; margin-left: 4px; }
 .komut {
   flex: 1; max-width: 460px; margin-left: auto; display: flex; align-items: center; gap: 10px; border: 1px solid var(--cizgi);
   background: var(--zemin); border-radius: 8px; padding: 7px 10px; cursor: text; color: var(--soluk); text-align: left; min-width: 0;
@@ -142,8 +141,8 @@ kbd {
 
 /* sahne */
 .sahne { grid-area: sahne; position: relative; overflow: hidden; background: radial-gradient(120% 90% at 50% 30%, #1d2630 0%, #121820 60%, #0d1116 100%); min-width: 0; }
-.gorunum { position: absolute; inset: 0; touch-action: none; }
-.gorunum canvas { display: block; }
+#gorunum { position: absolute; inset: 0; touch-action: none; }
+#gorunum canvas { display: block; }
 .hud { position: absolute; pointer-events: none; display: flex; gap: 8px; }
 .hud > * { pointer-events: auto; }
 .sol-ust { top: 14px; left: 16px; flex-direction: column; gap: 2px; }
@@ -198,24 +197,23 @@ kbd {
 
 /* SPEC 25: torna ve montaj */
 .serit-not { font-size: 11.5px; color: var(--soluk); white-space: nowrap; }
-.serit-kap.cift canvas { position: absolute; left: 0; width: 100%; display: block; touch-action: none; }
-#tSeritTuval { top: 0; height: 68%; cursor: ew-resize; }
-#tDevirTuval { bottom: 0; height: 32%; border-top: 1px dashed var(--cizgi); cursor: ew-resize; }
-#mSeritTuval { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: ew-resize; touch-action: none; }
-#tSeritTuval:focus-visible, #tDevirTuval:focus-visible, #mSeritTuval:focus-visible, #seritTuval:focus-visible { outline-offset: -2px; }
+/* ekranın kabuk şeridine eklediği tuvaller (ekran kapanınca kalkar) */
+.devir-tuval { position: absolute; left: 0; bottom: 0; width: 100%; height: 32%; display: block; background: var(--panel); border-top: 1px dashed var(--cizgi); cursor: ew-resize; touch-action: none; }
+.montaj-tuval { position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: var(--panel); cursor: ew-resize; touch-action: none; }
+.montaj-tuval:focus-visible { outline-offset: -2px; }
 .buyutec {
   position: absolute; pointer-events: none; display: flex; flex-direction: column; gap: 1px; min-width: 170px;
   background: rgba(13, 17, 22, .92); border: 1px solid var(--pirinc); border-radius: 8px; padding: 8px 10px;
   font: 600 12px var(--mono); font-variant-numeric: tabular-nums;
 }
 .buyutec b { color: var(--pirinc); }
+.buyutec[hidden] { display: none; }
 .cizgi-ornek { display: inline-block; width: 18px; height: 0; border-top: 2px dashed var(--silik); vertical-align: middle; }
 .cizgi-ornek.hedef { border-color: #ffd75e; }
 .kare-ornek { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: middle; }
 .kare-ornek.girisim { background: var(--hata); }
 .kare-ornek.km { background: #ffd75e; border-radius: 50%; }
 .parca kbd { font-size: 10px; padding: 0 4px; margin-left: 2px; }
-#mSag { overflow: auto; }
 .agac, .agac ul { list-style: none; margin: 0; padding: 0; }
 .agac ul { padding-left: 14px; border-left: 1px solid var(--cizgi); margin-left: 6px; }
 .agac summary { cursor: pointer; padding: 4px 2px; font-weight: 600; border-radius: 5px; }
@@ -265,7 +263,6 @@ kbd {
   .ust { flex-wrap: wrap; padding: 10px 16px; gap: 10px; }
   .komut { order: 3; max-width: none; flex-basis: 100%; }
   .sol, .sag { border: 0; border-top: 1px solid var(--cizgi); }
-  #mSag { overflow: visible; }
   .mufettis { max-height: none; }
   .bolme { max-height: 60vh; }
   .dro { gap: 2px 10px; padding: 8px 10px; }
@@ -276,7 +273,7 @@ kbd {
 @media (max-width: 520px) {
   .alanlar { max-width: 100%; overflow-x: auto; }
   .alanlar button { padding: 6px 9px; }
-  .alanlar kbd, .serit-not, .parca kbd { display: none; }
+  .serit-not, .parca kbd { display: none; }
   .sag-ust .lejant, .sag-alt { display: none; }
   .serit-kontrol { padding: 0 10px; }
   .hiz { display: none; }

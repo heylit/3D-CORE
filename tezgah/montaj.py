@@ -15,7 +15,7 @@ Montaj sözlüğü:
     Adim = {"i", "yol", "ad", "yaklasma": [ax, ay, az], "mesafe", "T_once": {yol: 4x4}, "T_sonra": {yol: 4x4},
             "dof_toplam", "serbestlik": {yol: Serbestlik}}
     Serbestlik = {"sayi", "oteleme": [[ux, uy, uz]], "vida": [{"yon", "nokta", "hatve"}], "etiketler": [str]}
-    Girisim = {"i", "a", "b", "hacim", "bosluk", "ag": "/api/montaj/{ad}/ag/girisim/{i}"}
+    Girisim = {"i", "a", "b", "hacim", "bosluk", "ag": "/api/ekran/montaj/{ad}/ag/girisim/{i}"}
 
 Kısıtlar bileşen adı olarak yaprak yolunu (SPEC 07 `walk`) kullanır.
 Hata: yapı hatası `AssyError`, şekil hatası `GeometryError`; sessiz düzeltme yok (altın kural 5).
@@ -382,7 +382,7 @@ def _girisim_dict(tanim: MontajTanimi, i: int, c) -> dict:
         "b": c.b,
         "hacim": float(c.volume),
         "bosluk": float(c.distance),
-        "ag": f"/api/montaj/{tanim.ad}/ag/girisim/{i}",
+        "ag": f"/api/ekran/montaj/{tanim.ad}/ag/girisim/{i}",
     }
 
 
