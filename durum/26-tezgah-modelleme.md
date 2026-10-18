@@ -15,7 +15,9 @@ Dal: `claude/project-thread-uo3o39` · Oturum: bulut
 **2026-10-18**
 - SPEC yazıldı ve onaylandı (10:38). SPEC 17 (#39) ve 24 (#40) main'de.
 - İskelet: `geometry/extrude.py`, `tezgah/ifade.py`, `tezgah/modelleme.py`, `tezgah/model_kopru.py`,
-  `tezgah/sunucu.py` içinde /api/model uçları, `tezgah/arayuz/src/eskiz.ts`.
+  `tezgah/arayuz/src/eskiz.ts`.
+- Ek A (11:36): uçlar A3 ekran kaydında, `tezgah/ekranlar/model.py` + `src/ekranlar/model.ts`, `/api/ekran/model/`.
+  Dal #86'nın (A3 iskeleti, ec8362f) üstünde; `sunucu.py` değişikliği geri alındı.
 
 ## Açık sorular
 _(yok)_
