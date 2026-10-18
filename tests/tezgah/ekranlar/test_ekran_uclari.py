@@ -146,7 +146,7 @@ def test_plan_ag(istemci):
     assert V.ndim == 2 and V.shape[1] == 3 and len(V) > 0
     assert T.ndim == 2 and T.shape[1] == 3 and len(T) > 0
     assert int(T.max()) < len(V)
-    lo, hi = g.part.bbox()
+    lo, hi = g.part.bbox
     assert V.min(axis=0) == pytest.approx(lo, abs=1e-4)
     assert V.max(axis=0) == pytest.approx(hi, abs=1e-4)
 
