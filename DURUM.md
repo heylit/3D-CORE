@@ -32,7 +32,7 @@
 | 10-montaj-cam, 21-torna-gcode | 3 | bekliyor | — | — |
 | 22-torna-sim | 4 | SPEC onaylı (2026-10-18 10:38) | — | — |
 | 18-ozellik-agaci, 19-adaptif-kaba | 4 | bekliyor | — | — |
-| 03b-cep-kalan-malzeme, 06b-cam-3d-ek, 25-tezgah-torna-montaj, 26-tezgah-modelleme, 27-ozellik-tanima, 28-torna-profili, 30-tezgah-profili, 31-sinumerik-heidenhain, 41-kinematik-3arti2, 42-bes-eksen-yol, 43-tri-dexel, 44-tezgah-carpisma | — | SPEC onaylı (2026-10-18 10:38); dalgası henüz atanmadı. Taslaklar: `/mnt/project-files/specs-taslak/` | — | — |
+| 03b-cep-kalan-malzeme, 06b-cam-3d-ek, 25-tezgah-torna-montaj, 26-tezgah-modelleme, 27-ozellik-tanima, 28-torna-profili, 30-tezgah-profili, 31-sinumerik-heidenhain, 41-kinematik-3arti2, 42-bes-eksen-yol, 43-tri-dexel, 44-tezgah-carpisma | — | SPEC onaylı (2026-10-18 10:38); dalgası henüz atanmadı. | — | — |
 | 29-islem-plani | — | SPEC onaylı (2026-10-18 10:46); dalgası henüz atanmadı | — | — |
 
 ## Tamamlananlar
