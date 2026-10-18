@@ -74,9 +74,9 @@ def test_ornek_tanimlari():
     """delikli_plaka çelik (E, ν, Re), konsol_kiris; kilitli örnek koşulları ve analitik satırları var."""
     t = o.ornek("delikli_plaka")
     assert (t.malzeme.E, t.malzeme.nu, t.Re) == (210_000.0, 0.3, 235.0)
-    lo, hi = t.parca.bbox()
+    lo, hi = t.parca.bbox
     assert np.allclose(lo, [0, 0, 0], atol=1e-6) and np.allclose(hi, [200, 100, 5], atol=1e-6)
-    assert t.parca.volume() == pytest.approx(200 * 100 * 5 - math.pi * 5**2 * 5, rel=1e-6)
+    assert t.parca.volume == pytest.approx(200 * 100 * 5 - math.pi * 5**2 * 5, rel=1e-6)
     assert t.refine, "delik çevresinde Refine küresi"
     turler = sorted(k.tur for k in t.kosullar)
     assert turler.count("cekme") == 1 and turler.count("mesnet") >= 1
@@ -85,7 +85,7 @@ def test_ornek_tanimlari():
     assert tuple(cekme.deger) == (100.0, 0.0, 0.0)
 
     k = o.ornek("konsol_kiris")
-    lo, hi = k.parca.bbox()
+    lo, hi = k.parca.bbox
     assert np.allclose(lo, [0, 0, 0], atol=1e-6) and np.allclose(hi, [200, 20, 20], atol=1e-6)
     cekme = next(x for x in k.kosullar if x.tur == "cekme")
     assert tuple(cekme.deger) == (0.0, 0.0, -2.5)
@@ -118,7 +118,7 @@ def test_ag(plaka):
     assert (J["ag"]["dugum"], J["ag"]["eleman"]) == (len(ids), len(m.elements))
     assert J["ag"]["h"] == t.h
     assert J["ag"]["hacim"] == pytest.approx(o.eleman_hacmi(m), rel=1e-12)
-    assert J["parca"]["hacim"] == pytest.approx(t.parca.volume(), rel=1e-12)
+    assert J["parca"]["hacim"] == pytest.approx(t.parca.volume, rel=1e-12)
     assert (J["malzeme"]["E"], J["malzeme"]["nu"], J["malzeme"]["Re"]) == (210_000.0, 0.3, 235.0)
     assert J["cozum"] is None and J["yakinsama"] is None
     K = J["kontroller"]

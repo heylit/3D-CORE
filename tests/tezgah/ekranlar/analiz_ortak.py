@@ -49,7 +49,7 @@ def ag_modeli(tanim, h: float | None = None):
 
 
 def L_kutu(parca) -> float:
-    lo, hi = parca.bbox()
+    lo, hi = parca.bbox
     return float(np.linalg.norm(np.asarray(hi) - np.asarray(lo)))
 
 
