@@ -202,6 +202,8 @@ test.describe("SPEC 65b Görünüm sekmesi @slow", () => {
   test("K7 parça çizildi; metal gövdenin parlaklık sapması mat POM bloğundan büyük", async ({ page }) => {
     await uygulanmamissaDus(page);
     await ac(page);
+    // Kabuğun ipucu (#ipucu) yüklemeden 7 sn sonra söner; iki ekran görüntüsü arasında maskeyi bozmasın.
+    await page.addStyleTag({ content: "#ipucu{display:none}" });
     const canvas = page.locator("canvas").first();
     const cssGenislik = (await canvas.boundingBox())!.width;
 
