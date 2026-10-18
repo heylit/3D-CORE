@@ -16,7 +16,9 @@ Kullanıcı onayı; sonra `cam/torna_ek.py` `NotImplementedError` iskeleti (bağ
 - Başka sahiplere ek listesi E1–E4 SPEC'te; koordinatöre gönderildi.
 
 ## Açık sorular
-1. Tornada matkap: `cam.model.Tool` (`DRILL`/`CONE`) olarak mı (öneri; `cam/model.py` değişmez, 21 ve 22'ye küçük ek), yoksa yeni `LatheToolKind.DRILL` mı?
-2. Torna tezgâh profili (D) bu SPEC'te mi kalsın (öneri; 30 sahibi uygular), yoksa ayrı "SPEC 30 Ek A" mı?
-3. Profilli kanal incesi: tek yanal paso (öneri) mi, yoksa iki yarım paso (her yan kendi köşesiyle) mi?
-4. Ters bağlamada `z_ref` varsayılanı: stok kendine (`zmin + zmax`, öneri) mi?
+Koordinatör kararı (2026-10-18 11:08, önerilerle aynı; kullanıcı yazılı onayı bekleniyor):
+1. Tornada matkap `cam.model.Tool` (`DRILL`/`CONE`, `x = 0`).
+2. Torna tezgâh profili (D) SPEC 40 metninde; kodu 30 sahibi yazar.
+3. Profilli kanal incesi tek yanal paso.
+4. Ters bağlamada `z_ref` varsayılanı stok kendine (`zmin + zmax`).
+E1–E4 sahiplerine iletildi.

@@ -118,6 +118,8 @@ profilleri" thread'i (`cam/post/` sahibi), `cam/model.py` doğrulama eki "CAM mo
 - `MachineProfile(kind = "lathe")` kuralları (aksi `CamError`): `controller = "fanuc"` (ileride başka torna dili);
   `y`, `tool_change_z`, `kinematics`, `presets` `None`; `x` ve `z` kursu ikisi birlikte verilir ya da ikisi de `None`.
   `x` kursu **çap** cinsindendir (kontrolörün gösterdiği `X`, SPEC 21 sistem A).
+  **Dikkat:** `cam/model.py`'de torna takım yolunun `x`'i **yarıçaptır** (SPEC 00 Ek 2); profil sınırıyla karşılaştıran
+  her kod yoldaki değeri `2·x`'e çevirir (aşağıdaki `X_m`). Yarıçapı doğrudan çap kursuyla karşılaştırmak kursu iki kat geniş gösterir.
 - **Kurs**: makine koordinatı `X_m = 2·(x + o_x)`, `Z_m = z + o_z` (`Wcs.origin = (o_x, 0, o_z)`, yarıçap cinsinden; tornada
   genellikle `o_x = 0`). Her hareket ucu ve yayın süpürdüğü eksen yönü noktaları (SPEC 30 yay kuralı, `G18`'de `(x, z)`
   düzleminde) denetlenir; `G0` dahil. Takım değiştirme noktası `tool_change = (x_tc, z_tc)` aynı dönüşümle kurs içinde olmalı.
