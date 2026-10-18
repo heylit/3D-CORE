@@ -183,6 +183,8 @@ ayrıca gerekmez (yaprak "ek halka" kuralı `s ≤ r`'de hiç tetiklenmez ama za
 - `pocket`: `s > r` (+ `TOL`) → `CamError`; mesaj `s`'yi, `r = D/2`'yi ve "cepte yan paso en fazla D/2" bilgisini verir.
 - `face` ve `Cut` değişmez: yüz almada `0 < s ≤ D` doğrudur (her sıra ±r şeridi keser, sıra aralığı ≤ s ≤ 2r).
 - `r < s ≤ D` cebi (kalan malzeme denetimi + gereken yerde ek halka) ayrı bir SPEC'tir (03b ile birlikte).
+- Karar (kullanıcı, 2026-10-18 09:24, proje sohbeti kartı "En fazla D/2"): sınır `s ≤ r`. Diğer seçenek
+  (D/2–D arası kabul, örneklemeyle kalan malzeme denetimi ve ek halka) reddedildi; ayrı SPEC'e kaldı.
 
 **A2 — Merkezden kesmeyen takımla düz dalma yok.** `Tool.center_cutting: bool` (arayüz PR'ı, varsayılan `True`)
 `False` ise `pocket` ve `contour` → `CamError` (ikisi de malzemeye düz dalar; rampa / helis 03b'de).
