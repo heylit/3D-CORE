@@ -1,6 +1,6 @@
 # SPEC 04b — Punta, havşa (pah) ve kılavuz çevrimleri (G82, G84)
 
-> Durum: **taslak, kullanıcı onayı bekliyor.** Dalga 5, hat H2 (`yol-haritasi/dalga-5-onerisi.md`).
+> Durum: **onaylandı** (kullanıcı, 2026-10-18 11:13, proje sohbetinde yazılı toplu onay, önerilerle). Dalga 5, hat H2 (`yol-haritasi/dalga-5-onerisi.md`).
 > Bağımlılıklar: arayüz eki A0 (`cam/model.py`, "CAM model arayüzü" thread'i), SPEC 30 (blok planı ve
 > biçimleyici) ve SPEC 31 (Sinumerik / Heidenhain). Paylaşılan dosyalara gereken ekler bu SPEC'te
 > **liste olarak** verilir ("Paylaşılan dosyalara ekler"); onları sahip thread'ler sırayla yapar.
@@ -285,13 +285,9 @@ M30
 - Kılavuz ve konik takımın simülasyonu (SPEC 05 talaş modeli), bekleme süresinin süre tahmini.
 - `cam/model.py`, `cam/gcode/`, `cam/post/` değişiklikleri: yukarıdaki listeyle sahip thread'lerde.
 
-## Açık sorular (onay için)
-1. **Sinumerik ve Heidenhain'de kılavuz.** SPEC 31 çevrimleri açar (G0/G1), ama kılavuz G0/G1 ile
-   açılamaz (iş mili eşzamanı gerekir). Öneri: **şimdilik `CamError`** ("bu dilde kılavuz için doğal
-   çevrim ekini bekleyin"); alternatif: doğal `CYCLE84` / `CYCL DEF 207` bu SPEC'e girer (söz dizimi
-   kılavuzlardan, tezgâhta doğrulanmadan).
-2. **Fanuc `M29`.** Öneri: **her `G84`'ten önce `M29 S<rpm>` yaz** (parametre 5200#0 kapalı tezgâhta da
-   güvenli); alternatif: yazma, rijit mod parametreye kalsın.
-
-Önerilen varsayılanlar (koordinatör kararı yeterli): `r_clear = 2 mm`; punta ve havşa `dwell = 0.2 s`;
-punta çapı `d_s = Hole.d`; `lead` takımda zorunlu (varsayılan diş sayısı uydurulmaz).
+## Kararlar (kullanıcı onayı, 2026-10-18 11:13, önerilerle)
+1. **Sinumerik ve Heidenhain'de kılavuz:** şimdilik `CamError` ("bu dilde kılavuz için doğal çevrim ekini
+   bekleyin"); doğal `CYCLE84` / `CYCL DEF 207` ayrı ek konusu.
+2. **Fanuc `M29`:** her `G84`'ten önce `M29 S<rpm>` yazılır.
+3. Varsayılanlar: `r_clear = 2 mm`; punta ve havşa `dwell = 0.2 s`; punta çapı `d_s = Hole.d`; `lead` takımda
+   zorunlu (varsayılan diş sayısı uydurulmaz).
