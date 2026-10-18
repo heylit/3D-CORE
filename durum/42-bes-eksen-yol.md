@@ -13,9 +13,5 @@
   - Giriş / çıkış: eksen doğrusu üstünde z_safe'ten G0, clearance kadar yukarıdan G1 dalma, eksen boyunca G0 çıkış.
   - `linearize` eklem değerlerini çıkış yolunun sırasıyla hesaplar (joint_path(çıkış) ile aynı).
   - `inverse_time`: ilerlemesi olmayan (G0) uzunluklu hareket → CamError.
-- **Açık nokta (test yazarının notu):** takım duvara doğru eğilirse eksen boyunca drop takımı duvarın
-  üstüne ya da arkasına oturtabiliyor (eksen doğrusu duvarı deliyor); SPEC bunu çakmasız sayar, gövde
-  denetimi yalnız sap / tutucu basamaklarına bakar. K5 testleri yüksek tek yüzlü duvarla bu durumu dışarıda
-  bırakıyor. Ayrıca c'nin c₀'dan sapması (eksen doğrusu başka geometriye takıldığında) şu an hata değil.
-  Çözüm önerisi (SPEC değişikliği, kullanıcı onayı gerekir): `|c − c₀| > tol` ise noktayı çarpışma sayıp
-  kaçınmaya sokmak. SPEC metni şimdilik değişmedi.
+- Duvar eğimi açık noktası kapandı: SPEC Ek A (|c − c₀| > tol → çarpışma), 2 dakika kuralıyla onaylandı
+  (2026-10-18 13:39 UTC). Regresyon testi ayrı oturumda yazılacak; kod ayrı commit'te.
