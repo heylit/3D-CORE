@@ -2,8 +2,8 @@
 SPEC 05 — Simülasyon sürücüsü: program → z-haritası, süre, olay listesi, çarpışma ve çakma kayıtları.
 
 SPEC 53: block (karo boyu) ve merge (hareket birleştirme) hesabı hızlandırır. merge = True iken bir hareketin
-alt adımları ve aynı doğru üzerindeki ardışık G1 hareketleri tek süpürme olarak uygulanır (gövde denetimi
-hareket öncesi yüzeyle temiz çıkıyorsa ve parça z-haritası verilmemişse; aksi halde SPEC 05 yolu).
+alt adımları tek süpürme olarak uygulanır (gövde denetimi hareket öncesi yüzeyle temiz çıkıyorsa, parça
+z-haritası verilmemişse ve hareket G0 değilse; aksi halde SPEC 05 yolu).
 
 Global adım indeksi k: nokta 0 = ilk yolun başlangıcı, adım k'nin bitişi nokta k. Ardışık iki yol arasında
 uçlar farklıysa doğrusal G0 bağlantı adımı eklenir. Her adım alt adımlara (boy ≤ min(R, L_f)/2) bölünür:
@@ -332,19 +332,28 @@ class _Sim:
     def group(self, k0: int, op: int, tool: Tool, p0: np.ndarray, moves: list[Move]) -> list[float]:
         """Adımlar k0, k0+1, … (aynı doğru üzerindeki G1'ler ya da tek hareket) → hareket başına hacim.
 
+        Gruptaki her hareket alt adımsız tek süpürme olarak uygulanır; adım hacimleri ve olaylar böylece
+        hareket başına kesin kalır (birleşik süpürmeyi hareketlere bölmek SPEC'in 1e-12 eşitliğini tutmuyor).
         merge kapalıysa, parça z-haritası varsa, hızlı harekette (çarpışma kaydı birebir kalsın diye) veya
         gövde hareket öncesi yüzeye yaklaşabiliyorsa SPEC 05 yolu.
         """
-        pts = [p0] + [np.array(m.end, dtype=float) for m in moves]
-        chords = _chords(p0, moves[0], self.arc_tol) if len(moves) == 1 else [(p0, pts[-1])]
+        hacim = []
+        for i, m in enumerate(moves):
+            hacim.append(self._tek(k0 + i, op, tool, p0, m))
+            p0 = np.array(m.end, dtype=float)
+        return hacim
+
+    def _tek(self, k: int, op: int, tool: Tool, p0: np.ndarray, m: Move) -> float:
+        """Bir hareketin alt adımsız süpürmesi (koşullar tutmazsa SPEC 05 adımı)."""
+        chords = _chords(p0, m, self.arc_tol)
         kose = [c[0] for c in chords] + [chords[-1][1]]
-        eski = not self.merge or self.part_z is not None or moves[0].type is MoveType.RAPID
-        if eski or not self._body_clear(tool, pts + kose):
-            return [self.step(k0 + i, op, tool, pts[i], m) for i, m in enumerate(moves)]
+        eski = not self.merge or self.part_z is not None or m.type is MoveType.RAPID
+        if eski or not self._body_clear(tool, kose):
+            return self.step(k, op, tool, p0, m)
         R = tool.D / 2
         W = self._win(kose, R)
         if W is None:
-            return [0.0] * len(moves)
+            return 0.0
         env = _ball if tool.kind is not ToolKind.DRILL and tool.corner_r == R else sweep_envelope
         top_once = self.f.top(W).copy()
         boy = np.zeros_like(top_once)
@@ -353,29 +362,12 @@ class _Sim:
             if w is not None:
                 self._remove(w, tool, a, b, boy, W, env)
         if not (boy > 0).any():
-            return [0.0] * len(moves)
+            return 0.0
         top_sonra = self.f.top(W)
         degisen = top_sonra < top_once
-        dA = self.g.dx * self.g.dy
-        if len(moves) == 1:
-            if degisen.any():
-                self._events(W, degisen, top_sonra[degisen], k0)
-            return [float(np.sum(boy) * dA)]
-        # pencere farkı: hücre, penceresi onu ilk kapsayan harekete yazılır
-        sahip = np.full(boy.shape, len(moves) - 1)
-        bos = np.ones(boy.shape, dtype=bool)
-        for i in range(len(moves) - 1):
-            w = self._win([pts[i], pts[i + 1]], R)
-            if w is None:
-                continue
-            r = _rel(w, W)
-            yeni = bos[r]
-            sahip[r] = np.where(yeni, i, sahip[r])
-            bos[r] = False
-        hacim = np.bincount(sahip.ravel(), weights=boy.ravel(), minlength=len(moves)) * dA
         if degisen.any():
-            self._events(W, degisen, top_sonra[degisen], k0 + sahip[degisen])
-        return [float(v) for v in hacim]
+            self._events(W, degisen, top_sonra[degisen], k)
+        return float(np.sum(boy) * self.g.dx * self.g.dy)
 
     def _body_clear(self, tool: Tool, pts: list[np.ndarray]) -> bool:
         """Gövde denetimi bu harekette tetiklenebilir mi?

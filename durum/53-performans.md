@@ -12,7 +12,7 @@ CI ölçümünden sonra numba kararı kullanıcıya sorulacak (karar 2).
 | B1 | eski (`block=None, merge=False`) | 32.2 s | 439 hareket; 13 s'si olay sıralaması (lexsort) |
 | B1 | yeni | 9.6 s | z-map eski yolla bit düzeyinde aynı |
 | B2 | eski | ölçülmedi | 0.5 mm'de bile 384 s (70 319 hareket, altın oran araması) |
-| B2 | yeni | 103 s | fark ≤ 1.4e-14 mm; 39 s zarf, ~30 s olay kaydı/yerleştirme |
+| B2 | yeni | 70–103 s | fark ≤ 1.4e-14 mm; 39 s zarf, ~30 s olay kaydı/yerleştirme |
 | CI (`ubuntu-latest`) | — | — | `test_perf_hiz.py` çıktısından yazılacak |
 
 ## Uygulama notları
@@ -20,7 +20,8 @@ CI ölçümünden sonra numba kararı kullanıcıya sorulacak (karar 2).
   yüzeyle temiz çıkmıyorsa, `part_z` verilmişse veya hareket G0 ise SPEC 05 yolu (çarpışma kayıtları birebir).
 - Küresel uç zarfı kapalı form (kapsül–ışın); iz sınırı halkasında (|d² − R²| ≤ 1e-9 R²) SPEC 05 zarfı, çünkü √ orada
   kötü koşullu (teğet hücrede iki yol farklı karar verebiliyordu: 0.2 mm ızgarada 4 mm fark görüldü, düzeltildi).
-- Birleşmiş G1 grubunda adım hacmi "pencere farkı" ile paylaştırılır (SPEC); toplam ve z-map aynı.
+- Aynı doğrudaki G1 grubu (`merge_collinear`) hareket hareket süpürülür: SPEC'teki "pencere farkı" paylaştırması
+  K1'in adım hacmi rel 1e-12 şartını tutmuyordu (test 130.68 vs 104.67 mm³), hareket başına süpürme kesin.
 - Olaylar hücre başına sayaçla doğrudan yerleştiriliyor (lexsort yerine, aynı sonuç).
 - `block`: karo içinde hücre başına işlem → sonuç karo boyundan bağımsız (bit düzeyinde).
 - BVH: 2000 halkalı mil senaryosunda sort and sweep 8.8 s, BVH 0.056 s (158×); aday listeleri aynı.
@@ -29,6 +30,7 @@ CI ölçümünden sonra numba kararı kullanıcıya sorulacak (karar 2).
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
 |---|---|---|---|
+| 2026-10-18 | SPEC 53 testleri 133/134 | K4 B2 (70 s > 10 s) | Test commit'i fd01145 (54e4740 cherry-pick). Tüm takım yeşil. |
 | 2026-10-18 | — | — | `specs/53-performans.md` (onaylı taslaktan) + `NotImplementedError` iskeleti. |
 
 ## Son oturum
