@@ -7,7 +7,13 @@ Bu modül geometry'nin OCCT'siz arayüz dosyasıdır: assy/oneri.py buradan okur
 
 from __future__ import annotations
 
+import math
+import re
+
 from geometry.part import GeometryError
+
+TOL_GECIS = 1e-6  # mm: ISO 273 aralık uçlarında tolerans
+TOL_BOY = 1e-9  # mm: L ≥ L_min − TOL_BOY
 
 # ISO 4762 imbus vida: (d_k, k, s, t, L_min, L_maks)
 ISO4762: dict[str, tuple[float, float, float, float, float, float]] = {
@@ -151,27 +157,108 @@ L_SERI_PIM: tuple[float, ...] = (
 
 def boyut(M: str) -> float:
     """M boyutu: "M8" → 8.0; tabloda yoksa GeometryError."""
-    raise NotImplementedError("SPEC 35")
+    if M not in ISO4762:
+        raise GeometryError(f"Bilinmeyen vida ölçüsü: {M!r}")
+    return float(M[1:])
 
 
 def gecis_olcusu(d: float) -> str | None:
     """ISO 273 ince–kaba aralığına giren M; yoksa None."""
-    raise NotImplementedError("SPEC 35")
+    for M, (ince, _, kaba) in ISO273.items():
+        if ince - TOL_GECIS <= d <= kaba + TOL_GECIS:
+            return M
+    return None
+
+
+def _vida_tablosu(seri: str) -> dict[str, tuple[float, float]]:
+    """Seriye göre M → (L_min, L_maks)."""
+    if seri == "4762":
+        return {M: (r[4], r[5]) for M, r in ISO4762.items()}
+    if seri == "4017":
+        return {M: (r[2], r[3]) for M, r in ISO4017.items()}
+    raise GeometryError(f"Bilinmeyen vida serisi: {seri!r} (4762 veya 4017)")
 
 
 def vida_boyu(M: str, L_min: float, seri: str = "4762") -> float | None:
     """Seri ∩ aralıkta L ≥ L_min olan en küçük boy (seri "4762" veya "4017"); yoksa None."""
-    raise NotImplementedError("SPEC 35")
+    tablo = _vida_tablosu(seri)
+    if M not in tablo:
+        raise GeometryError(f"Bilinmeyen vida ölçüsü: {M!r}")
+    alt, ust = tablo[M]
+    for L in L_SERI_VIDA:
+        if alt <= L <= ust and L >= L_min - TOL_BOY:
+            return float(L)
+    return None
+
+
+_SAYI = r"(\d+(?:\.\d+)?)"
+_DESEN = {
+    "vida": re.compile(rf"ISO (4762|4017) (M\d+)x{_SAYI}"),
+    "somun_pul": re.compile(r"ISO (4032|7089) (M\d+)"),
+    "pim": re.compile(rf"ISO 2338 {_SAYI}x{_SAYI}"),
+    "rulman": re.compile(r"ISO 15 (\d{4})"),
+}
+
+
+def _seride(L: float, seri: tuple[float, ...]) -> bool:
+    return any(abs(L - v) <= TOL_BOY for v in seri)
 
 
 def ayristir(tanim: str) -> tuple[str, dict]:
     """Kanonik tanım ("ISO 4762 M8x25" ...) → (standart, ölçüler). Bozuk / tablo dışı → GeometryError."""
-    raise NotImplementedError("SPEC 35")
+    if not isinstance(tanim, str):
+        raise GeometryError(f"Tanım metin olmalı ({tanim!r})")
+    if m := _DESEN["vida"].fullmatch(tanim):
+        std, M, L = m.group(1), m.group(2), float(m.group(3))
+        alt, ust = _vida_tablosu(std).get(M, (math.inf, -math.inf))
+        if M not in ISO4762:
+            raise GeometryError(f"{tanim}: bilinmeyen ölçü {M}")
+        if not (_seride(L, L_SERI_VIDA) and alt <= L <= ust):
+            raise GeometryError(f"{tanim}: L={L:g} seride veya {alt:g}–{ust:g} aralığında değil")
+        return std, {"M": M, "L": L}
+    if m := _DESEN["somun_pul"].fullmatch(tanim):
+        std, M = m.group(1), m.group(2)
+        if M not in (ISO4032 if std == "4032" else ISO7089):
+            raise GeometryError(f"{tanim}: bilinmeyen ölçü {M}")
+        return std, {"M": M}
+    if m := _DESEN["pim"].fullmatch(tanim):
+        d, L = float(m.group(1)), float(m.group(2))
+        if d not in ISO2338:
+            raise GeometryError(f"{tanim}: bilinmeyen pim çapı {d:g}")
+        alt, ust = ISO2338[d]
+        if not (_seride(L, L_SERI_PIM) and alt <= L <= ust):
+            raise GeometryError(f"{tanim}: L={L:g} pim serisinde veya {alt:g}–{ust:g} aralığında değil")
+        return "2338", {"d": d, "L": L}
+    if m := _DESEN["rulman"].fullmatch(tanim):
+        kod = m.group(1)
+        if kod not in ISO15:
+            raise GeometryError(f"{tanim}: bilinmeyen rulman kodu {kod}")
+        return "15", {"kod": kod}
+    raise GeometryError(f"Tanınmayan standart parça tanımı: {tanim!r}")
+
+
+def _yaz(x: float) -> str:
+    """Sayı yazımı: tamsayı değerliyse ondalıksız (25.0 → "25", 2.5 → "2.5")."""
+    return f"{float(x):g}"
 
 
 def tanim(std: str, **olcu) -> str:
-    """ayristir'ın tersi: tanim("4762", M="M8", L=25) → "ISO 4762 M8x25"."""
-    raise NotImplementedError("SPEC 35")
+    """ayristir'ın tersi: tanim("4762", M="M8", L=25) → "ISO 4762 M8x25". Geçersiz → GeometryError."""
+    try:
+        if std in ("4762", "4017"):
+            metin = f"ISO {std} {olcu['M']}x{_yaz(olcu['L'])}"
+        elif std in ("4032", "7089"):
+            metin = f"ISO {std} {olcu['M']}"
+        elif std == "2338":
+            metin = f"ISO 2338 {_yaz(olcu['d'])}x{_yaz(olcu['L'])}"
+        elif std == "15":
+            metin = f"ISO 15 {olcu['kod']}"
+        else:
+            raise GeometryError(f"Bilinmeyen standart: {std!r}")
+    except KeyError as e:
+        raise GeometryError(f"ISO {std}: eksik ölçü {e}") from e
+    ayristir(metin)  # tablo / seri denetimi
+    return metin
 
 
 __all__ = [

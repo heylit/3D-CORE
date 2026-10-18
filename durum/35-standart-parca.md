@@ -3,12 +3,13 @@
 Dal: `claude/spec-35-standart-parca-xm561f` · Oturum: bulut
 
 ## Sıradaki adım
-İskelet push edildi; ayrı test thread'inin test commit'i cherry-pick edilecek, sonra kod ayrı commit'te.
+Kod yazıldı, testler yeşil; PR #82 CI + kapı yeşilse birleştirilecek.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
 |---|---|---|---|
 | 2026-10-18 | — | — | Yalnız SPEC metni; kod ve test yok |
+| 2026-10-18 | 177 | 0 | test_standart.py + test_oneri.py (K1–K13), bağımsız test commit'i 5aa8c24 |
 
 ## Son oturum
 **2026-10-18**
@@ -20,5 +21,11 @@ Dal: `claude/spec-35-standart-parca-xm561f` · Oturum: bulut
 - `NotImplementedError` iskeleti: `geometry/standart/{__init__,tablo,parcalar}.py`, `assy/oneri.py`. Tablolar SPEC'teki
   değerlerle dolu; `tablo.P_KABA` = SPEC 23 kaba hatve tablosunun OCCT'siz kopyası (oneri.py 2P taşma için).
 
+- Testler ayrı oturumda yazıldı (`claude/project-thread-b5iore`, 5aa8c24), cherry-pick edildi; kod ayrı commit'te.
+- Eşleşmeme kodlarının denetim sırası: ayni_bilesen, yon, ortada_dis, kor_ara, bosluk, havsa, ince_hatve,
+  olcu_uyusmuyor, lamba_somun, bas_sigmiyor, uzunluk_yok, dis_yetersiz.
+
 ## Açık sorular
-_(yok; 1–6 önerilen varsayılanlarla kabul edildi)_
+- K12 metni: "eklenen T'ler G·T" iddiası "en küçük dönme" kuralı yüzünden yalnız dizi eksenine dik
+  eksenli G için tam doğru; keyfi G'de konum ve eksen yönü G ile taşınır (testler böyle denetliyor).
+  SPEC metninin buna göre düzeltilmesi kullanıcı onayı bekliyor (kodu yazan oturum SPEC'i değiştirmez).
