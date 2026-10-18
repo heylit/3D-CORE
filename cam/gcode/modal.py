@@ -18,7 +18,7 @@ from dataclasses import dataclass
 
 from cam.model import CamError
 
-CYCLES = ("G81", "G83")
+CYCLES = ("G81", "G82", "G83", "G84")  # G82 / G84: SPEC 04b
 
 
 def fmt(v: float, decimals: int) -> str:
