@@ -8,6 +8,9 @@ Uçlar:
     GET  /api/is/{ad}/sim           → application/octet-stream (kopru.sim_ikili)
     POST /api/is/{ad}/parametre     gövde {"islem": int, "anahtar": str, "deger": float}
                                     → {"sema": 1, "is": Is, "sure_farki": yeni − eski toplam süre [s]}
+    GET  /api/ekranlar              → A3 ekran kaydı (specs/24a-ekran-kaydi.md)
+    POST /api/sifirla               → A3: ekranlar ve iş deposu varsayılana
+    *    /api/ekran/<ad>/...        → A3: her ekranın kendi uçları
 Bilinmeyen iş → 404. Bilinmeyen işlem/anahtar → 422. Çekirdeğin `CamError` / `ModelError`'ı → 422,
 gövde {"detail": hata metni}. Parametre değişikliği sunucu süreci boyunca o işte kalır.
 Sunucu yalnızca 127.0.0.1'de dinler (`__main__`).
@@ -26,6 +29,7 @@ from pydantic import BaseModel
 from cam.model import CamError
 from core.model import ModelError
 from tezgah import SEMA, kopru
+from tezgah.ekranlar import Ekran
 from tezgah.isler import ORNEK_ISLER, ornek_is, parametre_uygula
 
 DIST = Path(__file__).parent / "arayuz" / "dist"
@@ -38,8 +42,13 @@ class Parametre(BaseModel):
     deger: float
 
 
-def uygulama(dist: Path | None = DIST) -> FastAPI:
-    """FastAPI uygulaması. `dist` varsa `/` altında statik servis edilir; None → yalnızca API."""
+def uygulama(dist: Path | None = DIST, ekranlar: list[Ekran] | None = None) -> FastAPI:
+    """FastAPI uygulaması. `dist` varsa `/` altında statik servis edilir; None → yalnızca API.
+
+    `ekranlar` (A3): bağlanacak ekranlar; None → `tezgah.ekranlar.ekranlar()` (keşif).
+    """
+    if ekranlar is not None:
+        raise NotImplementedError("A3: uygulanmadı")
     app = FastAPI(title="Tezgah", docs_url="/api/belgeler", redoc_url=None, openapi_url="/api/openapi.json")
     isler: dict[str, kopru.IsTanimi] = {}
     kilit = threading.Lock()  # iş sözlüğü ve parametre değişikliği tek tek
@@ -90,5 +99,15 @@ def uygulama(dist: Path | None = DIST) -> FastAPI:
         @app.get("/")
         def kok() -> FileResponse:
             return FileResponse(dist / "index.html")
+
+    @app.get("/api/ekranlar")
+    def ekran_listesi() -> dict:
+        """A3: {"ekranlar": [{ad, baslik, sira, tus, hazir, neden, bolum, bagimli}]} (sıralı)."""
+        raise NotImplementedError("A3: uygulanmadı")
+
+    @app.post("/api/sifirla")
+    def sifirla() -> dict:
+        """A3: her ekranın `sifirla()`'sı; iş deposu varsayılana (dinamik işler silinir)."""
+        raise NotImplementedError("A3: uygulanmadı")
 
     return app
