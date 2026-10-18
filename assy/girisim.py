@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from assy.bvh import Bvh
 from assy.model import AssyError, Node
 from assy.tree import validate, walk
 
@@ -166,7 +167,11 @@ def check(
         return tasinmis[i]
 
     sonuc = []
-    for ka, kb in _adaylar(kutular, clearance, tol_d):
+    if broadphase == "bvh":
+        adaylar = Bvh.build(kutular).pairs(clearance, tol_d)
+    else:
+        adaylar = _adaylar(kutular, clearance, tol_d)
+    for ka, kb in adaylar:
         a, b = yapraklar[secilen[ka][0]][0], yapraklar[secilen[kb][0]][0]
         if across and secilen[ka][1] == secilen[kb][1]:
             continue

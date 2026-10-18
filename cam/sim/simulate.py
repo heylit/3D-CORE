@@ -332,13 +332,14 @@ class _Sim:
     def group(self, k0: int, op: int, tool: Tool, p0: np.ndarray, moves: list[Move]) -> list[float]:
         """Adımlar k0, k0+1, … (aynı doğru üzerindeki G1'ler ya da tek hareket) → hareket başına hacim.
 
-        merge kapalıysa, parça z-haritası varsa veya gövde hareket öncesi yüzeye yaklaşabiliyorsa
-        SPEC 05 yolu.
+        merge kapalıysa, parça z-haritası varsa, hızlı harekette (çarpışma kaydı birebir kalsın diye) veya
+        gövde hareket öncesi yüzeye yaklaşabiliyorsa SPEC 05 yolu.
         """
         pts = [p0] + [np.array(m.end, dtype=float) for m in moves]
         chords = _chords(p0, moves[0], self.arc_tol) if len(moves) == 1 else [(p0, pts[-1])]
         kose = [c[0] for c in chords] + [chords[-1][1]]
-        if not self.merge or self.part_z is not None or not self._body_clear(tool, pts + kose):
+        eski = not self.merge or self.part_z is not None or moves[0].type is MoveType.RAPID
+        if eski or not self._body_clear(tool, pts + kose):
             return [self.step(k0 + i, op, tool, pts[i], m) for i, m in enumerate(moves)]
         R = tool.D / 2
         W = self._win(kose, R)
@@ -354,9 +355,6 @@ class _Sim:
         if not (boy > 0).any():
             return [0.0] * len(moves)
         top_sonra = self.f.top(W)
-        if moves[0].type is MoveType.RAPID:
-            X, Y = self._xy(W)
-            self._record("hizli_carpma", k0, op, boy, X, Y, top_sonra)
         degisen = top_sonra < top_once
         dA = self.g.dx * self.g.dy
         if len(moves) == 1:
