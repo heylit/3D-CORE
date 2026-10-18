@@ -3,13 +3,15 @@
 Dal: `claude/spec-37-proje-kabuk-trviuv` · Oturum: bulut
 
 ## Sıradaki adım
-Kod yazıldı. PR'ın CI'da yeşil olması A3'ün (#86) birleşmesini bekliyor: REST / K14 testleri A3'ün
-`uygulama(ekranlar=...)` ve `ekranlar()` gövdelerine dayanıyor (şimdilik NotImplementedError). A3 birleşince
-`main` dala merge edilir, testler yeniden çalıştırılır, yeşilse PR birleştirilir.
+Kod yazıldı; main ve A3 kancaları (#105, 68cda83) dala birleştirildi, ön yüz ve sunucu kancaları uyumlu.
+Kalan tek kırmızı: K14 (`test_kabuk_iplik.py`) SPEC 25 torna/montaj ekranlarını (#48) bekliyor; `torna_isleri`
+ve `montajlar` bölümleri o ekranlardan gelir. #105 ve #48 main'e girince main dala merge edilir, testler
+yeniden çalıştırılır, yeşilse PR birleştirilir.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
 |---|---|---|---|
+| 2026-10-18 13:35 | fileio+tezgah 300, vitest 103 | K14 (SPEC 25 bekliyor) | A3 #105 birleştirildi, saplama yok |
 | 2026-10-18 | fileio 63/63 (K1–K8) | — | |
 | 2026-10-18 | kabuk 15 + 19 uygulanmamış | 19 | 19'u A3 NotImplementedError; geçici A3 taklidiyle 34/34 |
 | 2026-10-18 | vitest 15/15 (K15) | K14, K16 | gerçek 24/25 ekranları ve A3 ön yüzü gerekli |
