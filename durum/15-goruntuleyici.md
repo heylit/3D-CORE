@@ -1,17 +1,27 @@
 # DURUM — SPEC 15 goruntuleyici
 
-Dal: `claude/spec-15-goruntuleyici-d318ku` · Oturum: bulut (testler), kod ayrı oturumda
+Dal: `claude/spec-15-goruntuleyici-d318ku` (SPEC + testler) · Kod: `claude/spec-15-goruntuleyici-kod-q8t5es` (ayrı bulut oturumu)
 
 ## Sıradaki adım
-`yazici` oturumu `viz/scene.py`, `viz/plot.py`, `viz/__main__.py` gövdelerini yazar (testlere dokunmadan);
-41 test yeşil olunca PR hazır duruma alınır.
+Kod commit'i PR #25 dalına alınır, `main` merge edilir, CI yeşil olunca PR hazır duruma alınır.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
 |---|---|---|---|
 | 2026-10-18 | 0 | 41 uygulanmamış | Testler + arayüz taslakları (NotImplementedError) |
+| 2026-10-18 | 41 | 0 | Kod yazıldı (ayrı oturum); tüm paket 1000 geçti, 12 atlandı (ccx / rs274 yok) |
 
 ## Son oturum
+**2026-10-18 (kod oturumu)**
+- `viz/scene.py`: yay çokgeni SPEC formülüyle (`n = max(1, ⌈|Δθ| / min(φ_max, π/2)⌉)`), son nokta tam `end`;
+  `split_rapid_feed` art arda aynı türü birleştirir; `assembly_meshes` aynı parçayı bir kez üçgenler;
+  `stock_box` köşe indeksi `4·ix + 2·iy + iz`, kenarlar tek bitin değiştiği çiftler.
+- `viz/plot.py`: yeni sahne beyaz arka planla kurulur; çizgiler `lighting=False` (renk saf görünür);
+  `screenshot` görünümü ayarlar, paralel izdüşümü açar/kapatır, `reset_camera` ile sahneye oturtur.
+- `viz/__main__.py`: argparse; okuma / model hataları (`OSError`, `ValueError` ve alt sınıfları) Türkçe
+  iletiyle çıkış kodu 1. Uzantı ve dosya varlığı sahne kurulmadan kontrol edilir (PNG yazılmaz).
+- Testlere ve SPEC metnine dokunulmadı.
+
 **2026-10-18**
 - PR #18 birleşti: CI ve bulut kurulumu `.[viz]` + `libosmesa6` kurar, VTK ekransız OSMesa ile çizer
   (`VTK_DEFAULT_OPENGL_WINDOW=vtkOSOpenGLRenderWindow`).
