@@ -470,7 +470,7 @@ def test_interference_example():
     assert len(spec09) == 1 and {spec09[0].a, spec09[0].b} == {plaka, mil}
     assert g["hacim"] == pytest.approx(spec09[0].volume, rel=1e-12)
     assert g["bosluk"] == pytest.approx(spec09[0].distance, abs=1e-12)
-    assert g["ag"] == f"/api/montaj/{tanim.ad}/ag/girisim/{g.get('i', 0)}"
+    assert g["ag"] == f"/api/ekran/montaj/{tanim.ad}/ag/girisim/{g.get('i', 0)}"
 
 
 def test_interference_clear_at_L10():

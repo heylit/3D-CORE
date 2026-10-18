@@ -97,7 +97,10 @@ def kucuk_torna(parca=None, kurulum=None) -> TornaIsi:
 
 
 def tek_alin(x1: float, x0: float, Vc: float, f: float, n_max: float, z: float = 59.0) -> TornaIsi:
-    """Yalnız tek G1 alın hareketi (x1 → x0, z sabit), G96: kapalı form süre denetimi (K5)."""
+    """Yalnız tek G1 alın hareketi (x1 → x0, z sabit), G96: kapalı form süre denetimi (K5).
+
+    Ham çap D = 2·x1: yol ham yüzeyinden başlar (SPEC 22 Ek 3 taraf kuralı x ≥ D/2 → dışarıda);
+    süre yalnız yoldan hesaplandığı için beklenen değer değişmez."""
     tp = _yol(
         "alin",
         dis_takim(),
@@ -106,7 +109,8 @@ def tek_alin(x1: float, x0: float, Vc: float, f: float, n_max: float, z: float =
         rpm=n_max,
         css=Vc,
     )
-    return TornaIsi(ad="tek_alin", kurulum=stok(), malzeme="C45", islemler=[TornaIslem("alin", "Alın", tp)])
+    kurulum = CylinderStock(D=2 * x1, zmin=ZMIN, zmax=ZMAX)
+    return TornaIsi(ad="tek_alin", kurulum=kurulum, malzeme="C45", islemler=[TornaIslem("alin", "Alın", tp)])
 
 
 def g96_sinirsiz() -> TornaIsi:
