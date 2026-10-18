@@ -40,7 +40,8 @@ girmeden çalışamaz: SPEC 22 birleşince `main` bu dala merge edilir, torna te
     değiştirilebilen kesme değerleri `ornekler_25.ISLEM_VARSAYILAN` (Vc, f, n_max / n, a_p). "paso 2" komutu bunu kullanır.
   - A3 (specs/24a) taşıması (koordinatör kabulü 12:08): uçlar `tezgah/ekranlar/torna.py` (`/api/ekran/torna/is/{ad}…`) ve
     `montaj.py` (`/api/ekran/montaj/…`), router'lar `sunucu_25.py`'de. Parametreler tek yerde (`sunucu_25.DEPO`, `iplik.Depo`):
-    "torna_isleri" bölümünü torna ekranı dışa/içe aktarır; montaj bağı aynı depoya yazar, `bagimli=("torna_isleri",)`.
+    "torna_isleri" bölümünü torna ekranı dışa/içe aktarır (SPEC 37 tablosu: `{"sema", ad: {"parametreler",
+    "islem_parametreleri"}}`, yama işaretçisi `/kademeli_mil/parametreler/L`); montaj bağı aynı depoya yazar, `bagimli=("torna_isleri",)`.
     "montajlar" bölümü yalnız adlar. Bilinmeyen torna işi / montaj / parça / girişim → 404 (router'da).
     Dinamik torna işleri (`is_kaydet`): `sunucu_25.kaydet` / `adlar`, `depo.kaydedici_ekle` kancasıyla (#105) kayıtlı;
     `/api/isler`'de freze işlerinden sonra, `/api/ekran/torna/is/{ad}` ile sunulur, `/api/sifirla` siler.

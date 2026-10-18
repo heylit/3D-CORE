@@ -226,23 +226,24 @@ class Depo:
         return {"is": Is, "sure_farki": Is["sure"]["toplam"] - eski_sure}
 
     def disa_aktar(self) -> dict:
-        """A3 "torna_isleri" bölümü: {"sema", "parametreler", "islem_parametreleri"}.
+        """A3 "torna_isleri" bölümü (SPEC 37 tablosu `{ad: {parametreler}}`):
+        {"sema", ad: {"parametreler", "islem_parametreleri"}}.
 
-        islem_parametreleri'nde işlem sırası metin anahtardır (JSON).
+        islem_parametreleri'nde işlem sırası metin anahtardır (JSON); değiştirilmemiş iş için boş.
         """
         from tezgah import SEMA
 
-        return {
-            "sema": SEMA,
-            "parametreler": copy.deepcopy(self.parametreler),
-            "islem_parametreleri": {
-                ad: {str(i): dict(d) for i, d in sorted(P.items())}
-                for ad, P in self.islem_parametreleri.items()
-            },
-        }
+        belge: dict = {"sema": SEMA}
+        for ad, p in self.parametreler.items():
+            Q = self.islem_parametreleri.get(ad, {})
+            belge[ad] = {
+                "parametreler": copy.deepcopy(p),
+                "islem_parametreleri": {str(i): dict(d) for i, d in sorted(Q.items())},
+            }
+        return belge
 
     def ice_aktar(self, belge: dict) -> None:
-        """`disa_aktar` belgesini yükler. Önce hepsi doğrulanır.
+        """`disa_aktar` belgesini yükler. Önce hepsi doğrulanır; belgede olmayan iş varsayılana döner.
 
         Bozuk belge → ValueError / KeyError / TypeError, çekirdeğin reddettiği değer → CamError.
         Atomik: hata olursa depo değişmez.
@@ -253,23 +254,22 @@ class Depo:
         sema = belge["sema"]
         if not isinstance(sema, int) or isinstance(sema, bool) or sema != SEMA:
             raise ValueError(f"'torna_isleri' bölümünün şeması {SEMA} olmalı, {sema!r} verildi")
-        P = belge["parametreler"]
-        if not isinstance(P, dict):
-            raise TypeError(f"parametreler sözlük olmalı, {type(P).__name__} verildi")
-        bilinmeyen = sorted(set(P) - set(o.TORNA_ISLERI))
+        isler = {ad: d for ad, d in belge.items() if ad != "sema"}
+        bilinmeyen = sorted(set(isler) - set(o.TORNA_ISLERI))
         if bilinmeyen:
             raise KeyError(f"Bilinmeyen torna işi: {bilinmeyen}")
         yeni = _varsayilan()
-        for ad, p in P.items():
-            yeni[ad] = o.parametre_dogrula(ad, p)
-        Q = belge["islem_parametreleri"]
-        if not isinstance(Q, dict):
-            raise TypeError(f"islem_parametreleri sözlük olmalı, {type(Q).__name__} verildi")
         yeni_q: dict[str, dict[int, dict[str, float]]] = {}
-        for ad, q in Q.items():
-            if ad not in o.TORNA_ISLERI:
-                raise KeyError(f"Bilinmeyen torna işi: {ad!r}")
-            yeni_q[ad] = {int(i): {str(k): v for k, v in d.items()} for i, d in q.items()}
-            o.islem_parametre_dogrula(yeni_q[ad])
-            yeni_q[ad] = {i: {k: float(v) for k, v in d.items()} for i, d in yeni_q[ad].items()}
+        for ad, d in isler.items():
+            if not isinstance(d, dict):
+                raise TypeError(f"{ad!r} sözlük olmalı, {type(d).__name__} verildi")
+            yeni[ad] = o.parametre_dogrula(ad, d["parametreler"])
+            Q = d.get("islem_parametreleri", {})
+            if not isinstance(Q, dict):
+                raise TypeError(f"islem_parametreleri sözlük olmalı, {type(Q).__name__} verildi")
+            if not Q:
+                continue
+            q = {int(i): {str(k): v for k, v in P.items()} for i, P in Q.items()}
+            o.islem_parametre_dogrula(q)
+            yeni_q[ad] = {i: {k: float(v) for k, v in P.items()} for i, P in q.items()}
         self.parametreler, self.islem_parametreleri = yeni, yeni_q
