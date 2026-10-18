@@ -3,12 +3,13 @@
 Dal: `claude/spec-06-cam-3d-09jwcj` · Oturum: bulut
 
 ## Sıradaki adım
-Ayrı test oturumunun test commit'ini cherry-pick edip kodu testlere karşı koşmak.
+CI çalıştırıcıları düzelince PR #100'ü (pytest + kapi yeşil) birleştirmek.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
 |---|---|---|---|
 | 2026-10-18 | — | — | İskelet: tüm işlevler NotImplementedError |
+| 2026-10-18 | 78 | 0 | Test commit'i ca889ef cherry-pick (7c270e2); denetlenecek çift yokken atlama hatası düzeltildi |
 | 2026-10-18 | — | — | Kod yazıldı; elle denemeler: K3 düşey temas 1e-7, K4 dönen fikstür t kapalı formdan 3e-11, K6 A=121° → t=120/121 |
 
 ## Son oturum

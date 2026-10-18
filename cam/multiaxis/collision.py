@@ -607,8 +607,10 @@ class _Denetim:
                 break
             serbest = [r[1] for c, r in sonuc.items() if not r[0]]
             g = min([g, *serbest])
-            if any(r[0] for r in sonuc.values()) or delta <= 0.0:
-                adim = 1 if delta > 0.0 else n - i
+            if any(r[0] for r in sonuc.values()):
+                adim = 1
+            elif delta <= 0.0 or not math.isfinite(g):  # hareket yok ya da denetlenecek çift yok
+                adim = n - i
             else:
                 adim = max(1, int(g / delta))
             i = min(n, i + adim)
