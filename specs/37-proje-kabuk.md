@@ -46,8 +46,9 @@ Proje, adlı **bölümlerden** oluşan bir JSON belgesidir; her bölümün sahib
 | Bölüm | Sahibi (ekran) | İçerik |
 |---|---|---|
 | `model` | SPEC 26 modelleme | `Model` JSON (SPEC 26) |
-| `isler` | SPEC 24 freze, SPEC 25 torna | `{ad: {tur, parametreler, kaynak?}}`; işlerin güncel parametreleri |
-| `montajlar` | SPEC 25 montaj | montaj tanımları (ağaç, sıra, bağlar); çözülmüş `Montaj` JSON değil |
+| `isler` | SPEC 24 freze | `{ad: {parametreler, kaynak?}}`; freze işlerinin güncel parametreleri |
+| `torna_isleri` | SPEC 25 torna | `{ad: {parametreler}}`; torna işlerinin güncel parametreleri |
+| `montajlar` | SPEC 25 montaj (`bagimli`: `isler`, `torna_isleri`) | montaj tanımları (ağaç, sıra, bağlar); çözülmüş `Montaj` JSON değil |
 | `plan` | SPEC 29 / 47 (varsa) | işlem planı girdileri |
 | `tezgah` | SPEC 30 (varsa) | `MachineProfile.to_dict()` |
 | `kabuk` | bu SPEC | `{sema: 1, aktif_ekran}` |
@@ -62,7 +63,7 @@ Bölümler **girdilerdir**; türetilmiş her şey (yol, G-code, sim, çözülmü
 önbellek geçerliliği bu tanımı kullanır.
 
 ### Önbellek
-`Onbellek = {anahtar: str, girdi_ozeti: str, veri: bytes}`. `anahtar` ekranın verdiği addır (`isler.kademeli_mil.sim`);
+`Onbellek = {anahtar: str, girdi_ozeti: str, veri: bytes}`. `anahtar` ekranın verdiği addır (`torna_isleri.kademeli_mil.sim`);
 `girdi_ozeti` kabuk tarafından hesaplanır: ekranın sahip olduğu ve girdi aldığı bölümlerin
 `ozet({b: belge_b for b in (bolum,) + bagimli})` değeri. Ekran yalnız `{anahtar: veri}` verir. Kabuk `ice_aktar`
 çağırırken o ekrana yalnız `girdi_ozeti` güncel girdilerin özetine eşit kayıtları geçirir; ekran bunları kullanır
@@ -171,7 +172,7 @@ durum/37-proje-kabuk.md
 - Yeni bağımlılık yok.
 
 ## A3'ten beklenen kayıt arayüzü
-Bu SPEC A3'ün (Tezgah ekran kaydı, sahibi "Tezgah uygulaması" thread'i) şu arayüzü sunmasına dayanır. Adlar A3
+Bu SPEC A3'ün (Tezgah ekran kaydı, sahibi "Tezgah uygulaması" thread'i; metin `/mnt/project-files/yol-haritasi/a3-ekran-kaydi.md` sürüm 2) şu arayüzü sunmasına dayanır. Bir bölümün tek sahibi vardır (A3 doğrular). Adlar A3
 PR'ında farklı çıkarsa A3'ünkiler geçerlidir; anlam aynı kalmalıdır.
 
 **Python** (`tezgah/ekranlar/__init__.py` ya da A3'ün seçtiği kayıt modülü):
@@ -194,7 +195,7 @@ def ekranlar() -> list[Ekran]
 ```
 Beklenen davranışlar: (a) `ice_aktar` atomiktir: hata fırlatırsa ekranın durumu çağrıdan önceki gibidir;
 (b) `ice_aktar(disa_aktar(), {})` durumu değiştirmez ve `disa_aktar()` aynı kanonik belgeyi yeniden verir;
-(c) bağımlı bir ekran (ör. montaj) girdisini (ör. `isler`) kendi belleğinden değil, `ice_aktar` sırasında
+(c) bağımlı bir ekran (ör. montaj) girdisini (ör. `torna_isleri`) kendi belleğinden değil, `ice_aktar` sırasında
 paylaşılan duruma bakarak okur. Bunun için A3'ün ekranlara verdiği bir `paylasilan_bolum(ad) -> dict` okuyucusu
 yeterlidir; SPEC 25'in "montajdan yapılan değişiklik `GET /api/is/...`'te de görünür" kuralı bu yolla korunur.
 
@@ -344,8 +345,8 @@ montajı (başlangıçta `L = 20`, girişim var), SPEC 24'ün flanş freze işi;
   eklenir; başlıksız istek `"POST /api/..."` etiketi alır; `GET` ve 4xx yanıtı kayıt eklemez; `geri-al` sahte ekranın
   `ice_aktar`'ını eski belgeyle çağırır ve ardından `disa_aktar` eski belgeyi verir; boş yığında 409.
   (`test_kabuk.py::test_capture_*`)
-- [ ] **K14 Gerçek iplik (yatak grubu):** örnek proje açılır; `degistir` ile `isler/kademeli_mil/parametreler/L` =
-  9.5 → etkide `isler` süre farkı, SPEC 25 `POST /api/montaj/yatak_grubu/parametre` ile aynı değişikliğin
+- [ ] **K14 Gerçek iplik (yatak grubu):** örnek proje açılır; `degistir` ile `torna_isleri/kademeli_mil/parametreler/L` =
+  9.5 → etkide `torna_isleri` süre farkı, SPEC 25 `POST /api/montaj/yatak_grubu/parametre` ile aynı değişikliğin
   `sure_farki`'na eşit (rel 1e-12); `montajlar` girişim hacmi önce > 0, sonra 0. `geri-al` sonrası
   `GET /api/is/kademeli_mil` ve `GET /api/montaj/yatak_grubu` yanıtları değişiklik öncesiyle JSON olarak aynı;
   `yinele` sonrası değişiklik sonrasıyla aynı. Kaydet → yeni sunucu → aç → aynı iki yanıt.
