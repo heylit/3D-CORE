@@ -71,14 +71,18 @@ def test_routes_to_registered_type(ekran):
 
 
 def test_names_listed_after_milling_jobs(ekran):
-    """adlar(): örnek freze işleri, dinamik freze işleri, sonra kayıtlı ekranın işleri;
-    yinelenen ad bir kez."""
+    """adlar(): örnek freze işleri, dinamik freze işleri, sonra kayıtlı ekranların işleri;
+    yinelenen ad bir kez. Başka gerçek ekranların (ör. SPEC 25 torna) kaydedicileri de araya girebilir."""
     tur = _yeni_tur()
     _kur(ekran, tur)
     freze = "a3-freze-dinamik"
     is_kaydet(freze, dataclasses.replace(o.kucuk_is(), ad=freze))
     ekran["adlar"].extend(["s1", "s2", ORNEK_ISLER[0]])
-    assert depo.adlar() == list(ORNEK_ISLER) + [freze, "s1", "s2"]
+    L = depo.adlar()
+    assert L[: len(ORNEK_ISLER) + 1] == list(ORNEK_ISLER) + [freze]
+    sonra = L[len(ORNEK_ISLER) + 1 :]
+    assert [a for a in sonra if a in ("s1", "s2")] == ["s1", "s2"]
+    assert len(L) == len(set(L))
 
 
 def test_names_none_lists_nothing(ekran):
