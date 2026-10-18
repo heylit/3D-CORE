@@ -99,6 +99,7 @@
 | 30-tezgah-profili | Tezgâh profilleri, sınır denetimi, GRBL/Fanuc/Haas postprosesörleri (PR #50) | 2026-10-18 | 177 |
 | 41-kinematik-3arti2 | Tezgâh kinematiği ve 3+2 indeksli işleme (PR #51) | 2026-10-18 | 42 |
 | 36-montaj-sirasi | Montaj sırası ve demontaj yolu (PR #68) | 2026-10-18 | 119 |
+| 00-arayuzler | Dalga 5 A1: tolerans ve eklem arayüzü, `assy/model.py` (PR #85, `2929f2a`) | 2026-10-18 | 134 |
 | 05-cam-sim | Talaş simülasyonu: z-map, dexel, süre, çarpışma, oyma (PR #54) | 2026-10-18 | 175 |
 | 17-kroki | `sketch/model.py` eskiz veri modeli arayüzü (PR #55, `fb99eb6`) | 2026-10-18 | 138 |
 | — | CI: gmsh (mesh ekstrası) ve sistem kütüphaneleri kuruluyor (PR #57, `49a739f`) | 2026-10-18 | — |
