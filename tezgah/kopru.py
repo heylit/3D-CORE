@@ -38,6 +38,7 @@ Hata: geçersiz iş tanımı `CamError` / `ModelError` fırlatır; sessiz düzel
 
 from __future__ import annotations
 
+import math
 import struct
 import weakref
 from dataclasses import dataclass, field
@@ -50,6 +51,7 @@ from tezgah import SEMA
 
 KONUM_EPS = 5e-4  # mm: canlı bağ toleransı (K2)
 GOUGE_TOL = 1e-3  # mm: SPEC 05 çakma eşiği
+GUVENLI_PAY = 5.0  # mm: güvenli Z verilmemişse kesme seviyesinin üstüne bırakılan pay (SPEC 04 Ek C1)
 _G = {MoveType.RAPID: 0, MoveType.LINEAR: 1, MoveType.ARC_CW: 2, MoveType.ARC_CCW: 3}
 
 
@@ -119,7 +121,26 @@ def _safe_z(tanim: IsTanimi) -> float:
     """
     if tanim.safe_z is not None:
         return float(tanim.safe_z)
-    return max(isl.op.start[2] for isl in tanim.islemler)
+    z = max(isl.op.start[2] for isl in tanim.islemler)
+    zk = _z_kesme(tanim)
+    return z if z > zk else zk + GUVENLI_PAY
+
+
+def _z_kesme(tanim: IsTanimi) -> float:
+    """SPEC 04 Ek C1 kesme seviyesi: XY'de yer değiştiren kesme hareketlerinin en yüksek Z'si (yoksa −∞).
+
+    Güvenli Z bunun üstünde olmalı; yazıcı eşit ya da alçak güvenli Z'yi reddeder.
+    """
+    z = -math.inf
+    for isl in tanim.islemler:
+        if not isinstance(isl.op, Toolpath):
+            continue
+        p0 = isl.op.start
+        for m in isl.op.moves:
+            if m.type is not MoveType.RAPID and math.dist(p0[:2], m.end[:2]) > 1e-9:
+                z = max(z, p0[2], m.end[2])
+            p0 = m.end
+    return z
 
 
 def _hareket(m: Move, a, islem: int) -> dict:

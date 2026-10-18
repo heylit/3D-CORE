@@ -42,6 +42,8 @@ interface Durum {
   dro: Nokta3;
   hazir: boolean;
   mesgul: boolean;
+  /** Sunucunun kabul ettiği, sahnesi henüz yüklenmekte olan iş (kanca bunu raporlar). */
+  gelenIs: Is | null;
 }
 
 const D: Durum = {
@@ -61,6 +63,7 @@ const D: Durum = {
   dro: [0, 0, 0],
   hazir: false,
   mesgul: false,
+  gelenIs: null,
 };
 
 const sahne = new Sahne($("#gorunum"));
@@ -86,6 +89,7 @@ async function yukle(ad: string, kameraKoru = false, hazirIs?: Is): Promise<void
   gcode.kur(is);
   panelleriCiz();
   guncelle(true);
+  D.gelenIs = null;
   D.mesgul = false;
   D.hazir = true;
 }
@@ -231,9 +235,11 @@ async function parametreDegistir(anahtar: string, deger: number): Promise<void> 
     const y = await parametreGonder(D.ad, D.secili, anahtar, deger);
     D.fark = y.sure_farki;
     D.hata = null;
+    D.gelenIs = y.is;
     await yukle(D.ad, true, y.is);
   } catch (e) {
     D.hata = e instanceof SunucuHatasi ? e.message : String(e);
+    D.gelenIs = null;
     D.mesgul = false;
     mufettisCiz($("#mufettis"), D.is!, D.secili, D.hata, parametreDegistir);
   }
@@ -459,8 +465,8 @@ const kanca: TezgahKanca = {
   hayaletKonum: () => sahne.hayaletKonum(),
   dro: () => [...D.dro] as Nokta3,
   zaman: () => D.t,
-  gcodeSatirSayisi: () => D.is?.gcode.length ?? 0,
-  toplamSure: () => D.is?.sure.toplam ?? 0,
+  gcodeSatirSayisi: () => (D.gelenIs ?? D.is)?.gcode.length ?? 0,
+  toplamSure: () => (D.gelenIs ?? D.is)?.sure.toplam ?? 0,
   yuzey: () => sahne.yuzey(),
 };
 window.__tezgah = kanca;
