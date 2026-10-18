@@ -61,3 +61,27 @@ def assemble_M(model: Model, lumped: bool = False) -> sp.csr_matrix:
         vals.extend(m.ravel())
     n = model.n_dof
     return sp.coo_matrix((vals, (rows, cols)), shape=(n, n)).tocsr()
+
+
+def assemble_Kg(model: Model, sigma0: dict[int, np.ndarray]) -> sp.csr_matrix:
+    """Tüm elemanların kg matrislerini global Kg'ye ekler (n_dof x n_dof, seyrek).
+
+    sigma0: eleman id -> eleman gerilmesi (tet4: (6,) Voigt). kg sağlamayan eleman tipi
+    veya sigma0'da olmayan eleman → ModelError. Teori: specs/68a-burkulma.md
+    """
+    rows: list[int] = []
+    cols: list[int] = []
+    vals: list[float] = []
+    for e in model.elements:
+        eleman = elements.get(e.type)
+        if not hasattr(eleman, "kg"):
+            raise ModelError(f"Eleman tipi '{e.type}' geometrik rijitlik (kg) sağlamıyor")
+        if e.id not in sigma0:
+            raise ModelError(f"Eleman {e.id} için başlangıç gerilmesi (sigma0) verilmedi")
+        k = eleman.kg(e, model, sigma0[e.id])
+        d = np.asarray(eleman.dofs(e, model))
+        rows.extend(np.repeat(d, len(d)))
+        cols.extend(np.tile(d, len(d)))
+        vals.extend(k.ravel())
+    n = model.n_dof
+    return sp.coo_matrix((vals, (rows, cols)), shape=(n, n)).tocsr()

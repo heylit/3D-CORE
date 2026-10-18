@@ -22,6 +22,11 @@ Her eleman modülü şu fonksiyonları sağlar (sözleşme):
         Kütle matrisi [t], ke ile aynı boyut ve DOF sırası; tutarlı veya toplanmış (specs/45-modal.md).
         Sağlamayan eleman tipi core.modal'da ModelError verir.
 
+    kg(element, model, sigma0) -> np.ndarray         (isteğe bağlı; burkulma için)
+        Geometrik rijitlik (başlangıç gerilmesi) matrisi, ke ile aynı boyut ve DOF sırası
+        (specs/68a-burkulma.md).
+        Sağlamayan eleman tipi core.burkulma'da ModelError verir.
+
 ke ve dofs her elemanda zorunludur.
 
 Yeni eleman eklemek = bu klasöre bir dosya + aşağıdaki sözlüğe bir satır.

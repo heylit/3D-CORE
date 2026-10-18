@@ -133,3 +133,19 @@ def me(element: Element, model: Model, lumped: bool = False) -> np.ndarray:
     if lumped:
         return m / 4.0 * np.eye(12)
     return np.kron(m / 20.0 * (np.ones((4, 4)) + np.eye(4)), np.eye(3))
+
+
+def kg(element: Element, model: Model, sigma0: np.ndarray) -> np.ndarray:
+    """Geometrik rijitlik (12 x 12): Kg_e = V Gᵀ Ŝ G, Ŝ = diag(S, S, S) (specs/68a-burkulma.md).
+
+    sigma0: (6,) Voigt [xx, yy, zz, xy, xz, yz] [MPa], eleman içinde sabit. DOF sırası ke ile aynı.
+    Düğüm a, b ve yön i, k için Kg[3a+i, 3b+k] = V δ_ik (∇N_a · S ∇N_b), yani V · (GᵀSG) ⊗ I₃.
+    """
+    s = np.asarray(sigma0, dtype=float)
+    if s.shape != (6,):
+        raise ModelError(f"Eleman {element.id}: tet4 kg için sigma0 (6,) Voigt olmalı (biçim {s.shape})")
+    V, G = _hacim_ve_gradyan(element, model)
+    S = np.array([[s[0], s[3], s[4]], [s[3], s[1], s[5]], [s[4], s[5], s[2]]])
+    H = G.T @ S @ G  # (4 x 4): ∇N_a · S ∇N_b
+    k = V * np.kron(0.5 * (H + H.T), np.eye(3))
+    return k
