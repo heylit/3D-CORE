@@ -162,6 +162,36 @@ class Hole:
         return hash(self._anahtar())
 
 
+@dataclass(frozen=True)
+class SectionEdge:
+    """Eksenden geçen yarı düzlem kesitinde bir kenar; koordinatlar (z, x) [mm]."""
+
+    kind: str  # "line" | "arc" | "curve"
+    points: np.ndarray  # line, arc: (2, 2) [p0, p1]; curve: (k, 2), k ≥ 2, kiriş sapması ≤ tol/4
+    center: np.ndarray | None = None  # arc: (2,)
+    ccw: bool = True  # arc: (z, x) düzleminde saat yönü tersi
+
+
+@dataclass(frozen=True)
+class SectionFace:
+    """Kesitte bir malzeme yüzü: dış halka CCW, iç halkalar CW; her halka uç uca sıralı kenarlar."""
+
+    outer: tuple[SectionEdge, ...]
+    holes: tuple[tuple[SectionEdge, ...], ...] = ()
+
+
+@dataclass(frozen=True)
+class AxialSection:
+    """Part.axial_section sonucu: eksen çerçevesi, kesit yüzleri ve sınıflanamayan yüzlerin listesi."""
+
+    origin: np.ndarray  # (3,) eksen noktası, parça koordinatı
+    axis: np.ndarray  # (3,) birim, +z (ön) yönü
+    xdir: np.ndarray  # (3,) birim, axis'e dik, kesit yarı düzleminin +x yönü
+    faces: tuple[SectionFace, ...]
+    off_axis_faces: tuple[int, ...]  # bu eksene göre dönel OLMAYAN yüzler (OCCT yüz sırası)
+    unknown_faces: tuple[int, ...]  # türü sınıflanamayan yüzler (B-spline vb.)
+
+
 class Part:
     """Tek bir katı parça: build123d Shape (Solid / Compound) + ad + delik kayıtları."""
 
@@ -251,6 +281,17 @@ class Part:
         from geometry.boolean import distance
 
         return distance(self, other)
+
+    # ---------- Torna kesiti (SPEC 28 arayüz eki) ----------
+
+    def axial_section(self, origin=(0.0, 0.0, 0.0), axis=(0.0, 0.0, 1.0), tol: float = 1e-3) -> AxialSection:
+        """Eksenden geçen x ≥ 0 yarı düzlem kesiti. axis="auto" → dönel yüzlerden eksen bulunur.
+
+        Sınıflama ve kesit; doğrulama ve uydurma yapmaz. Geçersiz eksen / bulunamayan eksen → GeometryError.
+        """
+        from geometry.revolve import axial_section
+
+        return axial_section(self, origin, axis, tol)
 
     # ---------- CAM / montaj sorguları (inceleme Y5) ----------
 
