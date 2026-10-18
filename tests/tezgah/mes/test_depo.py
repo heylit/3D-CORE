@@ -26,6 +26,9 @@ from tezgah.mes.sema import IsEmri
 KOK = Path(__file__).resolve().parents[3]
 
 
+YER_DEGISTIR = ((os, "replace"), (os, "rename"), (Path, "replace"), (Path, "rename"), (shutil, "move"))
+
+
 def _patlat(*a, **k):
     raise OSError("yazım ortasında hata (test)")
 
@@ -51,12 +54,13 @@ def test_atomik_yazim(calisma, monkeypatch):
     d = mdepo.yukle(DEPO)
     mdepo.koy(d, IsEmri(**govde(mes_id="IE-8001")))
     once = DEPO.read_bytes()
-    for hedef, ad in ((os, "replace"), (os, "rename"), (Path, "replace"), (Path, "rename"), (shutil, "move")):
-        monkeypatch.setattr(hedef, ad, _patlat)
     d = mdepo.yukle(DEPO)
-    with pytest.raises(OSError):
-        mdepo.koy(d, IsEmri(**govde(mes_id="IE-8002")))
-    monkeypatch.undo()
+    # yamalar ayrı bağlamda: calisma'nın chdir'i geri alınmasın
+    with monkeypatch.context() as mp:
+        for hedef, ad in YER_DEGISTIR:
+            mp.setattr(hedef, ad, _patlat)
+        with pytest.raises(OSError):
+            mdepo.koy(d, IsEmri(**govde(mes_id="IE-8002")))
     assert DEPO.read_bytes() == once
     d = mdepo.yukle(DEPO)
     assert [k.is_emri.mes_id for k in mdepo.degisenler(d, 0)] == ["IE-8001"]
