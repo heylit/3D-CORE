@@ -93,3 +93,85 @@ def test_empty_or_zero_volume_shape_rejected():
         Part(Compound())
     with pytest.raises(GeometryError):
         Part(Box(A, B, C).faces()[0])
+
+
+# ---------- Delik kaydı (Hole) ve Part.holes (SPEC 23 arayüz eki) ----------
+
+
+def make_hole(**kw):
+    from geometry.part import Hole
+
+    degerler = dict(origin=(5.0, 5.0, 10.0), axis=(0.0, 0.0, -1.0), d=6.0, depth=10.0, through=True)
+    degerler.update(kw)
+    return Hole(**degerler)
+
+
+def test_part_without_holes_is_empty():
+    """Mevcut Part(shape, name) çağrısı aynen çalışır; kayıt yok."""
+    assert make_box_part().holes == ()
+
+
+def test_part_keeps_holes_in_order():
+    from build123d import Box
+
+    h1 = make_hole()
+    h2 = make_hole(origin=(1.0, 2.0, 10.0), d=8.4, csk_d=16.0, csk_angle=90.0)
+    p = Part(Box(A, B, C), name="kutu", holes=[h1, h2])
+    assert len(p.holes) == 2 and p.holes[0] is h1 and p.holes[1] is h2
+    assert isinstance(p.holes, tuple)
+
+
+def test_part_rejects_non_hole_records():
+    from build123d import Box
+
+    with pytest.raises(GeometryError):
+        Part(Box(A, B, C), holes=[(0, 0, 0)])
+
+
+def test_hole_arrays_are_float_and_readonly():
+    h = make_hole(origin=[1, 2, 3])
+    assert h.origin.dtype == float and h.origin.shape == (3,)
+    np.testing.assert_allclose(h.axis, [0.0, 0.0, -1.0])
+    with pytest.raises(ValueError):
+        h.origin[0] = 9.0
+
+
+def test_hole_threaded_and_countersunk_ok():
+    """M8: kılavuz matkabı d = 8 − 1.25 = 6.75 mm."""
+    h = make_hole(d=6.75, depth=15.0, through=False, thread="M8", thread_d=8.0, pitch=1.25, thread_depth=12.0)
+    assert h.thread == "M8" and h.thread_depth == 12.0
+    h = make_hole(d=8.4, csk_d=16.0, csk_angle=90.0)
+    assert h.csk_d == 16.0
+
+
+def test_hole_counterbored_ok():
+    """M6 lambalı: d = 6.6, lamba 11 x 6.4 mm."""
+    h = make_hole(d=6.6, depth=20.0, cbore_d=11.0, cbore_depth=6.4)
+    assert h.cbore_d == 11.0 and h.cbore_depth == 6.4
+
+
+@pytest.mark.parametrize(
+    "kw",
+    [
+        dict(axis=(0.0, 0.0, -2.0)),  # birim değil
+        dict(axis=(0.0, 0.0)),  # (3,) değil
+        dict(origin=(0.0, float("nan"), 0.0)),
+        dict(d=0.0),
+        dict(depth=-1.0),
+        dict(d=float("inf")),
+        dict(csk_d=6.0, csk_angle=90.0),  # csk_d <= d
+        dict(csk_d=12.0, csk_angle=180.0),
+        dict(csk_d=12.0),  # açı eksik
+        dict(thread="M8", thread_d=8.0, pitch=1.25, thread_depth=12.0),  # thread_depth > depth
+        dict(thread="M8", thread_d=5.0, pitch=0.8, thread_depth=5.0),  # thread_d <= d
+        dict(thread="M8", thread_d=8.0, pitch=0.0, thread_depth=5.0),
+        dict(thread_d=8.0, pitch=1.25, thread_depth=5.0),  # thread adı yok
+        dict(cbore_d=6.0, cbore_depth=5.0),  # cbore_d <= d
+        dict(cbore_d=11.0, cbore_depth=10.0),  # cbore_depth >= depth
+        dict(cbore_d=11.0),  # lamba derinliği eksik
+        dict(csk_d=12.0, csk_angle=90.0, cbore_d=11.0, cbore_depth=5.0),  # havşa + lamba
+    ],
+)
+def test_hole_invalid_raises(kw):
+    with pytest.raises(GeometryError):
+        make_hole(**kw)
