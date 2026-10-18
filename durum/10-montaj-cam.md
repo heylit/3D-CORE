@@ -10,8 +10,15 @@ SPEC onaylandı (kullanıcı, 2026-10-18 11:13). İskelet dalda; ayrı test otur
 | Tarih | Geçen | Kalan | Not |
 |---|---|---|---|
 | 2026-10-18 | — | — | Sadece SPEC taslağı; kod ve test yok. |
+| 2026-10-18 | 219 | 0 | Kod c0098d7; A0 (#107, 5eb08c1) dala alındı; tam takım 5851 geçti. |
 
 ## Son oturum
+**2026-10-18 — kod**
+- Testler 23a7916 (oturum session_01C4t3m1eteo5Ugmxxbm5E23) cherry-pick: 97a2ac8. Kod: c0098d7 (sadece cam/baglama.py,
+  geometry/baglama_parca.py). A0 dalı (#107) merge edildi; #107 birleşmeden ve CI düzelmeden #79 birleştirilmez.
+- Not: 90°'nin katlarında SAT normallerindeki ~1e-16 artık sıfırlanır; katılar `transform_geometry` yerine rijit
+  `gp_Trsf` ile taşınır (B-spline'a çevirme bbox'ı 1e-7 büyütüyordu).
+
 **2026-10-18 — iskelet**
 - `cam/baglama.py`, `geometry/baglama_parca.py`: Arayüz bölümündeki imzalar, gövdeler `NotImplementedError`.
 
