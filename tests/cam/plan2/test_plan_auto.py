@@ -13,7 +13,8 @@ Sayım: bir cep tam bir "cep" işlemiyle (kalan işleme "cep_kalan" ayrı sayıl
 K9 parçası: 100 × 60 × 30 blok, üstte 30 × 20 (r = 5, 8 derin) cep, +X ve −X yüzlerinde Ø8 × 12 kör
 delik, stok altta 3 mm fazla (alt yüz alma). Masa-masa θ = 110°: c = −Z bağlamasında
 R = {+Z, ±X, ±Y} → cep ve iki delik (3 yönelim); alt yüz alma ikinci bağlamada (1 yönelim)
-→ 2 bağlama. 3 eksen: her yön ayrı bağlama → 4. Hangi bağlamanın "ilk" olduğu SPEC §4 eşitlik
+→ 2 bağlama. 3 eksen: her yön ayrı bağlama → 4. Fikstürlü sürümde (SPEC 10 sonrası) her
+bağlamanın her setup'ı `check_setup` ile temiz. Hangi bağlamanın "ilk" olduğu SPEC §4 eşitlik
 kuralına bağlı olduğundan yönelim sayıları sırasız karşılaştırılır.
 """
 
@@ -28,11 +29,12 @@ pytest.importorskip("build123d", reason='build123d kurulu değil (pip install -e
 
 import build123d as bd  # noqa: E402
 
-from cam.model import CamError, Stock  # noqa: E402
+from cam.model import CamError, Stock, Toolpath  # noqa: E402
 from cam.plan import MillOptions, MillPlan  # noqa: E402
 from cam.plan2.plan import AutoOptions, AutoPlan, plan_auto  # noqa: E402
 from cam.plan2.stok import StockSize  # noqa: E402
 from cam.plan_verify import PlanCheck  # noqa: E402
+from cam.setups import check_setup  # noqa: E402
 from geometry.features import block, hole, pocket  # noqa: E402
 from geometry.part import Part  # noqa: E402
 from tests.cam.plan2.ortak import ANA, masa_masa, uc_eksen, yatay_b, yuzde  # noqa: E402
@@ -197,9 +199,29 @@ def test_uctan_uca_uc_eksen():
     assert len(p.gcode(freze_lib())) == 4
 
 
-@pytest.mark.xfail(strict=True, reason="SPEC 57 K9: mengene / fikstür gövdeleri SPEC 10 (#79) birleşince")
+# Mengene çeneleri (durum/57 madde 5): bağlama yerel çerçevesinde Stock kutuları, z = 0 parçanın o bağlamadaki
+# en alt noktası. Çene üstü z_c = 5; yan delikler tabanı 11 (15 − 4) ≥ z_c + clearance = 6 → engel yok.
+# Çeneler parçanın her iki yanında, parça boyutlarından (≤ 100) uzakta: x, y kökenine bağlı değil.
+CENELER = (Stock(-200, -200, -20, 200, -120, 5), Stock(-200, 120, -20, 200, 200, 5))
+
+
+@pytest.mark.slow
 def test_uctan_uca_fikstur_check_setup():
-    raise NotImplementedError("K9: SPEC 10 Fixture gövdeleriyle check_setup temizliği (#79 sonrası)")
+    part = k9_parcasi()
+    p = plan_auto(part, freze_lib(), MALZEME, masa_masa(110.0), stock=K9_STOK, fixtures=CENELER)
+    _yapi(p)
+    assert "cene_engeli" not in _kodlar(p)
+    assert len(p.clamps) == 2
+    assert sorted(len(f) for f in p.frames) == [1, 3]
+    assert _sayim(p) == (1, 2)
+    for baglama in p.clamps:
+        assert len(baglama.fixtures) >= len(CENELER)  # aynı fikstür her bağlamaya uygulanır
+    for m in p.plans:
+        for i, setup in enumerate(m.setups):
+            yollar = [op for op in m.ops_for(i) if isinstance(op, Toolpath)]
+            check_setup(setup, yollar)  # çarpma / stok altı / kesici boyu → CamError
+    for c in p.checks:
+        assert c.ok and c.collisions == ()
 
 
 # ---------------------------------------------------------------- K11
