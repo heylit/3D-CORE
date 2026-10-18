@@ -1,6 +1,8 @@
 # SPEC 03c — Rampa ve helis giriş
 
 > Onaylandı: kullanıcı, 2026-10-18 11:13 (proje sohbeti, yazılı toplu onay "önerilerle"). Dalga 5, hat H1.
+> Düzeltme (2026-10-18, test oturumunun bulgusu, koordinatör kararı): K5'teki dikdörtgen beklentisi Teori'deki
+> yön kuralıyla çelişiyordu (60×40'ta `k = 2`); K5 kurala uyduruldu, K12'deki bağlantı maddesi K8'e yönlendirildi. Kapsam aynı.
 
 ## Amaç
 Cep (`cam.ops2d.pocket`) ve konturun (`cam.ops2d.contour`) malzemeye düz dalmak yerine **helis**, **zigzag
@@ -155,8 +157,9 @@ Tolerans aksi yazılmadıkça mutlak `1e-9 mm`, boylarda göreli `1e-12`.
   `B(c, R_h + r + cell)` dışı değişmemiş, çakma olayı yok
 - [ ] K4 `zigzag_moves` kapalı form: `ℓ = 10`, `Δz = 4`, `α = 2°` → `m = 6` ayak, her biri `Δz/6` iner, sonra
   düz geçiş ve `c`; boy `150,06664815842…`; `m` tek/çift bitiş ucu
-- [ ] K5 `ramp_direction`: `a×b` dikdörtgen merkezinde (`a > b`) `k = 0`, `ℓ = min(L/2, a/2)`; 30° döndürülmüş
-  dar kanal → `k = 2`; `ρ` yarıçaplı daire merkezinde `k = 0`, `ℓ = min(L/2, ρ)`; `[A, B] ⊆ R₀`
+- [ ] K5 `ramp_direction` (Teori'deki "en büyük `ℓ_fit`" kuralı): dar `a×b` dikdörtgen merkezinde
+  (`b/a ≤ sin 15°`, ör. 60×12) `k = 0`, `ℓ = min(L/2, a/2)`; 60×40'ta `k = 2` (`ℓ_fit = 30/cos 30° = 34,64 > 30`);
+  30° döndürülmüş dar kanal → `k = 2`; `ρ` yarıçaplı daire merkezinde `k = 0`, `ℓ = min(L/2, ρ)`; `[A, B] ⊆ R₀`
 - [ ] K6 `loop_ramp_moves` kapalı halka: `ρ = 15` daire, `Δz = 4`: `α = 5°` → tek helis yayı, bitiş açısı
   `H/ρ = 174,638…°`, boy `√(H² + Δz²) + 2πρ = 140,1426325903…`; `α = 3°` → `H = 76,3245… < P`, açı `291,538…°`,
   boy `170,6770700448…`; `H > P` (`α = 1°`) → `⌊H/P⌋` tam tur + kalan; dikdörtgen halkada her köşede
@@ -173,8 +176,7 @@ Tolerans aksi yazılmadıkça mutlak `1e-9 mm`, boylarda göreli `1e-12`.
 - [ ] K11 Geriye uyum: `entry=None` ve `EntryMode()` ile `pocket`, `contour`, `face` hareketleri SPEC 03 (ve 03b)
   sonucuyla birebir aynı
 - [ ] K12 Sığmayan giriş → `CamError` (sessiz düz dalma yok): genişliği `2(r + R_h)`'den dar kanal cepte helis
-  (mesajda `dist(c, ∂R₀)`); merkezden kesmeyende `2ℓ_fit < r` zigzag; `P < π r` kontur rampası; bağlantının
-  `R₀`'dan çıktığı durum
+  (mesajda `dist(c, ∂R₀)`); merkezden kesmeyende `2ℓ_fit < r` zigzag; `P < π r` kontur rampası (bağlantının `R₀`'dan çıktığı durum `segment_inside` düzeyinde K8'de sınanır)
 - [ ] K13 G-code: helisli cep SPEC 04 `write` ile yazılıp `read` ile okununca hareketler `decimals`
   toleransında aynı; tam daire helisler `G2`/`G3` + `Z` olarak yazılıyor
 - [ ] `pytest` 0 failed, bu SPEC'in testlerinde 0 "uygulanmamış"; `ruff check .` temiz; 10 s'den uzun testler `slow`
