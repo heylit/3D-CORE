@@ -32,6 +32,21 @@ interface KabukModulu {
 
 // Dosya yoksa (SPEC 37 birleşmeden) eşleme boştur: kabuk yüklenmez, eski komut çubuğu çalışır.
 const KABUK_DOSYASI = import.meta.glob<KabukModulu>("./ekranlar/kabuk.ts");
+
+/**
+ * SPEC 62 komut ekranı (src/ekranlar/komut.ts): Ctrl K ve komut düğmesi yerleşik palet yerine onu açar.
+ * Modül adlandırılmış dışa aktarımlar verir (varsayılan yok: sekme değildir). Tuşlarını kendi
+ * öğelerinde dinler; kabuk açıkken tuşları ekranlara geçirmez ve Escape'i `paletKapat`'a iletir.
+ */
+interface KomutModulu {
+  /** Paleti açılır katman olarak aç; `komutlar()` etkin ekranın güncel komutları. */
+  paletAc(kabuk: Kabuk, komutlar: () => Komut[]): void;
+  paletKapat(): void;
+  paletAcik(): boolean;
+}
+
+const KOMUT_DOSYASI = import.meta.glob<KomutModulu>("./ekranlar/komut.ts");
+let komutPaleti: KomutModulu | null = null;
 const rozetler = new Map<string, string>();
 
 // --------------------------------------------------------------------- test kancası
@@ -245,9 +260,10 @@ let paletSecili = 0;
 let paletListe: Satir[] = [];
 let paletOnceki: HTMLElement | null = null;
 
-const paletAcik = () => !$("#perde").hidden;
+const paletAcik = () => !$("#perde").hidden || (komutPaleti?.paletAcik() ?? false);
 
 function paletAc(): void {
+  if (komutPaleti) return komutPaleti.paletAc(kabukFor("komut"), paletKomutlari);
   paletOnceki = document.activeElement as HTMLElement | null;
   $("#perde").hidden = false;
   const g = $<HTMLInputElement>("#paletGirdi");
@@ -259,6 +275,7 @@ function paletAc(): void {
 }
 
 function paletKapat(): void {
+  if (komutPaleti?.paletAcik()) return komutPaleti.paletKapat();
   $("#perde").hidden = true;
   paletOnceki?.focus();
 }
@@ -312,7 +329,7 @@ $("#paletListe").addEventListener("click", (e) => {
 });
 $("#perde").addEventListener("click", (e) => e.target === $("#perde") && paletKapat());
 $("#komutDugme").addEventListener("click", () => {
-  if (projeKabugu) window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true }));
+  if (projeKabugu && !komutPaleti) window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true }));
   else paletAc();
 });
 
@@ -320,8 +337,10 @@ $("#komutDugme").addEventListener("click", () => {
 
 // Kabuk dinleyicisi ekranlarınkinden önce kurulur: palet açıkken tuşlar ekranlara gitmez.
 document.addEventListener("keydown", (e) => {
-  if (projeKabugu && (e.ctrlKey || e.metaKey)) return; // Ctrl K/Z/Y/S/O kabuğundur
-  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "k") {
+  const ctrlK = (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "k";
+  // Ctrl K komut ekranınındır (varsa); Ctrl K/Z/Y/S/O'nun geri kalanı SPEC 37 kabuğunun.
+  if (projeKabugu && (e.ctrlKey || e.metaKey) && !(ctrlK && komutPaleti)) return;
+  if (ctrlK) {
     e.preventDefault();
     e.stopImmediatePropagation();
     if (paletAcik()) paletKapat();
@@ -354,6 +373,12 @@ function dongu(simdi: number): void {
 }
 
 /** SPEC 37 kabuğu varsa bir kez başlatılır; ekranların değişiklikleri ona bildirilir. */
+/** SPEC 62 komut ekranı varsa yüklenir; yoksa yerleşik palet kalır. */
+async function komutPaletiniYukle(): Promise<void> {
+  const yukle = KOMUT_DOSYASI["./ekranlar/komut.ts"];
+  if (yukle) komutPaleti = await yukle();
+}
+
 async function projeKabugunuBaslat(): Promise<void> {
   const yukle = KABUK_DOSYASI["./ekranlar/kabuk.ts"];
   if (!yukle) return;
@@ -381,6 +406,7 @@ async function basla(): Promise<void> {
     sekmeleriCiz();
     addEventListener("hashchange", () => void adresiUygula());
     await projeKabugunuBaslat();
+    await komutPaletiniYukle();
     await adresiUygula();
     kabukHazir = true;
   } catch (e) {
