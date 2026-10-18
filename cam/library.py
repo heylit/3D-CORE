@@ -32,7 +32,9 @@ def save_library(lib: ToolLibrary, path: str | Path) -> None:
     """Kütüphaneyi doğrulayıp JSON olarak yazar (takımlar id sırasıyla)."""
     lib.validate()
     d = ToolLibrary(sorted(lib.tools, key=lambda t: t.id)).to_dict()
-    Path(path).write_text(json.dumps(d, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    Path(path).write_text(
+        json.dumps(d, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n"
+    )  # Windows'ta da LF: dosya biçimi platformdan bağımsız
 
 
 def find_tools(

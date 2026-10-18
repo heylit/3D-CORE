@@ -21,7 +21,17 @@ ORNEKLER = {
     "ORNEK-GRBL-ROUTER": ("ornek-grbl-router.json", "grbl"),
     "ORNEK-FANUC-DIK": ("ornek-fanuc-dik.json", "fanuc"),
     "ORNEK-HAAS-DIK": ("ornek-haas-dik.json", "haas"),
+    # SPEC 31: örnek profiller kod commit'inde gelir
+    "ORNEK-SINUMERIK-DIK": ("ornek-sinumerik-dik.json", "sinumerik"),
+    "ORNEK-HEIDENHAIN-DIK": ("ornek-heidenhain-dik.json", "heidenhain"),
 }
+
+
+def _ornek_dosyalari_var(*adlar: str) -> None:
+    """SPEC 31 profil dosyası henüz yoksa test "uygulanmamış" sayılır (CI'da kırmızı)."""
+    eksik = [ad for ad in adlar or ORNEKLER if not (PROFIL_DIZINI / ORNEKLER[ad][0]).is_file()]
+    if eksik:
+        raise NotImplementedError(f"SPEC 31: örnek profil dosyası yok: {eksik}")
 
 
 def gecerli() -> MachineProfile:
@@ -50,6 +60,7 @@ def gecerli() -> MachineProfile:
 
 def test_builtin_machines_are_the_three_examples():
     """K3: `builtin_machines()` örnek profilleri ada göre verir; hepsi doğrulanmamış (uydurma)."""
+    _ornek_dosyalari_var()
     ms = builtin_machines()
     assert set(ms) == set(ORNEKLER)
     for ad, (_, dil) in ORNEKLER.items():
@@ -64,7 +75,8 @@ def test_builtin_machines_are_the_three_examples():
 
 @pytest.mark.parametrize("ad", list(ORNEKLER))
 def test_example_profile_files_load(ad):
-    """K3: üç örnek dosya yükleniyor ve `builtin_machines()` ile aynı."""
+    """K3: örnek dosyalar yükleniyor ve `builtin_machines()` ile aynı."""
+    _ornek_dosyalari_var(ad)
     dosya, dil = ORNEKLER[ad]
     m = load_machine(PROFIL_DIZINI / dosya)
     assert m.name == ad and m.controller == dil
@@ -75,6 +87,7 @@ def test_example_profile_files_load(ad):
 def test_save_load_roundtrip_and_bytes(ad, tmp_path):
     """K3: `load(save(m)) == m`; iki kayıt aynı bayt;
     biçim `json.dumps(to_dict, ensure_ascii=False, indent=2) + "\\n"`."""
+    _ornek_dosyalari_var(ad)
     m = load_machine(PROFIL_DIZINI / ORNEKLER[ad][0])
     a, b = tmp_path / "a.json", tmp_path / "b.json"
     save_machine(m, a)
