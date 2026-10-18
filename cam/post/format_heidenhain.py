@@ -48,7 +48,8 @@ HEIDENHAIN = Dialect(
 )
 
 IPA_DECIMALS = 4  # helis açısı ondalığı (derece)
-CC_ARAMA = 5  # helis merkezi araması: yuvarlanmış merkezin çevresinde ±5 basamak (≤ 7.1·10⁻³ mm)
+CC_DECIMALS = 4  # helis (CP) merkezi ondalığı: TNC giriş çözünürlüğü 0.1 µm (doğrulanmalı)
+CC_ARAMA = 2  # orta dikmedeki merkezin çevresinde ±2 ızgara basamağı
 
 
 def sayi(v: float, decimals: int) -> str:
@@ -78,9 +79,10 @@ def helis(S, T, c0, ccw: bool, decimals: int) -> tuple[tuple[float, float], floa
     """Kısmi helis için (CC, IPA): S tezgâhın gerçek başlangıcı, T model bitişi, c0 yuvarlanmış merkez.
 
     `CP` bitişi yazılmaz, S'nin CC çevresinde IPA kadar dönmesidir; S ve c0'dan geçen çember T'den
-    1.4·10⁻³ mm'ye kadar uzak geçebilir. Bu yüzden CC, c0'ın çevresindeki ızgara noktalarından okunan
-    bitişi T'ye en yakın yapan seçilir (c0 tutuyorsa c0)."""
-    h = 10.0**-decimals
+    1.4·10⁻³ mm'ye kadar uzak geçebilir. CC, S ile T'nin orta dikmesine c0'ın izdüşümüdür (|CC − S| =
+    |CC − T|); `CC_DECIMALS` ondalığa yuvarlanır ve çevresindeki ±2 ızgara noktasından okunan bitişi
+    T'ye en yakın yapan seçilir. Yarıçap farkı ≤ 2·0.7·10⁻⁴ mm kalır (3 ondalıklı ızgarada eksene paralel
+    kirişte 10⁻³'e çıkardı). c0 tutuyorsa (hata ≤ 10⁻⁹) c0 yazılır."""
 
     def hata(c):
         a = _ipa(S, T, c, ccw)
@@ -90,16 +92,19 @@ def helis(S, T, c0, ccw: bool, decimals: int) -> tuple[tuple[float, float], floa
     e0, a0 = hata(c0)
     if e0 <= 1e-9:
         return c0, a0
-    adaylar = sorted(
-        ((i, j) for i in range(-CC_ARAMA, CC_ARAMA + 1) for j in range(-CC_ARAMA, CC_ARAMA + 1)),
-        key=lambda ij: (ij[0] ** 2 + ij[1] ** 2, ij),
-    )
+    m = ((S[0] + T[0]) / 2, (S[1] + T[1]) / 2)
+    d = (T[0] - S[0], T[1] - S[1])
+    k = ((c0[0] - m[0]) * d[0] + (c0[1] - m[1]) * d[1]) / (d[0] ** 2 + d[1] ** 2)
+    cs = (c0[0] - k * d[0], c0[1] - k * d[1])
+    dec = max(decimals, CC_DECIMALS)
+    h = 10.0**-dec
     best = (e0, c0, a0)
-    for i, j in adaylar:
-        c = (snap(c0[0] + i * h, decimals), snap(c0[1] + j * h, decimals))
-        e, a = hata(c)
-        if e < best[0]:
-            best = (e, c, a)
+    for i in range(-CC_ARAMA, CC_ARAMA + 1):
+        for j in range(-CC_ARAMA, CC_ARAMA + 1):
+            c = (snap(cs[0] + i * h, dec), snap(cs[1] + j * h, dec))
+            e, a = hata(c)
+            if e < best[0]:
+                best = (e, c, a)
     return best[1], best[2]
 
 
@@ -232,7 +237,8 @@ class _HeidenhainFormatter:
             iz = snap(E[2] - P[2], dec)
             ipa_s = sayi(ipa, IPA_DECIMALS)
             ipa = float(ipa_s)  # okuyucunun gördüğü açı
-            self.emit(["CC", f"X{self.c(c[0])}", f"Y{self.c(c[1])}"])
+            cd = max(dec, CC_DECIMALS)
+            self.emit(["CC", f"X{sayi(c[0], cd)}", f"Y{sayi(c[1], cd)}"])
             self.hareket(["CP", f"IPA{ipa_s}", f"IZ{self.c(iz)}", dr, "R0", *self.feed(b.F)])
             xy = (G[0], G[1]) if tam else dondur(G, c, ipa)
             self.gercek = [xy[0], xy[1], G[2] + iz]

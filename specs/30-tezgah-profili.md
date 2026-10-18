@@ -318,7 +318,9 @@ doğrulama eki (E1, `kind = "lathe"`) "CAM model arayüzü" thread'inindir.
 - `Arc(x, y, z, i, j, ccw, F, end=None)`: `end` yuvarlanmamış model bitişidir (`Move.end`); `plan()` her yayda doldurur.
   Blok eşitliğine katılmaz (`compare=False`): yazılan metni belirlemez, K2 blok altın listeleri değişmez.
 - ISO (GRBL, Fanuc, Haas) ve Sinumerik biçimleyicileri `end`'i kullanmaz; çıktıları bayt bayt aynıdır.
-- Heidenhain `CP IPA IZ` bitişi yazmaz, tezgâh başlangıcı CC çevresinde döndürür. Biçimleyici CC'yi yuvarlanmış
-  merkezin ±5 basamak çevresindeki ızgara noktalarından, okunan bitişi `end`'e en yakın yapan nokta olarak seçer
-  (merkez kayması ≤ 7·10⁻³ mm). Gerekçe: yuvarlanmış başlangıç ve merkezden geçen çember model bitişinden
+- Heidenhain `CP IPA IZ` bitişi yazmaz, tezgâh başlangıcı CC çevresinde döndürür. Biçimleyici CC'yi başlangıç
+  ile `end`'in orta dikmesine yuvarlanmış merkezin izdüşümü olarak alır, 4 ondalığa yuvarlar ve çevresindeki
+  ±2 ızgara noktasından okunan bitişi `end`'e en yakın yapanı seçer (merkez kayması ölçülen ≤ 2.1·10⁻³ mm).
+  Helis CC'si 4 ondalıkla yazılır: 3 ondalıklı ızgarada eksene paralel kirişte sapma 10⁻³ mm'ye çıkar.
+  Varsayım (doğrulanmalı): TNC 640 / 620 / 530 metrik giriş çözünürlüğü 0.1 µm. Gerekçe: yuvarlanmış başlangıç ve merkezden geçen çember model bitişinden
   1.4·10⁻³ mm'ye kadar uzak geçebilir; yalnız yuvarlanmış değerle K5 (uç ≤ 0.5·10⁻³) tutmaz.

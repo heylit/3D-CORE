@@ -26,13 +26,13 @@ Kod yazıldı. Tüm testler yeşilse push; CI (pytest + kapı) yeşilse birleşt
   number" (MD18102) açık tezgâhlarda D = T gerekir; şimdilik desteklenmiyor (koordinatör kararı 13:47).
 - **Sinumerik `tool_change_z`**: SPEC 31 makine koordinatı satırını (SUPA / G53) tanımlamıyor; verilirse CamError.
 - **Heidenhain helisi** (`CP IPA IZ`): bitiş yazılmaz, tezgâhın gerçek başlangıcının CC çevresinde dönmesidir.
-  - CC, yuvarlanmış merkezin ±5 basamak çevresinden, okunan bitişi model bitişine (`Arc.end`) en yakın
-    yapan ızgara noktası seçilir (≤ 7·10⁻³ mm kayma).
+  - CC, başlangıç ile model bitişinin (`Arc.end`) orta dikmesine yuvarlanmış merkezin izdüşümüdür; 4 ondalıkla
+    yazılır, ±2 ızgara noktasından okunan bitişi model bitişine en yakın yapan seçilir. 30 rastgele tohumda
+    uç ≤ 0.49998·10⁻³, merkez ≤ 2.1·10⁻³ mm. TNC'nin 0.1 µm giriş çözünürlüğü doğrulanmalı.
   - CP'den sonra tezgâh konumu yazılan konumdan biraz farklıdır. Bu yüzden sonraki `L` üç ekseni de yazar,
     sonraki tam daire `CP IPA±360 IZ+0` olur (aynı noktalı `C`, küçük yay sanılabilir).
-  - Eksene paralel kirişte 3 ondalıklı CC ile sapma 1·10⁻³ mm'ye çıkabilir (fiziksel olarak önemsiz).
-    K5'in sabit tohumları geçiyor; tohum 5 ve 7'de 0.59·10⁻³ görüldü.
-- `Arc.end` (yuvarlanmamış bitiş) SPEC 30 blok ekidir; onay koordinatöre soruldu (13:52).
+  - 3 ondalıklı CC ile eksene paralel kirişte sapma 10⁻³ mm'ye çıkıyordu (Ek B testindeki helis zinciri).
+- `Arc.end` (yuvarlanmamış bitiş) SPEC 30 Ek B; onay 13:58 (2 dakika kuralı). Testleri 8ea8ec3 (cherry-pick fb4a17b).
 
 ## Açık sorular
-- `Arc.end` eki onayı (SPEC 30 Ek B).
+Yok.
