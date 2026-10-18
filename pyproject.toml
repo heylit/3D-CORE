@@ -1,0 +1,37 @@
+[project]
+name = "3d-core"
+version = "0.1.0"
+description = "Sıfırdan FEM/CAD çekirdeği - öğrenme ve ürün prototipi"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.11",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-html>=4", "ruff>=0.5"]
+viz = ["matplotlib>=3.8", "pyvista>=0.43"]
+mesh = ["gmsh>=4.11"]
+cad = ["build123d>=0.7"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["core*", "geometry*", "mesh*", "fileio*", "viz*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
+markers = [
+    "slow: uzun süren testler (pre-commit'te atlanır, pre-push ve ci.ps1'de çalışır)",
+]
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

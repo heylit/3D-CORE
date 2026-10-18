@@ -1,0 +1,15 @@
+#!/bin/sh
+# HIZLI KAPI: her commit'te çalışır. Lint + "slow" olmayan testler.
+# Etkinleştirmek için (bir kez):  git config core.hooksPath .githooks
+. "$(dirname "$0")/_python.sh"
+
+echo "[pre-commit] ruff..."
+"$PY" -m ruff check . || { echo "X Lint hatası. Düzeltmek için: ruff check . --fix"; exit 1; }
+
+echo "[pre-commit] hızlı testler..."
+"$PY" -m pytest -q -m "not slow" || {
+  echo ""
+  echo "X Testler geçmedi, commit iptal edildi."
+  echo "  (Acil durumda: git commit --no-verify  - ama alışkanlık yapma.)"
+  exit 1
+}

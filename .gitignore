@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+build/
+dist/
+
+# Sonuç dosyaları
+*.vtk
+*.vtu
+*.frd
+*.dat
+*.msh
+outputs/
+reports/
+
+# GERÇEK PARÇA / ŞİRKET VERİSİ - ASLA REPOYA GİRMEZ
+yerel_parcalar/
+*.step
+*.stp
+*.iges
+*.igs
+!tests/**/*.step
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

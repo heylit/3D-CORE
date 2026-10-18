@@ -1,0 +1,33 @@
+# GitHub Actions - DAKİKA TASARRUFLU
+# Ana kontrol yerelde (pre-commit, pre-push, ci.ps1). Burası sadece son bağımsız kapı.
+# Çalıştığı durumlar:  main'e açılan PR  +  Actions sekmesinden elle "Run workflow"
+# main'e doğrudan push CI TETİKLEMEZ (zaten pre-push hook'undan geçmiştir).
+
+name: testler
+
+on:
+  pull_request:
+    branches: [main]
+    paths-ignore:            # sadece belge değişirse çalışma
+      - "**.md"
+      - "docs/**"
+      - "specs/**"
+  workflow_dispatch:         # elle çalıştırma
+
+concurrency:                 # aynı PR'a yeni push gelirse eski çalışmayı iptal et
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest   # Windows 2x, macOS 10x dakika sayar
+    timeout-minutes: 10      # takılan test dakika yiyemez
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"   # tek sürüm = tek iş
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - run: ruff check .
+      - run: pytest

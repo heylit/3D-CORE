@@ -1,0 +1,11 @@
+#!/bin/sh
+# TAM KAPI: her push'ta çalışır. GitHub'a giden her şey buradan geçmiş olur.
+. "$(dirname "$0")/_python.sh"
+
+echo "[pre-push] ruff..."
+"$PY" -m ruff check . || { echo "X Lint hatası, push iptal."; exit 1; }
+
+echo "[pre-push] TÜM testler (slow dahil)..."
+"$PY" -m pytest -q || { echo "X Testler geçmedi, push iptal."; exit 1; }
+
+echo "[pre-push] tamam, gönderiliyor."

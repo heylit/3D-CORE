@@ -1,0 +1,95 @@
+{
+  "name": "01_cubuk_ornek",
+  "dim": 1,
+  "nodes": [
+    {
+      "id": 1,
+      "x": 0.0
+    },
+    {
+      "id": 2,
+      "x": 250.0
+    },
+    {
+      "id": 3,
+      "x": 500.0
+    },
+    {
+      "id": 4,
+      "x": 750.0
+    },
+    {
+      "id": 5,
+      "x": 1000.0
+    }
+  ],
+  "elements": [
+    {
+      "id": 1,
+      "type": "bar1d",
+      "nodes": [
+        1,
+        2
+      ],
+      "material": "S235",
+      "section": "lama_10x10"
+    },
+    {
+      "id": 2,
+      "type": "bar1d",
+      "nodes": [
+        2,
+        3
+      ],
+      "material": "S235",
+      "section": "lama_10x10"
+    },
+    {
+      "id": 3,
+      "type": "bar1d",
+      "nodes": [
+        3,
+        4
+      ],
+      "material": "S235",
+      "section": "lama_10x10"
+    },
+    {
+      "id": 4,
+      "type": "bar1d",
+      "nodes": [
+        4,
+        5
+      ],
+      "material": "S235",
+      "section": "lama_10x10"
+    }
+  ],
+  "materials": [
+    {
+      "name": "S235",
+      "E": 210000.0,
+      "nu": 0.3
+    }
+  ],
+  "sections": [
+    {
+      "name": "lama_10x10",
+      "A": 100.0
+    }
+  ],
+  "bcs": [
+    {
+      "node": 1,
+      "dof": "ux",
+      "value": 0.0
+    }
+  ],
+  "loads": [
+    {
+      "node": 5,
+      "dof": "ux",
+      "value": 10000.0
+    }
+  ]
+}
