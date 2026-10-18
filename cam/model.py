@@ -74,6 +74,7 @@ class FeedMode(StrEnum):
 ARCS = {MoveType.ARC_CW, MoveType.ARC_CCW}
 WCS_CODES = ("G54", "G55", "G56", "G57", "G58", "G59")
 UNIT_TOL = 1e-9  # birim vektör ve dik matris toleransı
+GEO_TOL = 1e-9  # mm, geometrik karşılaştırma toleransı
 
 
 def _sonlu(nerede: str, **degerler) -> None:
@@ -282,7 +283,7 @@ class Tool:
             if self.corner_r != 0:
                 raise CamError(f"{nerede}: {self.kind.value} takımda köşe radyüsü 0 olmalı ({self.corner_r})")
             h_c = (self.D - self.tip_d) / 2 / math.tan(math.radians(self.tip_angle) / 2)
-            if h_c > self.flute_length:
+            if h_c > self.flute_length + GEO_TOL:  # tan yuvarlaması: h_c = L tam eşitlikte kabul
                 raise CamError(f"{nerede}: koni yüksekliği kesici boydan büyük ({h_c} > {self.flute_length})")
 
     def _kilavuz(self, nerede: str) -> None:
@@ -1264,7 +1265,7 @@ class EntryMode:
 
     @classmethod
     def from_dict(cls, d: dict) -> EntryMode:
-        _alanlar("Giriş biçimi", d, set(), {"kind", "angle", "radius", "length"})
+        _alanlar("Giriş biçimi", d, {"kind"}, {"angle", "radius", "length"})
         return cls(**d)
 
 
