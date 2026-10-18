@@ -3,7 +3,7 @@
 Dal: `claude/spec-04b-cevrimler-9qxeq6` · Oturum: bulut
 
 ## Sıradaki adım
-Kod tamam; A0 (#107) ve SPEC 30 ekleri (#98) dalda. #107 main'e girip GitHub Actions düzelince main'i al, CI yeşilse PR #81'i birleştir.
+Kod tamam; A0 (#107) ve SPEC 30 ekleri (#98) main'de. main (f1990eb, #113 sonrası) dala alındı; CI yeşilse PR #81 birleşir, SPEC 04b biter.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
