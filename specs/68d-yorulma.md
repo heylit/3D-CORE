@@ -1,0 +1,170 @@
+# SPEC 68d — Yüksek çevrimli yorulma: Marin, S-N (Basquin), Goodman (Dalga 7, A10)
+
+> Durum: **onaylı** (kullanıcı, 2026-10-18 16:19, önerilen cevaplarla; mesaj cmsg_01DTo5iWYb5RBUWgjk6xu1sGJGTUdh2rjZ3topbRjRQuit). Bağımlılık: SPEC 13 (gerilme), 67b (yük, `Dayanim` raporu), B2/66 (`Rm`, `Rp02`,
+> `sigma_f`).
+
+## Amaç
+67b statik emniyeti verir: parça ilk yüklemede akar mı? Dönen mil, titreşen braket ve tekrar tekrar sıkılan fikstür ise
+statik olarak sağlam olsa bile milyonlarca çevrimde çatlar. Bu SPEC her düğüm için iki sonuç üretir:
+- **yorulma emniyet katsayısı** `n_f` (Goodman)
+- **tahmini ömür** `N` (S-N eğrisi, Basquin)
+
+Hesap statik çözümün sonrasında yapılır, ek FEM çözümü gerekmez.
+
+Hesap ders kitabı düzeyindedir (Shigley). Çentik hassasiyeti, yük spektrumu ve sayım (rainflow) ilk sürümde yoktur. Sonuç
+bir **ön değerlendirmedir**, rapor bunu açıkça yazar.
+
+## Teori
+
+### Malzeme dayanımı
+- Dönen eğme sınırı `Se'`:
+  - B2 kaydında `sigma_f` varsa o değer kullanılır.
+  - Yoksa çelik grubu (`celik`, `paslanmaz`) için `Rm ≤ 1400` MPa iken `Se' = 0.5 Rm`, `Rm > 1400` iken `700` MPa
+    alınır (Shigley eş. 6-8).
+  - Diğer gruplarda `sigma_f` yoksa `ModelError` verilir. Alüminyumun gerçek dayanım sınırı yoktur; tahmin üretilmez.
+- Marin düzeltmesi:
+  ```
+  Se = ka kb kc kd ke · Se'
+  ```
+  - `ka = a · Rm^b`, yüzeye göre (Shigley tablo 6-2):
+    - taşlanmış: `a = 1.58, b = −0.085`
+    - talaşlı işlenmiş: `a = 4.51, b = −0.265`
+    - sıcak haddelenmiş: `a = 57.7, b = −0.718`
+    - dövme: `a = 272, b = −0.995`
+
+    Yüzey bilgisi 65b'nin yüz bitimiyle eşlenebilir (açık soru 1).
+  - `kb` boyut faktörüdür. `2.79 ≤ d ≤ 51` mm için `1.24 d^(−0.107)`, `51 < d ≤ 254` için `1.51 d^(−0.157)`. `d`
+    kullanıcıdan gelir (eşdeğer çap); verilmezse `kb = 1` olur ve rapor bunu yazar.
+  - `kc` yük tipidir: eğme 1, eksenel 0.85, burulma 0.59 (von Mises eşdeğeri kullanıldığında burulma için 1 alınır;
+    Shigley'in birleşik yük kuralı).
+  - `kd` sıcaklıktır: oda sıcaklığında 1, kullanıcı verebilir.
+  - `ke` güvenilirliktir: %50 → 1.000, %90 → 0.897, %99 → 0.814, %99.9 → 0.753.
+
+### Gerilme genliği ve ortalaması (çok eksenli)
+İki yük durumu `A` (en büyük) ve `B` (en küçük) için doğrusal çözümle düğüm gerilme tensörleri `S_A` ve `S_B` bulunur.
+Tek yük ve `R` oranı verilirse `S_B = R · S_A` olur.
+```
+S_a = (S_A − S_B)/2        σ_a = σ_vM(S_a)
+S_m = (S_A + S_B)/2        σ_m = sign(iz S_m) · σ_vM(S_m)      (işaretli von Mises)
+```
+
+### Goodman ve ömür
+- `σ_m ≥ 0` için `n_f = 1 / (σ_a/Se + σ_m/Rm)`.
+- `σ_m < 0` için `n_f = Se/σ_a` (basma ortalaması yararına sayılmaz; muhafazakâr seçim, Shigley).
+- İlk çevrim akma denetimi (Langer): `n_y = Rp0.2 / (σ_a + |σ_m|)`.
+- Eşdeğer tam değişken genlik `σ_ar = σ_a / (1 − σ_m/Rm)` (`σ_m ≥ 0`).
+- S-N doğrusu (Basquin, log-log). `10³` çevrimde `f·Rm` (`f = 0.9`, sabit; Juvinall/Shigley sadeleştirmesi), `10⁶`
+  çevrimde `Se`:
+  ```
+  a = (f Rm)² / Se
+  b = −(1/3) log10(f Rm / Se)
+  N = (σ_ar / a)^(1/b)
+  ```
+  - `σ_ar ≤ Se` için `N = inf` (sonsuz ömür).
+  - `σ_ar ≥ f Rm` için düşük çevrim bölgesidir. Bu kapsam dışıdır, sonuç `N = nan` olmaz; o düğüm `"dusuk_cevrim"` olarak
+    işaretlenir ve `n_f < 1` raporlanır.
+- `σ_a = 0` olan düğümde `n_f = inf`, `N = inf`.
+
+Sayısal örnek (testte de kullanılır):
+- `Rm = 600`, talaşlı işlenmiş, `d = 20`, eğme, %99 güvenilirlik
+- `ka = 0.82788`, `kb = 0.89994`, `ke = 0.814`, `Se = 181.938` MPa
+- `σ_a = 150`, `σ_m = 200` için `n_f = 0.86371`, `σ_ar = 225`, `a = 1602.74`, `b = −0.157490`, `N = 2.5953e5` çevrim
+
+Kaynak: Budynas–Nisbett, *Shigley's Mechanical Engineering Design*, 10. baskı, bölüm 6 (eş. 6-8, 6-13, 6-14, 6-19, 6-20,
+6-41, tablo 6-2, 6-5); Juvinall–Marshek, *Fundamentals of Machine Component Design*, bölüm 8.
+
+## Dosyalar
+- **Yeni:**
+  - `analiz/yorulma.py`
+  - `tests/analiz/test_yorulma_formul.py` (OCCT'siz, saf formül), `tests/analiz/test_yorulma_fem.py` (Kuhn ağıyla)
+  - `tests/analiz/test_yorulma_parca.py` (OCCT)
+  - `specs/68d-yorulma.md`, `durum/68d-yorulma.md`
+- **Değişecek:** `analiz/__init__.py`.
+- **Dokunulmayacak:** `core/` (gerilme tensörü SPEC 13 `nodal_stress_tensors` ile alınır), `analiz/dayanim.py` (67b;
+  yalnız çağrılır), `malzeme/`.
+
+## Arayüz
+```
+YUZEYLER = ("taslanmis", "islenmis", "sicak_haddelenmis", "dovme")
+
+@dataclass(frozen=True)
+class Marin:
+    yuzey: str = "islenmis"
+    d: float | None = None             # mm, eşdeğer çap; None → kb = 1
+    yuk: Literal["egme", "eksenel", "burulma", "birlesik"] = "birlesik"
+    kd: float = 1.0
+    guvenilirlik: Literal[50, 90, 99, 99.9] = 50
+    def katsayilar(self, Rm: float) -> dict[str, float]: ...   # ka, kb, kc, kd, ke
+
+def dayanim_siniri(malzeme: Malzeme, marin: Marin) -> float: ...         # Se [MPa]
+def goodman(sigma_a, sigma_m, Se, Rm) -> np.ndarray: ...                   # vektörel, n_f
+def omur(sigma_a, sigma_m, Se, Rm, f: float = 0.9) -> np.ndarray: ...     # N, inf olabilir
+
+@dataclass(frozen=True)
+class Yorulma:
+    sigma_a: np.ndarray; sigma_m: np.ndarray     # (n_dugum,)
+    n_f: np.ndarray; n_y: np.ndarray; N: np.ndarray
+    dusuk_cevrim: np.ndarray                      # (n_dugum,) bool
+    n_f_min: float; dugum: int; konum: np.ndarray; N_min: float
+    Se: float; katsayilar: Mapping[str, float]
+    not_: str                                     # "ön değerlendirme; çentik/spektrum yok" + kb=1 uyarısı vb.
+
+def yorulma(model, u_A, u_B=None, *, R: float | None = None, malzeme: Malzeme,
+            marin: Marin = Marin()) -> Yorulma: ...
+    # u_B ile R ikisi birden ya da hiçbiri → ModelError; R ∉ [−1, 1) → ModelError
+def parca_yorulmasi(part, h, malzeme, *, marin, sabit, yuk_A, yuk_B=None, R=None, order=2) -> Yorulma: ...
+```
+
+## Kabul kriterleri
+- [ ] **K1** Marin katsayıları (sayısal örnek): `ka = 0.827878`, `kb = 0.899936`, `ke = 0.814`, `Se = 181.938`
+  (göreli 1e-5). `d = 300` (aralık dışı) `ModelError` verir. `yuzey = "kumlu"` `ModelError` verir.
+- [ ] **K2** `Se'` kuralı:
+  - `sigma_f` dolu bir kayıt onu kullanır.
+  - Çelikte `Rm = 1600` için `Se' = 700`.
+  - `sigma_f` boş alüminyum kaydı `ModelError` verir, mesajda "dayanım sınırı" geçer.
+- [ ] **K3** Goodman ve ömür (sayısal örnek):
+  - `n_f = 0.863715`, `σ_ar = 225`, `N = 2.5953e5` (göreli 1e-4)
+  - `σ_ar = Se` için `N = 1e6`, `σ_ar = 0.9 Rm` için `N = 1e3` (göreli 1e-10)
+  - `σ_ar < Se` için `inf`
+  - `σ_m = −100` için `n_f = Se/σ_a`
+  - `σ_a = 0` için `n_f = inf`
+- [ ] **K4** Çok eksenli dönüşüm:
+  - Saf eksenel `S_A = diag(300, 0, 0)` ve `R = −1` için `σ_a = 300`, `σ_m = 0`.
+  - `R = 0` için `σ_a = σ_m = 150`.
+  - Saf kayma `τ` ile `R = −1` için `σ_a = √3 τ`.
+  - Basma ortalamalı durumda `σ_m < 0` (işaret izden gelir).
+- [ ] **K5** FEM ile: Kuhn çubuğu (`10 × 10 × 100`), ucuna eksenel `F_A = 15000`, `F_B = −15000` N:
+  - Uç bölgesi dışındaki düğümlerde `σ_a = 150`, `σ_m = 0` (göreli 1e-9).
+  - `n_f = Se/150`, `N` K3 formülüyle aynıdır.
+  - `R = −1` ile tek yük verince `u_B` vermekle aynı sonuç çıkar.
+- [ ] **K6** Düşük çevrim: `σ_ar > 0.9 Rm` olan bir düğüm `dusuk_cevrim = True` ve `n_f < 1` raporlar. `N` `nan` değildir;
+  0'dan büyük ve `≤ 1e3` olarak kırpılır, rapor notunda "düşük çevrim, kapsam dışı" geçer.
+- [ ] **K7** Parça köprüsü (OCCT, delikli plaka SPEC 13 ve 67b): `R = 0.1` döngüsel çekmede `n_f_min` düğümü delik
+  kenarındadır. Değeri, `σ_max = Kt_g σ_nom` ile elle hesaplanan Goodman sonucuna %3 içinde eşittir.
+- [ ] **K8** Hatalar (`ModelError`):
+  - hem `u_B` hem `R`
+  - `R = 1` (değişken yük yok)
+  - `Rm` eksik
+  - `guvenilirlik = 95`
+  - ağ ve `u` boyu uyuşmuyor
+- [ ] **K9** `analiz/yorulma.py` yeni bağımlılık eklemez (numpy ve `math`). `ruff` temiz.
+
+## Bağımlılık
+- 13, 67b (zorunlu, gerilme ve köprü dili).
+- B2/66 (malzeme alanları).
+- 65b (açık soru 1).
+
+## Kararlar (kullanıcı onayı 2026-10-18 16:19; önerilen cevaplar kabul edildi)
+1. **Yüzey bilgisi 65b'nin yüz bitiminden otomatik alınsın mı?** Karar: evet; eşleme şöyle:
+   - `taslanmis` / `parlatilmis` → `taslanmis`
+   - `frezelenmis` / `ham` (çekme malzeme) → `islenmis`
+
+   65b gelmeden yalnız `Marin.yuzey` kullanılır.
+2. **Çentik hassasiyeti `q` (Peterson / Neuber)?** Karar: hayır. FEM zaten çentikteki gerçek gerilmeyi verir. `q < 1`
+   düzeltmesi küçük yarıçaplarda iyimser sonuç verebilir; ilk sürüm muhafazakâr kalır.
+3. **Değişken genlikli yük ve rainflow + Miner?** Karar: sonraki ek. Yük geçmişi verisi gerektirir.
+
+## Kapsam dışı
+- Düşük çevrim (ε-N, Coffin–Manson), kaynaklı birleşim yorulması (IIW sınıfları), çatlak ilerlemesi (Paris).
+- Rainflow sayımı ve Miner hasar birikimi.
+- Faz dışı çok eksenli kriterler (kritik düzlem: Findley, Dang Van).

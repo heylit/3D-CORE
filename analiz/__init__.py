@@ -6,6 +6,7 @@ Dışarıya sadece buradaki adlar açılır. Bağımlılık yönü: analiz → c
 
 from analiz.parca import parca_modal, parca_sehimi
 from analiz.sehim import Sehim, kesme_sehimi, nokta_kuvveti
+from analiz.yorulma import Marin, Yorulma, dayanim_siniri, goodman, omur, parca_yorulmasi, yorulma
 
 __all__ = [
     "Sehim",
@@ -13,4 +14,11 @@ __all__ = [
     "kesme_sehimi",
     "parca_modal",
     "parca_sehimi",
+    "Marin",
+    "Yorulma",
+    "dayanim_siniri",
+    "goodman",
+    "omur",
+    "yorulma",
+    "parca_yorulmasi",
 ]
