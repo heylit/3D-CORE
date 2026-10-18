@@ -149,7 +149,7 @@ def test_k6_alt_kalir(ag):
     assert s.basarili
     assert rapor(s, "kes").durum == "tamam"
     assert s.part.volume == pytest.approx(V_ALT, rel=1e-3)
-    lo, hi = s.part.bbox()
+    lo, hi = s.part.bbox
     assert hi[2] == pytest.approx(29.0, abs=0.05)  # köşelerde z = 20 + 9
 
 
@@ -158,7 +158,7 @@ def test_k6_ust_kalir(ag):
     s = ag.insa(kesme_agaci(ag, "ust"))
     assert s.basarili
     assert s.part.volume == pytest.approx(V_BLOK - V_ALT, rel=1e-3)
-    lo, hi = s.part.bbox()
+    lo, hi = s.part.bbox
     assert lo[2] == pytest.approx(20.0, abs=0.05)  # tepe noktası z = 20
 
 
