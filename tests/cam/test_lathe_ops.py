@@ -941,3 +941,58 @@ def test_k16_genel_yol_kurallari(case):
 def test_k16_ozel_ad():
     tp = face(STOCK, ttool(), cut(a_p=1.0), z_face=-1.0, name="on_alin")
     assert tp.name == "on_alin"
+
+
+# ------------------------------------------------------------------ uç kapakları (SPEC 20 eki)
+# Profilin son parçası (z = −35'teki 1 mm duvar) ρ = r + δ = 1.1'den kısa: kaba çevrimde bu parçanın
+# ofseti tamamen silinir ve kontur, silindir ofsetinin son nokta merkezli ρ kapağıyla kesiştiği yerde biter;
+# ardından SPEC'teki gibi +X yönünde G1 güvenli yarıçapa çıkılır.
+
+END_CAP_Z = -35.0 + math.sqrt((R_NOSE + DELTA) ** 2 - 0.1**2)  # −33.904555...
+STOCK32 = CylinderStock(D=32.0, zmin=-50.0, zmax=0.0)  # X_s = 16
+
+
+def short_wall_profile() -> Profile:
+    return poly((0.0, 10.0), (-20.0, 10.0), (-20.0, 15.0), (-35.0, 15.0), (-35.0, 16.0))
+
+
+def test_uc_kapagi_kaba_cakma_yok():
+    tool = ttool()
+    prof = short_wall_profile()
+    tp = rough(prof, STOCK32, tool, cut(a_p=2.0), allowance=DELTA)
+    C = sample_path(tp, types=KESME) - q_of(tool)
+    d = profile_curves(prof).distance(C)
+    assert np.min(d) >= R_NOSE + DELTA - 1e-9, f"en yakın {np.min(d)} < r + δ"
+
+
+def test_uc_kapagi_kaba_kontur_kapakta_biter():
+    tool = ttool()
+    c = cut(a_p=2.0)
+    tp = rough(short_wall_profile(), STOCK32, tool, c, allowance=DELTA)
+    mv = moves_zx(tp)
+    q = q_of(tool)
+    kesme = [i for i, m in enumerate(mv) if m[0] in KESME]
+    # sondan bir önceki kesme hareketi kontur pasosunun sonu: kapakla kesişim
+    kontur_son = mv[kesme[-2]]
+    assert kontur_son[2][0] == pytest.approx(END_CAP_Z + q[0], abs=TOL)
+    assert kontur_son[2][1] == pytest.approx(16.1 + q[1], abs=TOL)
+    # son kesme hareketi: aynı z'de +X yönünde G1, güvenli yarıçapa (C_x = X_s + cl + r)
+    t, a, b, _, _ = mv[kesme[-1]]
+    assert kesme[-1] == kesme[-2] + 1
+    assert t is MoveType.LINEAR
+    assert close(a, kontur_son[2])
+    assert b[0] == pytest.approx(END_CAP_Z + q[0], abs=TOL)
+    assert b[1] == pytest.approx(STOCK32.D / 2 + c.clearance + R_NOSE + q[1], abs=TOL)
+    # sonrasında sadece G0
+    assert all(m[0] is MoveType.RAPID for m in mv[kesme[-1] + 1 :])
+
+
+def test_uc_kapagi_ince_degismez():
+    tool = ttool()
+    prof = short_wall_profile()
+    tp = finish(prof, STOCK32, tool, cut(a_p=None))
+    segs = tip_path(prof, tool)
+    match_segments(tp, segs)
+    assert close(segs[-1].p1 - q_of(tool), (-35.0 + R_NOSE, 16.0))  # burun merkezi son noktası
+    C = sample_path(tp) - q_of(tool)
+    assert np.min(profile_curves(prof).distance(C)) >= R_NOSE - 1e-9
