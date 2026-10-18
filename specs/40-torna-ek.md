@@ -1,6 +1,6 @@
 # SPEC 40 — Torna ekleri: eksenel delme ve punta, ters bağlama, profilli kanal, torna tezgâh profili
 
-> Durum: **taslak** (kullanıcı onayı bekliyor). Dalga 5, hat H6.
+> Durum: **onaylandı** (kullanıcı, 2026-10-18 11:13, proje sohbetinde yazılı toplu onay; önerilerle, E1–E4 ekleri dahil). Dalga 5, hat H6.
 > Bağımlılık (kod): SPEC 20 (`main`'de), SPEC 21 (PR #42), SPEC 22 (PR #41), SPEC 29 (PR #58), SPEC 30, `cam/model.py`
 > Ek 2 dalga 2 arayüzü (PR #60: `ToolKind.CONE`, `Tool.tip_angle`). Kod iskeleti birleşmemiş bağımlılık dallarının üstüne kurulabilir.
 
