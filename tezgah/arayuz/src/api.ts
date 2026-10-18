@@ -1,19 +1,8 @@
 // SPEC 24 — sunucu istemcisi. Tüm mühendislik sayıları buradan gelir.
 
-import { agCoz, noktalariCoz, simCoz, tornaNoktalariCoz } from "./ikili";
-import type {
-  Ag,
-  Is,
-  Montaj,
-  MontajParametreYaniti,
-  Noktalar,
-  Oneri,
-  ParametreYaniti,
-  SimVeri,
-  TornaIs,
-  TornaNoktalar,
-} from "./tipler";
-import { type TornaSim, tornaSimCoz } from "./torna";
+import type { EkranApi } from "./ekranlar/tip";
+import { noktalariCoz, simCoz } from "./ikili";
+import type { Is, Noktalar, ParametreYaniti, SimVeri } from "./tipler";
 
 export class SunucuHatasi extends Error {
   constructor(
@@ -56,60 +45,43 @@ export async function simAl(ad: string): Promise<SimVeri> {
 }
 
 export async function parametreGonder(ad: string, islem: number, anahtar: string, deger: number): Promise<ParametreYaniti> {
-  const r = await fetch(`${yol(ad)}/parametre`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ islem, anahtar, deger }),
-  });
-  return (await yanit(r)).json();
+  return degistir(`${yol(ad)}/parametre`, { islem, anahtar, deger }, `${ad}: işlem ${islem} ${anahtar} → ${deger}`);
 }
 
-// --------------------------------------------------------------------- SPEC 25: torna ve montaj
+// ------------------------------------------------------------------ A3 ekran kaydı (specs/24a-ekran-kaydi.md)
 
-export async function tornaIsAl(ad: string): Promise<TornaIs> {
-  return (await yanit(await fetch(yol(ad)))).json();
+const aboneler = new Set<(etiket: string | null) => void>();
+
+/**
+ * Başarılı her durum değiştiren istekten (POST / PUT / PATCH / DELETE) sonra `cb(etiket)` çağrılır.
+ * Dönen fonksiyon aboneliği kaldırır.
+ */
+export function degisiklikSonrasi(cb: (etiket: string | null) => void): () => void {
+  // Aynı fonksiyon iki kez abone olabilsin diye sarılır.
+  const sarili = (etiket: string | null) => cb(etiket);
+  aboneler.add(sarili);
+  return () => {
+    aboneler.delete(sarili);
+  };
 }
 
-export async function tornaNoktalarAl(ad: string): Promise<TornaNoktalar> {
-  return tornaNoktalariCoz(await (await yanit(await fetch(`${yol(ad)}/noktalar`))).arrayBuffer());
+/** Durum değiştiren POST: JSON gövde + `X-Tezgah-Etiket` (URI kodlu; başlıklar Latin-1 olmalı). */
+async function degistir<T>(adres: string, govde: unknown, etiket?: string): Promise<T> {
+  const basliklar: Record<string, string> = { "Content-Type": "application/json" };
+  if (etiket !== undefined) basliklar["X-Tezgah-Etiket"] = encodeURIComponent(etiket);
+  const r = await yanit(await fetch(adres, { method: "POST", headers: basliklar, body: JSON.stringify(govde) }));
+  const j = (await r.json()) as T;
+  for (const cb of [...aboneler]) cb(etiket ?? null);
+  return j;
 }
 
-export async function tornaSimAl(ad: string): Promise<TornaSim> {
-  return tornaSimCoz(await (await yanit(await fetch(`${yol(ad)}/sim`))).arrayBuffer());
-}
-
-/** Torna işleminin parametresi (SPEC 24 parametre ucu biçimi). */
-export async function tornaParametreGonder(
-  ad: string,
-  islem: number,
-  anahtar: string,
-  deger: number,
-): Promise<{ is: TornaIs; sure_farki: number }> {
-  return parametreGonder(ad, islem, anahtar, deger) as unknown as Promise<{ is: TornaIs; sure_farki: number }>;
-}
-
-const myol = (ad: string) => `/api/montaj/${encodeURIComponent(ad)}`;
-
-export async function montajAl(ad: string): Promise<Montaj> {
-  return (await yanit(await fetch(myol(ad)))).json();
-}
-
-/** Ağ adresi: tam yol ("/api/...") ya da montaja göre göreli ("girisim/0", parça kimliği). */
-export async function agAl(ad: string, ag: string): Promise<Ag> {
-  const url = ag.startsWith("/") ? ag : `${myol(ad)}/ag/${ag.split("/").map(encodeURIComponent).join("/")}`;
-  return agCoz(await (await yanit(await fetch(url))).arrayBuffer());
-}
-
-export async function montajParametre(ad: string, is: string, anahtar: string, deger: number): Promise<MontajParametreYaniti> {
-  const r = await fetch(`${myol(ad)}/parametre`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ is, anahtar, deger }),
-  });
-  return (await yanit(r)).json();
-}
-
-export async function oneriAl(ad: string, is: string, anahtar: string, cift: [string, string]): Promise<Oneri> {
-  const q = new URLSearchParams({ is, anahtar, cift: cift.join(",") });
-  return (await yanit(await fetch(`${myol(ad)}/oneri?${q}`))).json();
+/** `/api/ekran/<ad>/` önekli istemci; postJson `X-Tezgah-Etiket` başlığı taşır, GET taşımaz. */
+export function ekranApi(ad: string): EkranApi {
+  const onek = `/api/ekran/${encodeURIComponent(ad)}/`;
+  const tam = (y: string) => onek + y.replace(/^\/+/, "");
+  return {
+    getJson: async <T>(y: string) => (await (await yanit(await fetch(tam(y)))).json()) as T,
+    getIkili: async (y: string) => (await yanit(await fetch(tam(y)))).arrayBuffer(),
+    postJson: <T>(y: string, govde: unknown, etiket?: string) => degistir<T>(tam(y), govde, etiket),
+  };
 }
