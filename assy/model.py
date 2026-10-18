@@ -115,6 +115,14 @@ class Component:
         if not is_rigid(self.T):
             raise AssyError(f"Bileşen '{self.name}': T rijit bir dönüşüm değil")
 
+    def __eq__(self, other: object) -> bool:
+        # dataclass'ın ürettiği __eq__ numpy dizisinde ValueError verir; T'yi np.array_equal ile karşılaştır
+        if not isinstance(other, Component):
+            return NotImplemented
+        return (self.name, self.part, self.fixed) == (other.name, other.part, other.fixed) and np.array_equal(
+            self.T, other.T
+        )
+
 
 @dataclass
 class Mate:
@@ -260,6 +268,17 @@ class Node:
             raise AssyError(f"Düğüm '{self.name}': T rijit bir dönüşüm değil")
         if self.part is not None and (self.children or self.ref is not None):
             raise AssyError(f"Düğüm '{self.name}': yaprakta (part dolu) çocuk veya ref olamaz")
+
+    def __eq__(self, other: object) -> bool:
+        # dataclass'ın ürettiği __eq__ numpy dizisinde ValueError verir; T'yi np.array_equal ile, çocukları
+        # sırasıyla özyinelemeli karşılaştır
+        if not isinstance(other, Node):
+            return NotImplemented
+        return (
+            (self.name, self.part, self.ref) == (other.name, other.part, other.ref)
+            and np.array_equal(self.T, other.T)
+            and self.children == other.children
+        )
 
     @property
     def definition(self) -> str:
