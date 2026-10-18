@@ -89,6 +89,9 @@ JSON'lar aynen çalışır.
     Etkisiz olduğu kısıtlarda (eksen–eksen, nokta–nokta, nokta–eksen, nokta–düzlem çakışık) `flip=True` → `AssyError`.
     JSON'da `"flip"` alanı; yoksa `False`.
   - `Mate.value`, `Ref.origin`, `Ref.direction`: `nan` / `inf` → `AssyError`.
+- `cam/model.py`
+  - `Tool` (D, flute_length, corner_r), `Stock` sınırları, `Move` (end, center, feed), `Toolpath.start`:
+    `nan` / `inf` → `CamError`. `Toolpath.validate()` aynı kontrolleri (ve `rpm`) yerinde değişikliğe karşı tekrarlar.
 
 ### Ortak kurulum
 - `pyproject.toml`: paket listesine `cam*`, `assy*`; pytest işareti `occt: build123d / OpenCascade gerektirir`.
