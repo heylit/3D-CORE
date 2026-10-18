@@ -125,14 +125,20 @@ def _apply_step(work: Assembly, T0: dict[str, np.ndarray], unknowns: list[str], 
         work.component(name).T = T
 
 
-def _worst_mate_message(work: Assembly) -> str:
-    """En büyük artığa sahip kısıtın sırası ve türü."""
+def _worst_mate_message(work: Assembly, ne_oldu: str) -> str:
+    """SPEC 54 §1 biçimi: en büyük artıklı kısıt ve onunla aynı serbest bileşene bağlı kısıtlar."""
     worst = max(range(len(work.mates)), key=lambda i: float(np.max(np.abs(residual(work, work.mates[i])))))
     m = work.mates[worst]
     r_max = float(np.max(np.abs(residual(work, m))))
+    serbest = {c.name for c in work.components if not c.fixed}
+    ortak = {m.a.component, m.b.component} & serbest
+    ilgili = [i for i, x in enumerate(work.mates) if i == worst or ortak & {x.a.component, x.b.component}]
+    adlar = ", ".join(f"kısıt {i}" for i in ilgili)
     return (
-        f"kısıt {worst} ({m.kind.name} {m.a.kind.name}–{m.b.kind.name}, "
-        f"'{m.a.component}' – '{m.b.component}'), max|r| = {r_max:.3e}"
+        f"Montaj {work.name} / {adlar}: {ne_oldu}; en büyük artık kısıt {worst} "
+        f"({m.kind.name} {m.a.kind.name}–{m.b.kind.name}, '{m.a.component}' – '{m.b.component}'), "
+        f"max|r| = {r_max:.3e} — bu kısıtlardan birini kaldırın ya da değerini değiştirin; "
+        "çelişki yoksa bileşeni yaklaşık doğru konuma taşıyıp yeniden çözün"
     )
 
 
@@ -140,7 +146,10 @@ def solve(assembly: Assembly, tol: float = 1e-10, max_iter: int = 50) -> SolveRe
     """Kısıtları sağlayan konumları bulur; girdiyi değiştirmez. Çelişki → AssyError."""
     assembly.validate()
     if not any(c.fixed for c in assembly.components):
-        raise AssyError("Montajda sabit bileşen yok: montaj dünyaya bağlı değil")
+        raise AssyError(
+            f"Montaj {assembly.name}: sabit bileşen yok, montaj dünyaya bağlı değil — "
+            "bir bileşeni sabit (fixed) olarak işaretleyin"
+        )
 
     work = _copy(assembly)
     unknowns = _unknowns(work)
@@ -152,8 +161,9 @@ def solve(assembly: Assembly, tol: float = 1e-10, max_iter: int = 50) -> SolveRe
     while not (r.size == 0 or float(np.max(np.abs(r))) <= tol):
         if iterations >= max_iter:
             raise AssyError(
-                f"Çözücü {max_iter} iterasyonda yakınsamadı (çelişkili kısıt veya yerel minimum): "
-                + _worst_mate_message(work)
+                _worst_mate_message(
+                    work, f"çözücü {max_iter} iterasyonda yakınsamadı (çelişkili kısıt veya yerel minimum)"
+                )
             )
         J = w[:, None] * _jacobian(work, unknowns)
         # En küçük normlu Gauss–Newton adımı: δx = −J⁺ r
@@ -182,7 +192,9 @@ def solve(assembly: Assembly, tol: float = 1e-10, max_iter: int = 50) -> SolveRe
             for name in unknowns:  # son kabul edilen konuma dön (mesaj o konumdan yazılsın)
                 work.component(name).T = T0[name]
             raise AssyError(
-                "Artık azalmıyor (çelişkili kısıt veya yerel minimum): " + _worst_mate_message(work)
+                _worst_mate_message(
+                    work, "kısıtlar birlikte sağlanamıyor (çelişkili kısıt veya yerel minimum)"
+                )
             )
 
         # Rijitliği koru: birikmiş yuvarlamaya karşı R'yi en yakın rotasyona izdüşür

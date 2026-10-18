@@ -21,5 +21,8 @@ Kod yazıldı, SPEC 19 testleri yeşil. GitHub Actions çalıştırıcıları d�
 - Adaptif cep: ızgara üzerinde açgözlü yön seçimi, hava adımları, yeniden başlatma taraması, köşe ziyaretleri ve
   temizleme konturu. `trochoid_loop_pitch` ikiye bölmede yalnız φ_t'yi aşan α'ları tarar (φ(α) p'de artan).
 
+- Windows CI'da ada_45 `uncut_area = 0,1` (köşe kalıntısı r − h sınırında). Bölge 1e-9 mm kaydırılınca yerelde de
+  çıktı. Köşe ziyareti artık açıortayda birkaç kısa adımla derinleşiyor; 9 durum × 4 kaydırmada uncut 0.
+
 ## Açık sorular
 _(yok)_ — 2026-10-18 11:13 kullanıcı metni önerilerle onayladı (dar bölge raporlanır, yerel helis, ızgara, trokoidal kanal dahil).

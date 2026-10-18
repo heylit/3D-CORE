@@ -13,7 +13,7 @@ Rijit cisim kilidinin düzlemleri: ağda y = 50 çizgisinde düğüm olması gar
 ağlar), bu yüzden y = 50 düzleminin toleransı ağ boyunun yarısıdır (`tol_h` = 0.5): x = 0 yüzünde
 y = 50'ye en çok h/2 uzaklıktaki düğümler. Kilit yalnız rijit cisim hareketini tutar; yük yolunu değiştirmez.
 
-Parçalar OCCT (build123d) ister; kurucular çağrılınca kurulur, import anında değil.
+Parçalar `geometry.features` (OCCT) ile kurucular çağrılınca kurulur, import anında değil.
 """
 
 from __future__ import annotations
@@ -44,22 +44,13 @@ def _duzlem(nokta, normal, L: float) -> dict:
     return {"nokta": [float(v) for v in nokta], "normal": [float(v) for v in normal], "tol": TOL_KUTU * L}
 
 
-def _kutu(a: float, b: float, c: float):
-    import build123d as bd
-
-    return bd.Box(a, b, c, align=(bd.Align.MIN,) * 3)
-
-
 def delikli_plaka() -> AnalizTanimi:
     """Delikli plaka örneği (seçimler ve kilitli koşullar dahil)."""
-    import build123d as bd
-
-    from geometry.part import Part
+    from geometry.features import block, hole
 
     W, L_, t, d = 100.0, 200.0, 5.0, 10.0
     r = d / 2.0
-    sekil = _kutu(L_, W, t) - bd.Pos(100.0, 50.0, t / 2.0) * bd.Cylinder(r, 2.0 * t)
-    parca = Part(sekil, name="delikli_plaka")
+    parca = hole(block(L_, W, t, name="delikli_plaka"), 100.0, 50.0, d)
     Lk = float(np.linalg.norm([L_, W, t]))
     sol = _duzlem((0, 0, 0), (-1, 0, 0), Lk)
     orta = {"nokta": [0.0, 50.0, 0.0], "normal": [0.0, 1.0, 0.0], "tol_h": 0.5}
@@ -113,11 +104,11 @@ def delikli_plaka() -> AnalizTanimi:
 
 def konsol_kiris() -> AnalizTanimi:
     """Konsol kiriş örneği (seçimler ve kilitli koşullar dahil)."""
-    from geometry.part import Part
+    from geometry.features import block
 
     L_, b, h = 200.0, 20.0, 20.0
     P = 1000.0
-    parca = Part(_kutu(L_, b, h), name="konsol_kiris")
+    parca = block(L_, b, h, name="konsol_kiris")
     Lk = float(np.linalg.norm([L_, b, h]))
     secimler = (
         Secim("s1", "duzlem", _duzlem((0, 0, 0), (-1, 0, 0), Lk), kilitli=True),
