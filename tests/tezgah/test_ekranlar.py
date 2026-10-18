@@ -160,6 +160,30 @@ def test_import_error_gives_closed_placeholder_and_others_work(sahte_paket):
     assert isinstance(neden, str) and "bozuk modül: gmsh yok" in neden
 
 
+def test_module_without_EKRAN_is_skipped(sahte_paket):
+    """Sorunsuz import edilen ama `EKRAN` tanımlamayan modül sessizce atlanır (A3 sahibinin kuralı, 11:45)."""
+    _basit_modul(sahte_paket, "freze", sira=10, tus="1")
+    _modul(sahte_paket, "yardimci", "SABIT = 3\n\ndef f():\n    return SABIT\n")
+    assert [e.ad for e in ekranlar()] == ["freze"]
+
+
+def test_underscore_module_is_never_imported(sahte_paket):
+    """`_` ile başlayan modül hiç import edilmez; import hatası verse bile yer tutucu üretilmez."""
+    _basit_modul(sahte_paket, "freze", sira=10, tus="1")
+    _modul(sahte_paket, "_ortak", 'raise RuntimeError("import edilmemeliydi")\n')
+    _modul(
+        sahte_paket,
+        "_gizli",
+        """
+        from tezgah.ekranlar import Ekran
+        EKRAN = Ekran(ad="gizli", baslik="Gizli")
+        """,
+    )
+    assert [e.ad for e in ekranlar()] == ["freze"]
+    assert f"{paket.__name__}._ortak" not in sys.modules
+    assert f"{paket.__name__}._gizli" not in sys.modules
+
+
 def test_import_error_placeholder_listed_by_server(sahte_paket):
     """K1 + K2: yer tutucu `/api/ekranlar`'da kapalı sekme (hazir false, neden = hata metni); diğerleri hazır.
 
@@ -731,7 +755,9 @@ def _gercek_moduller() -> list[str]:
 
 
 def _gercek_ekran(modul: str) -> Ekran:
-    e = _import(modul).EKRAN
+    e = getattr(_import(modul), "EKRAN", None)
+    if e is None:
+        pytest.skip(f"{modul}: EKRAN yok (ekran modülü değil)")
     if e.bolum is None:
         pytest.skip(f"{modul}: bölümü yok (K5 yalnız bölümü olan ekranlar için)")
     if e.hazir is not None and e.hazir() is not None:
