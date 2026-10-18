@@ -1,6 +1,7 @@
 # SPEC 39 — 3B kalan malzeme ve işlenmiş parça ikizi
 
-> **Durum: TASLAK** (kullanıcı onayı bekliyor). Onaydan sonra metin kullanıcı onayı olmadan değişmez.
+> **Durum: ONAYLANDI** (kullanıcı, 2026-10-18 11:13 UTC: Dalga 5 toplu yazılı onay, önerilerle: kolon + yüzey ağı,
+> 3B uzaklıkla sapma, `t_min` = 0.02 mm, önerilen kapsam dışı). Metin kullanıcı onayı olmadan değişmez.
 
 ## Amaç
 SPEC 05 simülasyonunun bıraktığı stok durumundan (z-haritası ya da dexel) **3B kalan malzemeyi** ölçen,

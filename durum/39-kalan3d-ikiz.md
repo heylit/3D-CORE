@@ -3,7 +3,7 @@
 Dal: `claude/spec-39-kalan3d-yrv7su` · Oturum: bulut
 
 ## Sıradaki adım
-SPEC metninin kullanıcı onayı. Sonra `NotImplementedError` iskeleti (06b iskelet dalı üstüne), ayrı test thread'i.
+Ayrı test thread'inin test commit'ini cherry-pick etmek, sonra kodu ayrı commit'te yazmak.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
@@ -11,6 +11,10 @@ SPEC metninin kullanıcı onayı. Sonra `NotImplementedError` iskeleti (06b iske
 | 2026-10-18 | — | — | Sadece SPEC taslağı; kod ve test yok. |
 
 ## Son oturum
+**2026-10-18 — onay ve iskelet**
+- SPEC onaylandı (11:13 UTC toplu yazılı onay, önerilerle). 06b iskelet dalı ve main merge edildi.
+- `cam/kalan3d.py`, `cam/sim/ikiz.py` `NotImplementedError` iskeleti.
+
 **2026-10-18 — SPEC**
 - `specs/39-kalan3d-ikiz.md` taslağı: düşey kalan kalınlık ve 8 komşulu bölgeler; 05 zarfıyla (06b `Cutter`
   profiliyle genel) girme derinliği; sıralı kalan malzeme süzgeci (`0 ≤ z_süzülmüş − z_tam ≤ t_min` kanıtıyla);
@@ -19,5 +23,4 @@ SPEC metninin kullanıcı onayı. Sonra `NotImplementedError` iskeleti (06b iske
 - `cam/model.py` eki gerekmiyor.
 
 ## Açık sorular
-Koordinatöre gönderildi (önerilen varsayılanlarla): ağ biçimi, sapma ölçüsü, `t_min` varsayılanı,
-işlenmiş ağdan `Part` kapsam dışı, alt yüzey sapması kapsam dışı.
+_(yok; öneriler onaylandı)_
