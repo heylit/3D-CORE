@@ -3,12 +3,12 @@
 Dal: `claude/spec-16-teknik-resim-u8ylv2` · PR #22 · Oturum: bulut
 
 ## Sıradaki adım
-Test yazıcısının yorum noktaları için göndereceği ek test commit'ini dala almak, yeşil olduğunu görüp PR'ı hazır yapmak.
+CI yeşil olunca PR #22 hazır yapılır; birleştirme onayı proje sohbetinde.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
 |---|---|---|---|
-| 2026-10-18 | 126 (tests/geometry/drawing) | 0 | `--uygulanmamis-hata` ile; tüm depo 0 failed |
+| 2026-10-18 | 129 (tests/geometry/drawing) | 0 | ek testler `be29183` dahil; `--uygulanmamis-hata` ile tüm depo 0 failed |
 
 ## Son oturum
 **2026-10-18**
