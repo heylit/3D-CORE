@@ -24,6 +24,7 @@ from cam.ops3d import Raster, _raster_cl
 from cam.sim import body_steps
 
 TOL = 1e-9
+C_TOL = 1e-6  # mm, Ek A: Avoid yokken |c − c₀| toleransı
 _YOK = -1e300  # drop'ta "değmiyor" bekçisi (floor olarak)
 _EX, _EY, _EZ = np.eye(3)
 TURLER = ("sabit", "normal", "noktaya", "noktadan")
@@ -244,7 +245,7 @@ class _Hesap:
         return a, f
 
     def _yerel(self, a: np.ndarray, f) -> _Yerel:
-        if self.o.kind == "sabit":
+        if self.o.kind == "sabit" and np.array_equal(a, np.array(self.o.a)):
             if self._sabit is None:
                 self._sabit = _Yerel(self.mesh, a)
             return self._sabit
@@ -260,11 +261,16 @@ class _Hesap:
             return s.c0 - self.R * a, None
         p_l, z_uc = sonuc
         tol = 0.0 if self.avoid is None else self.avoid.tol
+        p = yerel.F.to_world(p_l)
+        # Ek A: eksen doğrusu başka geometriye takıldı (c ≠ c₀) → çarpışma
+        sapma = float(np.linalg.norm(p + self.R * a - s.c0))
+        if sapma > (C_TOL if self.avoid is None else self.avoid.tol):
+            return p, f"eksen doğrusu başka geometriye takıldı (|c − c₀| = {sapma:.4g} mm)"
         for duz, H in self.govde:
             z_j = yerel.drop(duz, p_l)
             if z_j is not None and z_j > z_uc + H + tol:
-                return yerel.F.to_world(p_l), f"{duz.name} (z_j = {z_j:.4f} > {z_uc + H:.4f})"
-        return yerel.F.to_world(p_l), None
+                return p, f"{duz.name} (z_j = {z_j:.4f} > {z_uc + H:.4f})"
+        return p, None
 
     def nokta(self, s: _Surus, i: int) -> tuple[np.ndarray, np.ndarray]:
         """(uç, eksen): strateji, konumlama, gerekirse yana eğimle kaçınma."""
