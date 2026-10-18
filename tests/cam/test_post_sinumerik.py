@@ -137,13 +137,15 @@ def test_K7_guvenlik_ayni_mesaj(ad, ops, setup, kw):
 
 
 def test_K7_iki_takim_geri_cekme_ve_M5():
-    """İki takımlı program: takım değişiminden önce geri çekme ve M5; sonra `D2`."""
+    """İki takımlı program: takım değişiminden önce geri çekme ve M5; sonra `D1`.
+
+    840D sl varsayılanında D numarası takımın kesici ağzıdır: her takımın ilk ağzı D1."""
     m = altin(SIN_M)
     ops = iki_takim(takim(1, L=100.0), takim(2, L=100.0, D=10.0))
     ls = satirlar(post(ops, m, KURULUM))
     i = ls.index("T2 M6")
     assert ls[i - 2 : i] == ["G0 Z5", "M5"]
-    assert ls[i + 1] == "D2"
+    assert ls[i + 1] == "D1"
     got = read_program("\n".join(ls) + "\n", m, {1: ops[0].tool, 2: ops[1].tool})
     assert [g.tool.id for g in got] == [1, 2]
     assert [g.rpm for g in got] == [10_000, 8_000]
