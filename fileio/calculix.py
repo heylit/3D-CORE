@@ -10,6 +10,7 @@ Kaynak: CalculiX CrunchiX User's Manual 2.21 (C3D4, T3D2, *SOLID SECTION, *EL PR
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 import numpy as np
@@ -117,3 +118,65 @@ def to_inp(model: Model) -> str:
 def write_inp(model: Model, path: str | Path) -> None:
     """to_inp çıktısını dosyaya yazar."""
     Path(path).write_text(to_inp(model), encoding="utf-8")
+
+
+def to_inp_thermal(
+    model: Model,
+    k: float | Mapping[str, float],
+    temperatures: Sequence,
+    nodal_heat: Mapping[int, float],
+) -> str:
+    """Kararlı hal ısıl modeli CalculiX girdisine çevirir (SPEC 56).
+
+    tet4 → DC3D4, k → *CONDUCTIVITY, sabit sıcaklık → *BOUNDARY node, 11, 11, T,
+    düğüm ısısı [mW] → *CFLUX node, 11, değer, çıktı *NODE PRINT NT.
+    `temperatures`: `core.isil.Temperature` benzeri (node, T) kayıtları. Hatalar → ModelError.
+    """
+    model.validate()
+    if model.dim != 3 or not model.elements or any(e.type != "tet4" for e in model.elements):
+        raise ModelError("CalculiX ısıl yazıcısı: sadece 3B tet4 modeli")
+    k_mat: dict[str, float] = {}
+    for m in model.materials:
+        if isinstance(k, Mapping):
+            if m.name not in k and any(e.material == m.name for e in model.elements):
+                raise ModelError(f"CalculiX ısıl yazıcısı: '{m.name}' malzemesi için k yok")
+            kk = k.get(m.name)
+        else:
+            kk = k
+        if kk is not None:
+            kk = float(kk)
+            if not (np.isfinite(kk) and kk > 0.0):
+                raise ModelError(f"Isıl iletkenlik k > 0 olmalı (k={kk})")
+            k_mat[m.name] = kk
+
+    out = ["*HEADING", f"3D-CORE isil: {' '.join(model.name.split())}", "*NODE, NSET=NALL"]
+    out += [f"{n.id}, {_g(n.x)}, {_g(n.y)}, {_g(n.z)}" for n in model.nodes]
+    gruplar: dict[str, list[Element]] = {}
+    for e in model.elements:
+        gruplar.setdefault(e.material, []).append(e)
+    mat_adi = {m.name: f"M{i}" for i, m in enumerate(model.materials, start=1)}
+    for g, elemanlar in enumerate(gruplar.values(), start=1):
+        out.append(f"*ELEMENT, TYPE=DC3D4, ELSET=G{g}")
+        out += [", ".join(str(i) for i in [e.id, *_dugum_sirasi(e, model)]) for e in elemanlar]
+    out.append("*ELSET, ELSET=EALL")
+    out += [f"G{g}" for g in range(1, len(gruplar) + 1)]
+    for ad in gruplar:
+        out += [f"*MATERIAL, NAME={mat_adi[ad]}", "*CONDUCTIVITY", _g(k_mat[ad])]
+    for g, ad in enumerate(gruplar, start=1):
+        out.append(f"*SOLID SECTION, ELSET=G{g}, MATERIAL={mat_adi[ad]}")
+
+    out += ["*STEP", "*HEAT TRANSFER, STEADY STATE", "1.0, 1.0"]
+    if temperatures:
+        out.append("*BOUNDARY")
+        for t in temperatures:
+            model.node(t.node)
+            out.append(f"{t.node}, 11, 11, {_g(t.T)}")
+    if nodal_heat:
+        out.append("*CFLUX")
+        for nid, deger in nodal_heat.items():
+            model.node(nid)
+            if not np.isfinite(deger):
+                raise ModelError(f"Düğüm {nid}: düğüm ısısı sonlu olmalı ({deger})")
+            out.append(f"{nid}, 11, {_g(deger)}")
+    out += ["*NODE PRINT, NSET=NALL", "NT", "*END STEP"]
+    return "\n".join(out) + "\n"
