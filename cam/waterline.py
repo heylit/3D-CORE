@@ -25,25 +25,38 @@ from cam.model import CamError, Move, MoveType, Tool, Toolpath
 
 _KESIT = 7  # çok parçalı bölmede tur başına iç nokta (aralık 8'e bölünür)
 _TUR = 18  # bölme turu: aralık 8⁻¹⁸ = 2⁻⁵⁴ katına iner
+_BOLME_TOL = 1e-10  # uyarlamalı bölme noktalarının doğruluğu [mm]
+_LIF_TUR = 56  # lif aralığı uçları: aralık 2⁻⁵⁶ katına (makine duyarlığı) iner; uç bir lif çizgisine
+# denk geldiğinde X ve Y liflerinin aynı kararı vermesi için kaba doğruluk yetmez (örgü tutarlılığı)
 _ORNEK = 8  # uyarlamalı bölmede dik doğrultudaki örnek sayısı
 
 
-def _gecis(yuklem, a: np.ndarray, b: np.ndarray) -> np.ndarray:
+def _gecis(yuklem, a: np.ndarray, b: np.ndarray, kesit: int = _KESIT, tur: int = _TUR) -> np.ndarray:
     """Her satırda yuklem(a) ≠ yuklem(b) olan [a, b] (skaler veya vektör uçlar) aralığında geçiş
-    noktası: tur başına _KESIT iç nokta (çok parçalı ikiye bölme). yuklem(t, satırlar) → bool."""
+    noktası: tur başına `kesit` iç nokta (çok parçalı ikiye bölme). yuklem(t, satırlar) → bool.
+
+    Yüklem ucuzsa çok parçalı bölme Python turunu azaltır; pahalıysa (girişim) kesit = 1 en az
+    yüklem çağrısıyla aynı doğruluğa iner."""
     n = len(a)
     satir = np.arange(n)
     durum_a = yuklem(a, satir)
-    k = np.arange(1, _KESIT + 1) / (_KESIT + 1)
-    for _ in range(_TUR):
-        T = a[:, None] + (b - a)[:, None] * k[None, :]  # (n, KESIT)
-        S = yuklem(T.ravel(), np.repeat(satir, _KESIT)).reshape(n, _KESIT)
+    k = np.arange(1, kesit + 1) / (kesit + 1)
+    for _ in range(tur):
+        T = a[:, None] + (b - a)[:, None] * k[None, :]  # (n, kesit)
+        S = yuklem(T.ravel(), np.repeat(satir, kesit)).reshape(n, kesit)
         degisti = S != durum_a[:, None]
-        ilk = np.where(degisti.any(axis=1), degisti.argmax(axis=1), _KESIT)
+        ilk = np.where(degisti.any(axis=1), degisti.argmax(axis=1), kesit)
         yeni_a = np.where(ilk > 0, T[satir, np.maximum(ilk - 1, 0)], a)
-        yeni_b = np.where(ilk < _KESIT, T[satir, np.minimum(ilk, _KESIT - 1)], b)
+        yeni_b = np.where(ilk < kesit, T[satir, np.minimum(ilk, kesit - 1)], b)
         a, b = yeni_a, yeni_b
     return (a + b) / 2
+
+
+def _ikiye(yuklem, a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    """_gecis'in ikiye bölme biçimi: en uzun aralık _BOLME_TOL'a inene kadar (pahalı yüklem için)."""
+    boy = float(np.max(np.abs(b - a))) if len(a) else 0.0
+    tur = max(1, math.ceil(math.log2(max(boy, _BOLME_TOL) / _BOLME_TOL)) + 1)
+    return _gecis(yuklem, a, b, 1, tur)
 
 
 # ---------------------------------------------------------------- lifler ve aralıklar
@@ -207,10 +220,10 @@ def _ucgen_araliklari(
     b[s] = tb[s]
     if np.any(~sol_ic):
         r = np.nonzero(~sol_ic)[0]
-        a[s[r]] = _gecis(lambda t, q, r=r: yuklem(t, r[q]), ta[s[r]], t_ic[s[r]])
+        a[s[r]] = _gecis(lambda t, q, r=r: yuklem(t, r[q]), ta[s[r]], t_ic[s[r]], 1, _LIF_TUR)
     if np.any(~sag_ic):
         r = np.nonzero(~sag_ic)[0]
-        b[s[r]] = _gecis(lambda t, q, r=r: yuklem(t, r[q]), t_ic[s[r]], tb[s[r]])
+        b[s[r]] = _gecis(lambda t, q, r=r: yuklem(t, r[q]), t_ic[s[r]], tb[s[r]], 1, _LIF_TUR)
     return a, b
 
 
@@ -315,7 +328,7 @@ def _bol(L: np.ndarray, icinde, tol: float, ds_min: float) -> np.ndarray:
             return L
         lo, hi = s_lo[var], s_hi[var]
         mv, yv = m[var], yon[var]
-        orta = _gecis(lambda t, q, mv=mv, yv=yv: icinde(mv[q] + t[:, None] * yv[q]), lo, hi)
+        orta = _ikiye(lambda t, q, mv=mv, yv=yv: icinde(mv[q] + t[:, None] * yv[q]), lo, hi)
         q = mv + orta[:, None] * yv
         uzak = np.hypot(*(q - mv).T) > tol
         if not np.any(uzak):

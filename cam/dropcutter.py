@@ -41,6 +41,8 @@ class TriMesh:
     _n: np.ndarray = field(init=False, repr=False)  # (m, 3) birim normal, n_z ≥ 0
     _agac: cKDTree = field(init=False, repr=False)
     _r_max: float = field(init=False, repr=False)  # ağırlık merkezinden köşeye en büyük XY uzaklık
+    _G: np.ndarray = field(init=False, repr=False)  # (m, 2) XY ağırlık merkezleri
+    _r: np.ndarray = field(init=False, repr=False)  # (m,) ağırlık merkezinden köşeye XY uzaklık
 
     def __post_init__(self) -> None:
         V = np.asarray(self.V, dtype=float)
@@ -68,7 +70,9 @@ class TriMesh:
         self.V, self.T = V, T
         self._P, self._n = P, n
         self._agac = cKDTree(G)
-        self._r_max = float(np.max(np.linalg.norm(P[:, :, :2] - G[:, None, :], axis=2)))
+        self._G = G
+        self._r = np.linalg.norm(P[:, :, :2] - G[:, None, :], axis=2).max(axis=1)
+        self._r_max = float(np.max(self._r))
 
     def bbox(self) -> tuple[np.ndarray, np.ndarray]:
         return self.V.min(axis=0), self.V.max(axis=0)
@@ -226,6 +230,7 @@ def _genel(P: np.ndarray, n: np.ndarray, c: np.ndarray, K: Cutter, esik: float =
     R = K.R
     k = len(c)
     z = np.full(k, -np.inf)
+    tek_dogru = len(K.parcalar) == 1 and K.parcalar[0][0] == "dogru" and K.parcalar[0][4] > 0
     # Köşe: d ≤ R ise z = P_z − f(d)
     for j in range(3):
         d = np.hypot(P[:, j, 0] - c[:, 0], P[:, j, 1] - c[:, 1])
@@ -258,6 +263,12 @@ def _genel(P: np.ndarray, n: np.ndarray, c: np.ndarray, K: Cutter, esik: float =
             t0 = np.maximum((-b - kok) / (2 * a), 0.0)
             t1 = np.minimum((-b + kok) / (2 * a), 1.0)
         ok &= (t0 <= t1) & (z <= esik)
+        # Üst sınır: g(t) ≤ max(P_z) − f(d_min); mevcut değeri veya eşiği aşamayan kenar aranmaz
+        with np.errstate(divide="ignore", invalid="ignore"):
+            t_en = np.clip(np.where(a > 0, -b / (2 * a), 0.0), 0.0, 1.0)
+        d_en = np.hypot(f0[:, 0] + t_en * e[:, 0], f0[:, 1] + t_en * e[:, 1])
+        ust = np.maximum(P[:, i, 2], P[:, j, 2]) - K.f_ic(np.minimum(d_en, R))
+        ok &= (ust > z) & (ust > esik if np.isfinite(esik) else True)
         if not np.any(ok):
             continue
         e_, f_, Pz = e[ok], f0[ok], P[ok, i, 2]
@@ -266,8 +277,31 @@ def _genel(P: np.ndarray, n: np.ndarray, c: np.ndarray, K: Cutter, esik: float =
             d = np.hypot(f_[:, 0] + t * e_[:, 0], f_[:, 1] + t * e_[:, 1])
             return Pz + t * e_[:, 2] - K.f_ic(np.minimum(d, R))
 
-        z[ok] = np.maximum(z[ok], altin_max(g, t0[ok], t1[ok]))
+        if tek_dogru:
+            zk = _kenar_dogru(g, e_, f_, K.parcalar[0][4], t0[ok], t1[ok])
+        else:
+            zk = altin_max(g, t0[ok], t1[ok])
+        z[ok] = np.maximum(z[ok], zk)
     return z
+
+
+def _kenar_dogru(g, e: np.ndarray, f0: np.ndarray, k: float, t0: np.ndarray, t1: np.ndarray) -> np.ndarray:
+    """Tek doğru profil (f = k·ρ, koni) için kenar testi kapalı formda: g(t) = P_z + t·e_z − k·d(t).
+
+    d(t)² = A·s² + D (s = t − t_en, D: doğruya dik uzaklığın karesi). g'(t) = 0 →
+    A·s / √(A·s² + D) = q = e_z / k; q² < A ise s* = q·√D / √(A(A − q²)), yoksa g tekdüze (uçlar).
+    İçbükey g'nin en büyüğü {t₀, t₁, kırpılmış t*} içindedir."""
+    A = e[:, 0] ** 2 + e[:, 1] ** 2
+    B = 2 * (e[:, 0] * f0[:, 0] + e[:, 1] * f0[:, 1])
+    C = f0[:, 0] ** 2 + f0[:, 1] ** 2
+    t_en = -B / (2 * A)
+    D = np.maximum(C - A * t_en**2, 0.0)
+    q = e[:, 2] / k
+    ic = q * q < A
+    with np.errstate(divide="ignore", invalid="ignore"):
+        s = np.where(ic, q * np.sqrt(D) / np.sqrt(A * (A - q * q)), 0.0)
+    t_y = np.clip(np.where(ic, t_en + s, t0), t0, t1)
+    return np.maximum.reduce([g(t0), g(t1), g(t_y)])
 
 
 def tri_z(P: np.ndarray, n: np.ndarray, c: np.ndarray, K: Cutter, esik: float = np.inf) -> np.ndarray:
@@ -302,6 +336,10 @@ def girisim(mesh: TriMesh, tool: Tool | Cutter, xy: np.ndarray, z: float) -> np.
     xy = np.atleast_2d(np.asarray(xy, dtype=float))
     zc = np.full(len(xy), -np.inf)
     for idx, tri in _ciftler(mesh, K.R, xy):
+        # z_tri ≤ max P_z − f(d_min); d_min ≥ |c − G| − r (r: üçgenin ağırlık merkezinden köşe uzaklığı)
+        d_min = np.maximum(np.hypot(*(xy[idx] - mesh._G[tri]).T) - mesh._r[tri], 0.0)
+        ust = mesh._P[tri, :, 2].max(axis=1) - K.f_ic(np.minimum(d_min, K.R)) > z
+        idx, tri = idx[ust], tri[ust]
         np.maximum.at(zc, idx, tri_z(mesh._P[tri], mesh._n[tri], xy[idx], K, esik=z))
     return zc > z
 
