@@ -228,6 +228,39 @@ def _yazilabilir(tp: Toolpath) -> None:
         raise CamError(f"Takım yolu '{tp.name}': G96 sabit kesme hızı desteklenmiyor (SPEC 21)")
 
 
+def _z_kesme(ops: list[Toolpath | DrillOp]) -> float:
+    """Ek C1: XY'de yer değiştiren (uçlara göre > 1e-9 mm) kesme hareketlerinin en yüksek Z'si; yoksa −∞."""
+    z = -math.inf
+    for op in ops:
+        if not isinstance(op, Toolpath):
+            continue
+        p0 = op.start
+        for m in op.moves:
+            if m.type is not MoveType.RAPID and math.dist(p0[:2], m.end[:2]) > 1e-9:
+                z = max(z, p0[2], m.end[2])
+            p0 = m.end
+    return z
+
+
+def _stok_ustu(ops: list[Toolpath | DrillOp], dialect: Dialect, safe_z: float, stock_top: float) -> None:
+    """Ek C2: safe_z > stock_top; hiçbir XY hızlı hareket stock_top altında değil (DrillOp: açılımı)."""
+    if not math.isfinite(stock_top):
+        raise CamError(f"stock_top sonlu olmalı ({stock_top})")
+    if not safe_z > stock_top:
+        raise CamError(f"safe_z ({safe_z}) ham malzeme üstünden ({stock_top}) yüksek olmalı (Ek C2)")
+    for op in ops:
+        tp = op if isinstance(op, Toolpath) else op.to_toolpath(dialect)
+        p0 = tp.start
+        for i, m in enumerate(tp.moves):
+            xy = math.dist(p0[:2], m.end[:2]) > 1e-9
+            if m.type is MoveType.RAPID and xy and min(p0[2], m.end[2]) < stock_top:
+                z = min(p0[2], m.end[2])
+                raise CamError(
+                    f"'{op.name}' hareket {i}: Z={z} < stock_top={stock_top} iken XY hızlı hareket (Ek C2)"
+                )
+            p0 = m.end
+
+
 def _ofsetler(length_offsets: dict[int, float], ops: list, dialect: Dialect) -> None:
     """G43.1 ofsetleri yalnız takım boyu tablosu olmayan dilde (GRBL); programdaki her takım için."""
     if dialect.tool_length_comp:
@@ -245,6 +278,7 @@ def write(
     dialect: Dialect = GRBL,
     program_no: int = 1,
     safe_z: float | None = None,
+    stock_top: float | None = None,
     setup: Setup | None = None,
     length_offsets: dict[int, float] | None = None,
 ) -> str:
@@ -252,6 +286,7 @@ def write(
 
     `safe_z`: op geçişlerinde, takım değişiminde ve program sonunda çekilen güvenli Z [mm].
     Verilmezse op başlarının en yüksek Z'si. Bir op başından alçaksa CamError.
+    `stock_top`: ham malzeme üstü [mm] (Ek C2); verilirse altında XY hızlı hareket yasak.
     Dönen metin satırları '\\n' ile ayrılır ve '\\n' ile biter.
 
     SPEC 14: `setup` verilirse bağlama denetimi, programda iş sıfırı kodu ve ham malzemeden güvenli Z;
@@ -277,6 +312,13 @@ def write(
         safe_z = z_top
     elif not math.isfinite(safe_z) or safe_z < z_top:
         raise CamError(f"Güvenli Z ({safe_z}) en yüksek op başından ({z_top}) alçak olamaz")
+    z_kesme = _z_kesme(ops)
+    if not safe_z > z_kesme:
+        raise CamError(
+            f"safe_z ({safe_z}) kesme seviyesinin ({z_kesme}) üstünde olmalı; yüksek safe_z verin (Ek C1)"
+        )
+    if stock_top is not None:
+        _stok_ustu(ops, dialect, float(safe_z), stock_top)
     if length_offsets is not None:
         _ofsetler(length_offsets, ops, dialect)
     w = _Writer(dialect, program_no)
