@@ -3,7 +3,7 @@
 Dal: `claude/project-thread-uo3o39` (SPEC taslağı) · Oturum: bulut
 
 ## Sıradaki adım
-Kullanıcı SPEC metnini onaylayınca: `sketch/model.py` arayüz PR'ı, ardından dogrulayici testleri.
+SPEC onaylandı (2026-10-18 10:38 UTC). Sıradaki: `sketch/model.py` main'de (PR #55); NotImplementedError iskeleti bu dalda, dogrulayici testleri ayrı thread'de.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
@@ -14,4 +14,4 @@ Kullanıcı SPEC metnini onaylayınca: `sketch/model.py` arayüz PR'ı, ardında
 - SPEC taslağı yazıldı (`specs/17-kroki.md`), yol haritasına Dalga 3 satırı eklendi.
 
 ## Açık sorular
-- SPEC metni kullanıcı onayı bekliyor.
+_(yok; SPEC 2026-10-18 10:38 UTC onaylandı)_

@@ -1,6 +1,6 @@
 # SPEC 26 — Tezgah'ta etkileşimli modelleme: eskiz → ekstrüzyon → işleme
 
-> **Durum: TASLAK** (kullanıcı onayı bekliyor). Onaylanmadan kod, test ve arayüz PR'ı açılmaz.
+> **Durum: ONAYLANDI** (kullanıcı, 2026-10-18 10:38 UTC: "SPEC 09, 12, 13, 17, 22, 25, 26, ... metinlerini onaylıyorum").
 > Karar (kullanıcı, 2026-10-18 09:28 UTC, "Eskiz ve modelleme ekle"): kısıtlı 2D eskiz çözücüsü (SPEC 17) ve
 > Tezgah'ta eskiz → ekstrüzyon modelleme için SPEC'ler yazılır, Dalga 3'e girer. Bu SPEC Tezgah tarafıdır.
 > Tezgah kabuğu, köprü kuralları ve ön yüz araç zinciri SPEC 24'ten gelir; burada tekrar edilmez.
