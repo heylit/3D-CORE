@@ -25,7 +25,7 @@ import math
 from cam.gcode.cycles import DrillOp
 from cam.gcode.dialect import GRBL, Dialect
 from cam.gcode.modal import ModalState, fmt, snap
-from cam.model import ARCS, CamError, FeedMode, LatheTool, Move, MoveType, Plane, Toolpath
+from cam.model import ARCS, CamError, FeedMode, LatheTool, Move, MoveType, Plane, Setup, Toolpath
 
 AXES = ("X", "Y", "Z")
 
@@ -217,13 +217,20 @@ def write(
     dialect: Dialect = GRBL,
     program_no: int = 1,
     safe_z: float | None = None,
+    setup: Setup | None = None,
+    length_offsets: dict[int, float] | None = None,
 ) -> str:
     """Op listesini `dialect` diline çevirir. Önce her op doğrulanır (CamError).
 
     `safe_z`: op geçişlerinde, takım değişiminde ve program sonunda çekilen güvenli Z [mm].
     Verilmezse op başlarının en yüksek Z'si. Bir op başından alçaksa CamError.
     Dönen metin satırları '\\n' ile ayrılır ve '\\n' ile biter.
+
+    SPEC 14: `setup` verilirse bağlama denetimi, programda iş sıfırı kodu ve ham malzemeden güvenli Z;
+    `length_offsets` (yalnız GRBL) her takım değişiminden sonra `G43.1 Z<ΔL>`.
     """
+    if setup is not None or length_offsets is not None:
+        raise NotImplementedError
     for op in ops:
         if isinstance(op, Toolpath):
             op.validate()
