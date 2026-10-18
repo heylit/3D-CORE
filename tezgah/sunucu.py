@@ -25,7 +25,7 @@ from pydantic import BaseModel
 
 from cam.model import CamError
 from core.model import ModelError
-from tezgah import SEMA, kopru
+from tezgah import SEMA, kopru, sunucu_25
 from tezgah.isler import ORNEK_ISLER, ornek_is, parametre_uygula
 
 DIST = Path(__file__).parent / "arayuz" / "dist"
@@ -43,6 +43,7 @@ def uygulama(dist: Path | None = DIST) -> FastAPI:
     app = FastAPI(title="Tezgah", docs_url="/api/belgeler", redoc_url=None, openapi_url="/api/openapi.json")
     isler: dict[str, kopru.IsTanimi] = {}
     kilit = threading.Lock()  # iş sözlüğü ve parametre değişikliği tek tek
+    sunucu_25.ekle(app)  # SPEC 25 torna ve montaj uçları; SPEC 24 uçlarından önce eşleşir
 
     def is_al(ad: str) -> kopru.IsTanimi:
         if ad not in ORNEK_ISLER:
