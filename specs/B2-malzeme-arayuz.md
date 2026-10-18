@@ -1,0 +1,246 @@
+# SPEC B2 — Malzeme veri modeli arayüzü (`malzeme/model.py`) ve bileşene malzeme kimliği (Dalga 6)
+
+> Durum: onaylandı (kullanıcı, 2026-10-18 14:52; 2 dakika kuralıyla önerilerle). Arayüz PR'ıdır (CLAUDE.md: `*/model.py` değişikliği = ayrı küçük PR + kullanıcı onayı).
+> Kaynak: `yol-haritasi/dalga-6-ve-sonrasi.md` (B2, G10) ve `yol-haritasi/sinirlar-malzeme-analiz.md` bölüm 2.
+
+## Amaç
+Bugün malzeme bilgisi dört yere dağılmış durumda. `core.model.Material(name, E, nu, rho)` yalnız FEM içindir. `assy/bom.py`
+yoğunluğu ayrı bir sayı ya da sözlük olarak alır. `cam.model.Tool.cutting` kesme verisini serbest bir malzeme adıyla
+anahtarlar. Bileşenin hangi malzemeden olduğu hiçbir yerde yazmaz.
+
+B2 tek bir **malzeme kaydı** (`malzeme.model.Malzeme`) tanımlar. Kayıt; mekanik, ısıl, talaş kaldırma ve maliyet
+özelliklerini, kaynağı ve "tipik değer" bayrağıyla birlikte tutar. Ayrıca montaj bileşenine isteğe bağlı bir malzeme kimliği
+(`Component.material`) ekler.
+
+Bu SPEC yalnız arayüzü ve tutarlılık kurallarını kurar. Gerçek malzeme verisi ve kütüphane SPEC 66'dadır. FEM'in bu kaydı
+kullanması SPEC 56 ve 67'dedir.
+
+## Teori
+
+### Birimler (N – mm – MPa – s – t)
+Kodda birim dönüşümü yapılmaz: kayıttaki her alan aşağıdaki birimdedir. Tablo, alışılmış SI değerinin bu sisteme nasıl
+girildiğini gösterir (veri girişi yapan 66 içindir; kod çevirmez).
+
+| Alan | Sembol | Birim | SI → bu sistem | Çelik örneği |
+|---|---|---|---|---|
+| Elastisite modülü | `E` | MPa | GPa × 1000 | 210000 |
+| Poisson oranı | `nu` | – | aynı | 0.30 |
+| Yoğunluk | `rho` | t/mm³ | kg/m³ × 1e-12 | 7.85e-9 |
+| Akma (%0.2) | `Rp02` | MPa | aynı | 355 |
+| Çekme dayanımı | `Rm` | MPa | aynı | 600 |
+| Kopma uzaması | `A` | % | aynı | 16 |
+| Yorulma sınırı (dönen eğme, R = −1) | `sigma_f` | MPa | aynı | 270 |
+| Isıl iletkenlik | `k` | mW/(mm·K) | W/(m·K) × 1 | 50 |
+| Özgül ısı | `cp` | mJ/(t·K) | J/(kg·K) × 1e6 | 4.6e8 |
+| Isıl genleşme | `alpha` | 1/K | aynı | 1.2e-5 |
+| Özgül kesme kuvveti | `kc11` | MPa (N/mm²) | aynı | 1700 |
+| Kienzle üssü | `mc` | – | aynı | 0.25 |
+| Fiyat | `fiyat` | €/kg | aynı | 1.2 |
+
+İki birimin türetilmesi:
+- Isıl iletkenlik: N·mm/s = mW. `1 W/(m·K) = 1000 mW / (1000 mm·K) = 1 mW/(mm·K)`, yani sayı değişmez.
+- Özgül ısı: `1 J/(kg·K) = 1000 mJ / (1e-3 t·K) = 1e6 mJ/(t·K)`.
+
+Kayma modülü saklanmaz, `G = E / (2(1 + ν))` olarak türetilir.
+
+### Kesme verisi
+`cam.model.CuttingData` ile aynı anlam ve birim kullanılır:
+- `Vc` m/dk, `fz` mm/diş (frezede) ya da `fn` mm/dev (tornada).
+- Taylor takım ömrü `Vc · T^n = C`. `T` dk, `C` m/dk, `n` boyutsuz.
+- Kienzle kesme kuvveti `Fc = kc11 · b · h^(1−mc)`. `b` ve `h` mm, sonuç N. Hesabın kendisi SPEC 32'dedir; burada yalnız
+  katsayı saklanır.
+
+Kesme verisi takım malzemesine göre anahtarlanır. Takım malzemesi kümesi sabittir:
+`"HSS"`, `"karbur"`, `"kaplamali_karbur"`, `"sermet"`, `"seramik"`, `"CBN"`, `"PCD"`.
+
+### Tutarlılık kuralları (kayıt kurulurken denetlenir)
+1. `name` ve `id` boş olmayan metindir. `id` yalnız `[A-Za-z0-9._-]` karakterlerinden oluşur, çünkü dosya adı, JSON
+   anahtarı ve `Tool.cutting` anahtarı olarak kullanılır.
+2. Verilen her sayı sonludur (`nan` ve `inf` → `ModelError`).
+3. `E > 0` ve `0 < ν < 0.5`.
+4. `rho`, `Rp02`, `Rm`, `sigma_f`, `k`, `cp`, `kc11`, `fiyat` verildiyse `> 0` olur. `alpha` verildiyse `≥ 0` olur
+   (Invar benzeri malzemeler için sıfır geçerlidir).
+5. `Rp02` ve `Rm` ikisi de verildiyse `Rp02 ≤ Rm`.
+6. `sigma_f` ve `Rm` ikisi de verildiyse `sigma_f < Rm`.
+7. `0 ≤ A ≤ 100` ve `0 < mc < 1`. `iso513` verildiyse `"P", "M", "K", "N", "S", "H"` harflerinden biridir.
+8. Taylor için `C > 0` ve `0 < n < 1`. Kesme önerilerinde `Vc > 0` ve (`fz > 0` ya da `fn > 0`).
+9. `kaynak` boş olamaz. Uydurma veri yasaktır: her kaydın bir kaynak satırı vardır. Kaynak bir standart, bir üretici
+   kataloğu ya da bir el kitabı olabilir. Değer kaynaktaki aralığın tipik orta noktasıysa `tipik = True` olur.
+
+Eksik alan **istenince** hata verir. Kayıt eksik alanla kurulabilir (POM için `kc11` ya da `sigma_f` yoksa sorun yok).
+Ancak bir hesap o alanı isterse `ModelError` fırlatılır. Hata mesajı malzemenin ve alanın adını içerir. Sessiz `0` ya da
+`nan` dönmez.
+
+## Dosyalar
+- **Yeni:**
+  - `malzeme/__init__.py`, `malzeme/model.py`
+  - `tests/malzeme/__init__.py`, `tests/malzeme/test_model.py`
+  - `tests/assy/test_bilesen_malzeme.py`
+  - `specs/B2-malzeme-arayuz.md`, `durum/B2-malzeme-arayuz.md`
+- **Değişecek:** `assy/model.py`
+  - `Component.material` alanı eklenir.
+  - `Component.__eq__` ve `Assembly.to_dict` / `from_dict` bu alanı taşır.
+- **Ortak dosya, ayrı küçük PR:** `pyproject.toml` (`malzeme*` paketinin `packages.find` listesine eklenmesi). Sahibi
+  "Durum tablosu ve kurulum belgeleri" thread'idir. Testler `pythonpath = ["."]` ile o PR olmadan da çalışır.
+- **Dokunulmayacak:**
+  - `core/model.py`: FEM `Material` değişmez, köprü `Malzeme.fem_malzemesi()` ile kurulur.
+  - `cam/model.py`: `CuttingData` aynen kullanılır.
+  - `geometry/`, `assy/bom.py` (bağlantı SPEC 66'dadır), `fileio/` (proje dosyası SPEC 37'nin şemasıdır, bkz. Bağımlılık).
+
+Bağımlılık yönü: `malzeme` → `core.model`, `cam.model`. Bu ikisi yalnız `fem_malzemesi()` ve `kesme_verisi()` içinde,
+geç import ile kullanılır. `malzeme/model.py` saf Python + numpy'dir ve OCCT gerektirmez. `core`, `cam`, `assy` ve
+`geometry` paketleri `malzeme`'ye bağımlı olmaz. `Component.material` yalnız bir metin kimliğidir.
+
+## Arayüz
+
+### `malzeme/model.py`
+```python
+TAKIM_MALZEMELERI = ("HSS", "karbur", "kaplamali_karbur", "sermet", "seramik", "CBN", "PCD")
+GRUPLAR = ("celik", "paslanmaz", "dokme_demir", "aluminyum", "bakir", "titanyum", "nikel", "plastik", "diger")
+
+
+@dataclass(frozen=True)
+class Taylor:
+    C: float  # m/dk, T = 1 dk'daki kesme hızı
+    n: float  # Vc · T^n = C
+
+    def omur(self, Vc: float) -> float: ...  # dk; T = (C / Vc)^(1/n), Vc ≤ 0 → ModelError
+
+
+@dataclass(frozen=True)
+class KesmeOnerisi:
+    Vc: float  # m/dk
+    fz: float | None = None  # mm/diş (freze)
+    fn: float | None = None  # mm/dev (torna); ikisinden en az biri
+
+
+@dataclass(frozen=True)
+class Malzeme:
+    id: str  # "1.0503", "EN-AW-6061-T6", "POM-C": benzersiz anahtar
+    name: str  # "C45", "EN AW-6061-T6"
+    standart: str  # "EN 10083-2", "EN 573-3", "" (standart yoksa)
+    grup: str  # GRUPLAR'dan biri
+    kaynak: str  # kaynak satırı, boş olamaz
+    iso513: str | None = None  # ISO 513 talaş grubu: "P", "M", "K", "N", "S", "H" (plastik için None)
+    tipik: bool = True  # değerler aralığın tipik orta noktası mı
+    kullanici: bool = False  # kullanıcının eklediği kayıt
+    # mekanik
+    E: float | None = None
+    nu: float | None = None
+    rho: float | None = None
+    Rp02: float | None = None
+    Rm: float | None = None
+    A: float | None = None
+    sertlik: str | None = None  # "HB 210", "HRC 28", serbest metin (sayısal karşılaştırma yok)
+    sigma_f: float | None = None
+    # ısıl
+    k: float | None = None
+    cp: float | None = None
+    alpha: float | None = None
+    # talaş kaldırma
+    kc11: float | None = None
+    mc: float | None = None
+    taylor: Mapping[str, Taylor] = field(default_factory=dict)  # anahtar: TAKIM_MALZEMELERI
+    kesme: Mapping[str, KesmeOnerisi] = field(default_factory=dict)  # anahtar: TAKIM_MALZEMELERI
+    # maliyet
+    fiyat: float | None = None  # €/kg
+
+    def iste(self, alan: str) -> float: ...  # None → ModelError("'C45' malzemesinde 'k' yok")
+    @property
+    def G(self) -> float: ...  # E/(2(1+ν)); E veya ν yoksa ModelError
+    def fem_malzemesi(self) -> core.model.Material: ...  # Material(name=id, E, nu, rho); rho yoksa 0.0
+    def kesme_verisi(self, takim: str, ap: float, ae: float | None = None) -> cam.model.CuttingData: ...
+    def to_dict(self) -> dict: ...  # None alanlar yazılmaz; JSON'a doğrudan uygun
+    @classmethod
+    def from_dict(
+        cls, d: dict
+    ) -> "Malzeme": ...  # bilinmeyen anahtar → ModelError (yazım hatası sessiz geçmez)
+```
+
+Ayrıntılar:
+- `taylor` ve `kesme` kurulumda salt okunur sözlüğe (`MappingProxyType`) çevrilir. Bu sayede dondurulmuş kayıt
+  değiştirilemez ve `Malzeme` hashlenebilir kalır (sözlük alanları hash'e katılmaz, eşitliğe katılır).
+- `fem_malzemesi()` için `E` ve `ν` zorunludur. Ad olarak `id` kullanılır, böylece ağda `Element.material == Malzeme.id`
+  olur. `rho` yoksa `0.0` yazılır; modal ve ağırlık hesabı zaten `rho ≤ 0` için `ModelError` verir (SPEC 45).
+- `kesme_verisi(takim, ap, ae)` `kesme[takim]`'dan bir `cam.model.CuttingData` kurar. `takim` kümede değilse ya da kayıtta
+  bu takım için öneri yoksa `ModelError` fırlatılır. `ap` ve `ae` kullanıcıdan gelir; malzeme kesme derinliği önermez.
+
+### `assy/model.py` eki
+```python
+@dataclass
+class Component:
+    name: str
+    part: str
+    T: np.ndarray = field(default_factory=lambda: np.eye(4))
+    fixed: bool = False
+    material: str | None = None  # malzeme.model.Malzeme.id; None = atanmamış
+```
+- `__eq__` `(name, part, fixed, material)` ve `np.array_equal(T)` karşılaştırır.
+- `__post_init__`: `material` `None` ya da boş olmayan metindir, aksi halde `AssyError`. Kimliğin kütüphanede var olup
+  olmadığını `assy` bilmez. Bu denetim SPEC 66 köprüsündedir.
+- `Assembly.to_dict` `"material"` anahtarını yalnız `None` değilse yazar. `from_dict` anahtar yoksa `None` okur. Eski
+  JSON dosyaları ve eski testler değişmeden geçer.
+
+## Kabul kriterleri
+- [ ] **K1** Birim sabitleri: çelik örneği (tablodaki satır) kurulur ve:
+  - `G = 80769.23…` MPa (göreli 1e-12)
+  - `fem_malzemesi()` `Material("…", 210000, 0.3, 7.85e-9)` döndürür
+  - 10 mm küpün kütlesi `rho · 1000 = 7.85e-6 t = 7.85 g`
+- [ ] **K2** Tutarlılık reddi: her kural için en az bir örnek, her biri `ModelError` vermeli:
+  - `ν = 0.5`, `ν = 0`, `E = 0`
+  - `Rp02 = 400 > Rm = 350`, `sigma_f ≥ Rm`
+  - `rho = −1`, `k = nan`, `mc = 1`, `A = 120`
+  - Taylor `n = 1`, öneride ne `fz` ne `fn`
+  - boş `kaynak`, `id = "C 45"` (boşluk), `grup = "tahta"`, `iso513 = "X"`
+  - `taylor` anahtarı `"elmas"` (kümede yok)
+- [ ] **K3** Eksik alan istenince hata, kurulumda değil:
+  - Yalnız `E`, `ν` ve `rho` verilen kayıt kurulur.
+  - `iste("k")`, `kesme_verisi("karbur", 2.0)` ve `taylor["karbur"]` yolları `ModelError` ya da `KeyError` yerine
+    açıklayıcı bir `ModelError` verir. Mesajda malzeme adı ve alan adı geçer.
+  - `G` için `ν` yokken `ModelError`.
+- [ ] **K4** Taylor: `C = 300, n = 0.25` için `omur(150) = 16.0` dk (göreli 1e-12) ve `omur(300) = 1.0`. `omur(0)` ve
+  `omur(-5)` için `ModelError`.
+- [ ] **K5** Kesme köprüsü: `kesme = {"karbur": KesmeOnerisi(Vc=200, fz=0.1)}` iken
+  `kesme_verisi("karbur", ap=2, ae=5)` `CuttingData(Vc=200, fz=0.1, ap=2, ae=5)` ile alan alan eşittir.
+  `"HSS"` için öneri yoksa `ModelError`.
+- [ ] **K6** Gidiş-dönüş:
+  - Tüm alanları dolu ve yarı boş iki kayıt için `Malzeme.from_dict(m.to_dict()) == m`.
+  - `to_dict()` `json.dumps` ile hatasız yazılır; `None` alan anahtar olarak çıkmaz.
+  - Bilinmeyen anahtar (`"Rp0.2"`) `ModelError` verir.
+- [ ] **K7** Dondurulmuşluk: `m.E = 1` ve `m.taylor["karbur"] = …` hata verir. `hash(m)` çalışır.
+- [ ] **K8** `Component.material`:
+  - Varsayılan `None`.
+  - `material = ""` → `AssyError`.
+  - Malzemesi farklı iki bileşen eşit değildir.
+  - `Assembly.to_dict` malzemesiz bileşende `"material"` anahtarı yazmaz.
+  - Malzemeli bileşen gidiş-dönüşte korunur.
+  - Mevcut `tests/assy/` testlerinin hepsi değişmeden geçer (geriye uyumluluk).
+- [ ] **K9** Bağımlılık yönü: `import malzeme.model` `core`, `cam` ve `OCP` / `build123d` modüllerini **yüklemez**
+  (`sys.modules` denetimi; köprüler geç import eder). `core`, `cam`, `assy`, `geometry` kaynaklarında
+  `import malzeme` geçmez (metin taraması).
+- [ ] **K10** `ruff check .` temiz, `pytest` yeşil, OCCT ve gmsh gerekmez.
+
+## Kararlar (uygulama sırasında netleşen)
+- **Hata sınıfı:** `malzeme.model.ModelError(ValueError)`. K9 `import malzeme.model`'in `core`'u yüklememesini istediği
+  için `core.model.ModelError` buradan içe alınamaz; aynı anlamdaki hata paketin kendisinde tanımlıdır. Bu SPEC'te
+  "`ModelError`" geçen her yer bu sınıftır.
+- **Salt okunur sözlük:** `taylor` ve `kesme` `MappingProxyType` yerine `malzeme.model.SaltOkunurSozluk`'e çevrilir
+  (salt okunur `Mapping`). Eksik anahtarda K3'ün istediği açıklayıcı hatayı verir: fırlatılan sınıf hem `ModelError`
+  hem `KeyError`'dır, böylece `.get()` ve `in` normal çalışır. Değiştirme denemesi `TypeError` verir (K7).
+- **`Component` eki** iskelet commit'inde tam yazılır: mevcut tüm `assy` testleri bileşen kurduğu için doğrulama
+  `NotImplementedError` olamaz.
+
+## Bağımlılık
+- Kod bağımlılığı yok. Mevcut `core/model.py`, `cam/model.py` ve `assy/model.py` yeterlidir.
+- **SPEC 37 (proje dosyası, #70):** proje dosyası montajı `Assembly.to_dict` ile yazıyorsa `material` alanı kendiliğinden
+  taşınır. Kendi şemasını yazıyorsa 37'nin sahibi B2 birleştikten sonra o alanı ekler. Bu küçük bir ektir ve koordinatör
+  37 thread'ine iletir.
+- Bu SPEC'i kullananlar: 66 (kütüphane), 56 (`k`), 67 (`alpha`, `Rp02`, `rho`), 32 (`kc11`, `mc`), 58 (`fiyat`),
+  59 (`taylor`), 61 (DFM).
+
+## Kapsam dışı
+- Gerçek malzeme verisi ve kütüphane dosyası: SPEC 66.
+- Sıcaklığa bağlı özellikler (`E(T)`, `k(T)`), S-N eğrisinin tamamı, anizotropik malzemeler, plastisite eğrisi: Dalga 7
+  (A12 yorulma, A11 termo-mekanik).
+- Sertlik birimleri arası dönüşüm (HB ↔ HRC): yalnız metin olarak saklanır.
+- Arayüzde (Tezgah) malzeme seçici: SPEC 47 ekranları.
