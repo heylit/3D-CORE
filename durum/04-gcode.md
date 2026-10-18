@@ -3,7 +3,7 @@
 Dal: `claude/project-thread-5ai6c8` · Oturum: bulut
 
 ## Sıradaki adım
-Ek C (güvenli Z kesme seviyesinin üstünde, `stock_top`) onaylandı (09:24/09:27); `stock_top` iskeleti push edildi, test oturumu bekleniyor · Dal: `claude/project-thread-ulgwqc`.
+Ek C (güvenli Z kesme seviyesinin üstünde, `stock_top`) onaylandı ve uygulandı: testler 95d273c (ayrı oturum), kod ayrı commit'te. · Dal: `claude/project-thread-ulgwqc`.
 
 Ek B (tezgâh güvenliği) düzeltme PR'ının incelemesi ve birleşmesi. Sonra: bağımsız yorumlayıcıyla
 çapraz kontrol (inceleme Y1), GRBL'de takım boyu.

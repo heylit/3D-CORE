@@ -226,6 +226,25 @@ def _z_kesme(ops: list[Toolpath | DrillOp]) -> float:
     return z
 
 
+def _stok_ustu(ops: list[Toolpath | DrillOp], dialect: Dialect, safe_z: float, stock_top: float) -> None:
+    """Ek C2: safe_z > stock_top; hiçbir XY hızlı hareket stock_top altında değil (DrillOp: açılımı)."""
+    if not math.isfinite(stock_top):
+        raise CamError(f"stock_top sonlu olmalı ({stock_top})")
+    if not safe_z > stock_top:
+        raise CamError(f"safe_z ({safe_z}) ham malzeme üstünden ({stock_top}) yüksek olmalı (Ek C2)")
+    for op in ops:
+        tp = op if isinstance(op, Toolpath) else op.to_toolpath(dialect)
+        p0 = tp.start
+        for i, m in enumerate(tp.moves):
+            xy = math.dist(p0[:2], m.end[:2]) > 1e-9
+            if m.type is MoveType.RAPID and xy and min(p0[2], m.end[2]) < stock_top:
+                z = min(p0[2], m.end[2])
+                raise CamError(
+                    f"'{op.name}' hareket {i}: Z={z} < stock_top={stock_top} iken XY hızlı hareket (Ek C2)"
+                )
+            p0 = m.end
+
+
 def write(
     ops: list[Toolpath | DrillOp],
     dialect: Dialect = GRBL,
@@ -240,8 +259,6 @@ def write(
     `stock_top`: ham malzeme üstü [mm] (Ek C2); verilirse altında XY hızlı hareket yasak.
     Dönen metin satırları '\\n' ile ayrılır ve '\\n' ile biter.
     """
-    if stock_top is not None:
-        raise NotImplementedError("SPEC 04 Ek C2: stock_top")
     for op in ops:
         if isinstance(op, Toolpath):
             op.validate()
@@ -255,8 +272,13 @@ def write(
         safe_z = z_top
     elif not math.isfinite(safe_z) or safe_z < z_top:
         raise CamError(f"Güvenli Z ({safe_z}) en yüksek op başından ({z_top}) alçak olamaz")
-    if not safe_z > _z_kesme(ops):
-        raise NotImplementedError("SPEC 04 Ek C1: safe_z kesme seviyesinin üstünde olmalı")
+    z_kesme = _z_kesme(ops)
+    if not safe_z > z_kesme:
+        raise CamError(
+            f"safe_z ({safe_z}) kesme seviyesinin ({z_kesme}) üstünde olmalı; yüksek safe_z verin (Ek C1)"
+        )
+    if stock_top is not None:
+        _stok_ustu(ops, dialect, float(safe_z), stock_top)
     w = _Writer(dialect, program_no)
     w.safe_z = float(safe_z)
     w.header()
