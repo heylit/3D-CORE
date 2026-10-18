@@ -25,6 +25,7 @@ DIST_REL = 1e-12  # dist(q, [a, b]) ≥ r(1 − DIST_REL): adımın kendi süpü
 SCAN = math.radians(10.0)  # yön taramasının adımı
 BISECT = 7  # yön ikiye bölme sayısı (10° / 2⁷ ≈ 0,08°)
 SCREEN_N = 90  # yeni geçiş başlangıcı ararken çevre örnek sayısı
+CORNER_STEPS = 6  # köşe açıortayında en çok adım
 
 
 def _num(nerede: str, v) -> float:
@@ -971,7 +972,8 @@ class _Adaptive:
 
     def corner_visits(self, comp: Region, plan: _Plan, cur: np.ndarray) -> np.ndarray:
         """Köşeye açıortay boyunca, φ ≤ φ_t kalan en derin noktaya kadar gir (köşe kalıntısının yanındaki
-        iç hücreler için); giriş noktası diski boş bir noktadır."""
+        iç hücreler için); giriş noktası diski boş bir noktadır. Her adım kalıntıyı biraz keser, bu yüzden
+        aynı açıortayda daha derine birkaç kısa adım daha denenir (köşenin kendisinde ızgaradaki φ şişer)."""
         for v, u in self.corners(comp):
             p0 = v + self.step * u
             if not self.valid(p0):
@@ -979,22 +981,29 @@ class _Adaptive:
             run = self.approach(p0)
             if not run:
                 continue
-            lo, hi = 0.0, self.step  # hi: iyi (p0'ın kendisi), lo: köşe
-            best = None
-            for _ in range(12):
-                t = 0.5 * (lo + hi)
-                b = v + t * u
-                if self.valid(b) and self.phi(p0, b) <= self.phi_t:
-                    hi, best = t, b
-                else:
-                    lo = t
-            if best is None or not self.useful(p0, best):
+            a, t_a = p0, self.step
+            pts: list[np.ndarray] = []
+            for _ in range(CORNER_STEPS):
+                lo, hi = 0.0, t_a  # hi: iyi (a'nın kendisi), lo: köşe
+                best = None
+                for _ in range(12):
+                    t = 0.5 * (lo + hi)
+                    b = v + t * u
+                    if self.valid(b) and self.phi(a, b) <= self.phi_t:
+                        hi, best = t, b
+                    else:
+                        lo = t
+                if best is None or not self.useful(a, best):
+                    break
+                self.max_phi = max(self.max_phi, self.phi(a, best))
+                self.grid.cut_segment(a, best, self.r)
+                pts.append(best)
+                a, t_a = best, hi
+            if not pts:
                 if len(run) > 1:  # yaklaşma adımı kesildi: geçiş olarak yaz
                     cur = self.flush(plan, run, cur)
                 continue
-            self.max_phi = max(self.max_phi, self.phi(p0, best))
-            self.grid.cut_segment(p0, best, self.r)
-            cur = self.flush(plan, run + [best], cur)
+            cur = self.flush(plan, run + pts, cur)
         return cur
 
     def cleanup(self, comp: Region, plan: _Plan, cur: np.ndarray) -> np.ndarray:

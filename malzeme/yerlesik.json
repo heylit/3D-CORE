@@ -1,0 +1,370 @@
+{
+ "surum": 1,
+ "malzemeler": [
+  {
+   "id": "1.0038",
+   "name": "S235JR",
+   "standart": "EN 10025-2",
+   "grup": "celik",
+   "kaynak": "Rp02/Rm/A: EN 10025-2:2019 oda sicakligi cekme ozellikleri, alt sinir (ReH min t<=16 mm = Rp02 yerine; Rm 360-510 alt siniri, 3<=t<=100; A min boyuna 3<t<=40) - tipik degil; E/nu/alpha: EN 1993-1-1:2005 3.2.6 (E=210000, nu=0.3, alpha=12e-6); rho: EN 1991-1-1:2002 Ek A Tablo A.4 (celik 78.5 kN/m3 -> 7850 kg/m3); k/cp: EN 1993-1-2:2005 3.4.1 formulleri 20 C'de (k = 54 - 3.33e-2*T = 53.3; cp = 439.8 J/(kg K)); kc11/mc: ISCAR 'Materials and Grades' VDI 3323 malzeme grubu tablosu (iscar.com Materials-group.pdf, kc1 = 1 mm2 talas kesiti icin), grup 1 (alasimsiz, C<0.25%); kesme: HAIMER MILL F2004NN katalog s. 64 kesme verisi (karbur parmak freze, Ø10, kanal ae=100% D, ap=1xD; Vc aralik orta noktasi, fz '100% Ø' satiri; grup P1) - oneri, baslangic degeri",
+   "iso513": "P",
+   "tipik": false,
+   "kullanici": false,
+   "E": 210000,
+   "nu": 0.3,
+   "rho": 7.85e-09,
+   "Rp02": 235,
+   "Rm": 360,
+   "A": 26,
+   "k": 53.3,
+   "cp": 439800000.0,
+   "alpha": 1.2e-05,
+   "kc11": 1350,
+   "mc": 0.21,
+   "kesme": {
+    "karbur": {
+     "Vc": 265,
+     "fz": 0.055
+    }
+   }
+  },
+  {
+   "id": "1.0577",
+   "name": "S355J2",
+   "standart": "EN 10025-2",
+   "grup": "celik",
+   "kaynak": "Rp02/Rm/A: EN 10025-2:2019 oda sicakligi cekme ozellikleri, alt sinir (ReH min t<=16 mm = Rp02 yerine; Rm 470-630 alt siniri; A min boyuna) - tipik degil; E/nu/alpha: EN 1993-1-1:2005 3.2.6 (E=210000, nu=0.3, alpha=12e-6); rho: EN 1991-1-1:2002 Ek A Tablo A.4 (celik 78.5 kN/m3 -> 7850 kg/m3); k/cp: EN 1993-1-2:2005 3.4.1 formulleri 20 C'de (k = 54 - 3.33e-2*T = 53.3; cp = 439.8 J/(kg K)); kc11/mc: ISCAR 'Materials and Grades' VDI 3323 malzeme grubu tablosu (iscar.com Materials-group.pdf, kc1 = 1 mm2 talas kesiti icin), grup 1 (alasimsiz, C<0.25%; belirsiz: Rm'e gore grup 2 de savunulabilir); kesme: HAIMER MILL F2004NN katalog s. 64 kesme verisi (karbur parmak freze, Ø10, kanal ae=100% D, ap=1xD; Vc aralik orta noktasi, fz '100% Ø' satiri; grup P1) - oneri, baslangic degeri",
+   "iso513": "P",
+   "tipik": false,
+   "kullanici": false,
+   "E": 210000,
+   "nu": 0.3,
+   "rho": 7.85e-09,
+   "Rp02": 355,
+   "Rm": 470,
+   "A": 22,
+   "k": 53.3,
+   "cp": 439800000.0,
+   "alpha": 1.2e-05,
+   "kc11": 1350,
+   "mc": 0.21,
+   "kesme": {
+    "karbur": {
+     "Vc": 265,
+     "fz": 0.055
+    }
+   }
+  },
+  {
+   "id": "1.0503",
+   "name": "C45 (+N)",
+   "standart": "EN 10083-2",
+   "grup": "celik",
+   "kaynak": "Rp02/Rm/A: EN 10083-2 +N, 16<d<=100 mm alt sinir (thyssenkrupp Materials Schweiz C45E veri sayfasi 05/21'deki tablo) - tipik degil; E/k/cp/alpha: Deutsche Edelstahlwerke veri sayfasi 'C45E/C45R' (1.1191/1.1201) 08.2011, 20 C (alpha 20-100 C, yumusak tavli); C45E kimyasi C45 ile ayni C/Mn araligi; rho: EN 1991-1-1:2002 Ek A Tablo A.4 (celik 78.5 kN/m3 -> 7850 kg/m3; DEW sayfasindaki 7.70 baski hatasi kabul edildi); nu: EN 1993-1-1:2005 3.2.6 yapisal celik degeri, bu sinifa benzetme (sinifa ozel kaynak bulunamadi); kc11/mc: ISCAR 'Materials and Grades' VDI 3323 malzeme grubu tablosu (iscar.com Materials-group.pdf, kc1 = 1 mm2 talas kesiti icin), grup 2 (alasimsiz, C>=0.25%, tavli, 650 N/mm2); kesme: HAIMER MILL F2004NN katalog s. 64 kesme verisi (karbur parmak freze, Ø10, kanal ae=100% D, ap=1xD; Vc aralik orta noktasi, fz '100% Ø' satiri; grup P1 (katalogda C45 acikca listeli)) - oneri, baslangic degeri",
+   "iso513": "P",
+   "tipik": false,
+   "kullanici": false,
+   "E": 210000,
+   "nu": 0.3,
+   "rho": 7.85e-09,
+   "Rp02": 305,
+   "Rm": 580,
+   "A": 16,
+   "k": 42.6,
+   "cp": 470000000.0,
+   "alpha": 1.11e-05,
+   "kc11": 1500,
+   "mc": 0.22,
+   "kesme": {
+    "karbur": {
+     "Vc": 265,
+     "fz": 0.055
+    }
+   }
+  },
+  {
+   "id": "1.7225",
+   "name": "42CrMo4 (+QT)",
+   "standart": "EN 10083-3",
+   "grup": "celik",
+   "kaynak": "Rp02/Rm/A: EN 10083-3:2007 +QT, 16<d<=40 mm alt sinir (Re min 750, Rm 1000-1200 alt siniri, A min 11; thyssenkrupp Materials Services veri sayfasi MX/TIS-TS_00/01.2017 tablosu) - tipik degil; rho/E/k/cp/alpha: ayni thyssenkrupp veri sayfasi, 20 C gosterge degerleri (alpha 20-100 C); nu: EN 1993-1-1:2005 3.2.6 yapisal celik degeri, bu sinifa benzetme (sinifa ozel kaynak bulunamadi); kc11/mc: ISCAR 'Materials and Grades' VDI 3323 malzeme grubu tablosu (iscar.com Materials-group.pdf, kc1 = 1 mm2 talas kesiti icin), grup 8 (dusuk alasimli, islah, 1000 N/mm2); kesme: HAIMER MILL F2004NN katalog s. 64 kesme verisi (karbur parmak freze, Ø10, kanal ae=100% D, ap=1xD; Vc aralik orta noktasi, fz '100% Ø' satiri; grup P2 (katalogda 42CrMo4 acikca listeli)) - oneri, baslangic degeri",
+   "iso513": "P",
+   "tipik": false,
+   "kullanici": false,
+   "E": 212000,
+   "nu": 0.3,
+   "rho": 7.85e-09,
+   "Rp02": 750,
+   "Rm": 1000,
+   "A": 11,
+   "k": 45.1,
+   "cp": 461000000.0,
+   "alpha": 1.21e-05,
+   "kc11": 1725,
+   "mc": 0.24,
+   "kesme": {
+    "karbur": {
+     "Vc": 200,
+     "fz": 0.055
+    }
+   }
+  },
+  {
+   "id": "1.2312",
+   "name": "40CrMnMoS8-6 (P20+S)",
+   "standart": "EN ISO 4957",
+   "grup": "celik",
+   "kaynak": "Rp02/Rm: Uddeholm Holdax (W.-Nr. 1.2312) teknik veri sayfasi Edition 6, 11.2017, oda sicakligi cekme ozellikleri (290-330 HB islah; Rp0.2 750-950, Rm 800-1100 N/mm2) - aralik alt siniri, tipik degil; sertlik: Dorrenberg 1.2312 veri sayfasi 02/24 (teslim 280-325 HB; ayni sayfa Rm 950-1100 N/mm2 verir, DIN EN ISO 18265 donusumu); rho/E/k/cp/alpha: voestalpine BOHLER M200 (1.2312 SEL) veri sayfasi M200 EN_GB 09.2026, 20 C (alpha 20-100 C); nu: EN 1993-1-1:2005 3.2.6 yapisal celik degeri, bu sinifa benzetme (sinifa ozel kaynak bulunamadi); kc11/mc: ISCAR 'Materials and Grades' VDI 3323 malzeme grubu tablosu (iscar.com Materials-group.pdf, kc1 = 1 mm2 talas kesiti icin), grup 11 (yuksek alasimli/takim celigi, islah, 1100 N/mm2, 325 HB); kesme: HAIMER MILL F2004NN katalog s. 64 kesme verisi (karbur parmak freze, Ø10, kanal ae=100% D, ap=1xD; Vc aralik orta noktasi, fz '100% Ø' satiri; grup P2 (>800 N/mm2, <=45 HRC)) - oneri, baslangic degeri",
+   "iso513": "P",
+   "tipik": false,
+   "kullanici": false,
+   "E": 210000,
+   "nu": 0.3,
+   "rho": 7.85e-09,
+   "Rp02": 750,
+   "Rm": 800,
+   "sertlik": "280-325 HB (islah edilmis teslim)",
+   "k": 33,
+   "cp": 460000000.0,
+   "alpha": 1.28e-05,
+   "kc11": 2500,
+   "mc": 0.23,
+   "kesme": {
+    "karbur": {
+     "Vc": 200,
+     "fz": 0.055
+    }
+   }
+  },
+  {
+   "id": "1.4301",
+   "name": "X5CrNi18-10 (304)",
+   "standart": "EN 10088-3",
+   "grup": "paslanmaz",
+   "kaynak": "Rp02/Rm/A: EN 10088-3:2014 ostenitik cubuk, +AT, d<=160 mm alt sinir (Rp0.2 min 190, Rm 500-700 alt siniri, A min boyuna 45) - tipik degil; rho/E/k/cp/alpha: EN 10088-1:2014 fiziksel ozellikler eki, 20 C (alpha 20-100 C) (cromostal.pl ve tubingchina.com yeniden uretimleriyle dogrulandi); nu: EN 1993-1-4:2006 2.1 (paslanmaz celik nu=0.3); kc11/mc: ISCAR 'Materials and Grades' VDI 3323 malzeme grubu tablosu (iscar.com Materials-group.pdf, kc1 = 1 mm2 talas kesiti icin), grup 14 (ostenitik paslanmaz); kesme: HAIMER MILL F2004NN katalog s. 64 kesme verisi (karbur parmak freze, Ø10, kanal ae=100% D, ap=1xD; Vc aralik orta noktasi, fz '100% Ø' satiri, M icin kanal frezede %30 azaltildi; grup M1 (katalogda X5CrNi18-10 acikca listeli)) - oneri, baslangic degeri",
+   "iso513": "M",
+   "tipik": false,
+   "kullanici": false,
+   "E": 200000,
+   "nu": 0.3,
+   "rho": 7.9e-09,
+   "Rp02": 190,
+   "Rm": 500,
+   "A": 45,
+   "k": 15,
+   "cp": 500000000.0,
+   "alpha": 1.6e-05,
+   "kc11": 2150,
+   "mc": 0.2,
+   "kesme": {
+    "karbur": {
+     "Vc": 102.5,
+     "fz": 0.0385
+    }
+   }
+  },
+  {
+   "id": "1.4404",
+   "name": "X2CrNiMo17-12-2 (316L)",
+   "standart": "EN 10088-3",
+   "grup": "paslanmaz",
+   "kaynak": "Rp02/Rm/A: EN 10088-3:2014 ostenitik cubuk, +AT, d<=160 mm alt sinir (Rp0.2 min 200, Rm 500-700 alt siniri, A min boyuna 40) - tipik degil; rho/E/k/cp/alpha: EN 10088-1:2014 fiziksel ozellikler eki, 20 C (alpha 20-100 C) (cromostal.pl ve tubingchina.com yeniden uretimleriyle dogrulandi); nu: EN 1993-1-4:2006 2.1 (paslanmaz celik nu=0.3); kc11/mc: ISCAR 'Materials and Grades' VDI 3323 malzeme grubu tablosu (iscar.com Materials-group.pdf, kc1 = 1 mm2 talas kesiti icin), grup 14 (ostenitik paslanmaz); kesme: HAIMER MILL F2004NN katalog s. 64 kesme verisi (karbur parmak freze, Ø10, kanal ae=100% D, ap=1xD; Vc aralik orta noktasi, fz '100% Ø' satiri, M icin kanal frezede %30 azaltildi; grup M2 (katalogda X2CrNiMo17-12-2 acikca listeli)) - oneri, baslangic degeri",
+   "iso513": "M",
+   "tipik": false,
+   "kullanici": false,
+   "E": 200000,
+   "nu": 0.3,
+   "rho": 8e-09,
+   "Rp02": 200,
+   "Rm": 500,
+   "A": 40,
+   "k": 15,
+   "cp": 500000000.0,
+   "alpha": 1.6e-05,
+   "kc11": 2150,
+   "mc": 0.2,
+   "kesme": {
+    "karbur": {
+     "Vc": 82.5,
+     "fz": 0.0385
+    }
+   }
+  },
+  {
+   "id": "EN-GJL-250",
+   "name": "GG25",
+   "standart": "EN 1561",
+   "grup": "dokme_demir",
+   "kaynak": "Rm: EN 1561:2011 ayrica dokulmus numune, Rm 250-350 alt siniri - tipik degil; Rp02: DIKKAT, EN 1561 Ek A Rp0.2 vermez; girilen deger Rp0.1 araliginin (165-228) alt siniridir (Rp0.2 >= Rp0.1, guvenli taraf); E/nu: EN 1561 Ek A bilgi tablosu (E 103-118 GPa orta noktasi 110.5 GPa; nu 0.24-0.26 orta noktasi) - fiziksel sabitler aralik ortasi; rho/k/cp/alpha: EN 1561 Ek A bilgi tablosu (ikincil kaynak: mfgrobots.com EN 1561 GJL-250 sayfasi; rho 7.2 g/cm3 KIPP EN-GJL-250 sayfasiyla dogrulandi); k 20 C, cp 20-200 C, alpha 100 C satiri; sertlik: KIPP (kippusa.com) EN-GJL-250 malzeme sayfasi; kc11/mc: ISCAR 'Materials and Grades' VDI 3323 malzeme grubu tablosu (iscar.com Materials-group.pdf, kc1 = 1 mm2 talas kesiti icin), grup 15 (lamel grafitli dokme demir, ferritik/perlitik, 180 HB); kesme: HAIMER MILL F2004NN katalog s. 64 kesme verisi (karbur parmak freze, Ø10, kanal ae=100% D, ap=1xD; Vc aralik orta noktasi, fz '100% Ø' satiri; grup K1 (<=450 N/mm2; katalog ornegi EN-GJL-200)) - oneri, baslangic degeri",
+   "iso513": "K",
+   "tipik": false,
+   "kullanici": false,
+   "E": 110500,
+   "nu": 0.25,
+   "rho": 7.2e-09,
+   "Rp02": 165,
+   "Rm": 250,
+   "sertlik": "190-230 HB (kesit <30 mm)",
+   "k": 50,
+   "cp": 460000000.0,
+   "alpha": 1.05e-05,
+   "kc11": 1150,
+   "mc": 0.2,
+   "kesme": {
+    "karbur": {
+     "Vc": 170,
+     "fz": 0.055
+    }
+   }
+  },
+  {
+   "id": "EN-AW-6061-T6",
+   "name": "AlMg1SiCu T6",
+   "standart": "EN 573-3, EN 755-2",
+   "grup": "aluminyum",
+   "kaynak": "Rp02/Rm/A: EN 755-2 T6 ekstrude cubuk alt sinir (Wieland EN AW-6061 veri sayfasi, baski 12/18) - tipik degil; rho/E/k/alpha/sertlik: Wieland EN AW-6061 veri sayfasi 12/18 (k 170-200 araliginin ortasi; alpha 20-100 C); nu: EN 1999-1-1:2007 3.2.5 (aluminyum alasimlari nu=0.3); cp: EN 1999-1-2:2007 3.3.1.2 formulu ca = 0.41*T + 903 J/(kg K), 20 C'de 911.2; kc11/mc: ISCAR 'Materials and Grades' VDI 3323 malzeme grubu tablosu (iscar.com Materials-group.pdf, kc1 = 1 mm2 talas kesiti icin), grup 22 (dovme Al, sertlesebilir); kesme: HAIMER MILL F2004NN katalog s. 64 kesme verisi (karbur parmak freze, Ø10, kanal ae=100% D, ap=1xD; Vc aralik orta noktasi, fz '100% Ø' satiri; grup N1 (dovme Al, Si<9%)) - oneri, baslangic degeri",
+   "iso513": "N",
+   "tipik": false,
+   "kullanici": false,
+   "E": 70000,
+   "nu": 0.3,
+   "rho": 2.7e-09,
+   "Rp02": 240,
+   "Rm": 260,
+   "A": 8,
+   "sertlik": "HBW 95 (tipik)",
+   "k": 185,
+   "cp": 911200000.0,
+   "alpha": 2.3e-05,
+   "kc11": 800,
+   "mc": 0.25,
+   "kesme": {
+    "karbur": {
+     "Vc": 480,
+     "fz": 0.055
+    }
+   }
+  },
+  {
+   "id": "EN-AW-6082-T6",
+   "name": "AlSi1MgMn T6",
+   "standart": "EN 573-3, EN 755-2",
+   "grup": "aluminyum",
+   "kaynak": "Rp02/Rm/A: EN 755-2 T6 ekstrude yuvarlak cubuk 20<D<=150 mm alt sinir (Wieland EN AW-6082 veri sayfasi 12/18; tablo hizalamasi okunurken belirsiz, D<=20 icin 250/295) - tipik degil; rho/E/k/alpha/sertlik: Wieland EN AW-6082 veri sayfasi 12/18 (k 170-220 araliginin ortasi; alpha 20-100 C); nu: EN 1999-1-1:2007 3.2.5 (aluminyum alasimlari nu=0.3); cp: EN 1999-1-2:2007 3.3.1.2 formulu ca = 0.41*T + 903 J/(kg K), 20 C'de 911.2; kc11/mc: ISCAR 'Materials and Grades' VDI 3323 malzeme grubu tablosu (iscar.com Materials-group.pdf, kc1 = 1 mm2 talas kesiti icin), grup 22 (dovme Al, sertlesebilir); kesme: HAIMER MILL F2004NN katalog s. 64 kesme verisi (karbur parmak freze, Ø10, kanal ae=100% D, ap=1xD; Vc aralik orta noktasi, fz '100% Ø' satiri; grup N1 (dovme Al, Si<9%)) - oneri, baslangic degeri",
+   "iso513": "N",
+   "tipik": false,
+   "kullanici": false,
+   "E": 70000,
+   "nu": 0.3,
+   "rho": 2.7e-09,
+   "Rp02": 260,
+   "Rm": 310,
+   "A": 8,
+   "sertlik": "HBW 95 (tipik)",
+   "k": 195,
+   "cp": 911200000.0,
+   "alpha": 2.34e-05,
+   "kc11": 800,
+   "mc": 0.25,
+   "kesme": {
+    "karbur": {
+     "Vc": 480,
+     "fz": 0.055
+    }
+   }
+  },
+  {
+   "id": "EN-AW-7075-T6",
+   "name": "AlZn5,5MgCu T6",
+   "standart": "EN 573-3, EN 755-2",
+   "grup": "aluminyum",
+   "kaynak": "Rp02/Rm/A: EN 755-2 T6/T6510/T6511 ekstrude cubuk 25<D<=100 mm alt sinir (Wieland EN AW-7075 veri sayfasi 12/18) - tipik degil; rho/E/k/alpha/sertlik: Wieland EN AW-7075 veri sayfasi 12/18 (k 130-160 araliginin ortasi; alpha 20-100 C); nu: EN 1999-1-1:2007 3.2.5 (aluminyum alasimlari nu=0.3) (7075 EN 1999-1-1 alasim listesinde yok; genel sabit); cp: EN 1999-1-2:2007 3.3.1.2 formulu ca = 0.41*T + 903 J/(kg K), 20 C'de 911.2 (7xxx icin de ayni formul); kc11/mc: ISCAR 'Materials and Grades' VDI 3323 malzeme grubu tablosu (iscar.com Materials-group.pdf, kc1 = 1 mm2 talas kesiti icin), grup 22 (dovme Al, sertlesebilir); kesme: HAIMER MILL F2004NN katalog s. 64 kesme verisi (karbur parmak freze, Ø10, kanal ae=100% D, ap=1xD; Vc aralik orta noktasi, fz '100% Ø' satiri; grup N1 (dovme Al, Si<9%)) - oneri, baslangic degeri",
+   "iso513": "N",
+   "tipik": false,
+   "kullanici": false,
+   "E": 72000,
+   "nu": 0.3,
+   "rho": 2.8e-09,
+   "Rp02": 500,
+   "Rm": 560,
+   "A": 7,
+   "sertlik": "HBW 150 (tipik)",
+   "k": 145,
+   "cp": 911200000.0,
+   "alpha": 2.34e-05,
+   "kc11": 800,
+   "mc": 0.25,
+   "kesme": {
+    "karbur": {
+     "Vc": 480,
+     "fz": 0.055
+    }
+   }
+  },
+  {
+   "id": "CW614N",
+   "name": "CuZn39Pb3",
+   "standart": "EN 12164",
+   "grup": "bakir",
+   "kaynak": "Rp02/Rm/A: EN 12164 R430 (yuvarlak 15-40 mm) alt sinir (Metall Service Menziken CuZn39Pb3 veri sayfasi) - tipik degil; rho/k/alpha: Metall Service Menziken CW614N veri sayfasi (20 C; alpha 20-100 C); E/cp: Jacques Allemann JAS-035 CW614N veri sayfasi, baski 2021 (20 C); nu: kaynak bulunamadi - bos; kc11/mc: ISCAR 'Materials and Grades' VDI 3323 malzeme grubu tablosu (iscar.com Materials-group.pdf, kc1 = 1 mm2 talas kesiti icin), grup 26 (bakir alasimlari, >1% Pb, otomat); kesme: bu katalogda Cu grubu yok - bos; ν: MakeItFrom.com, UNS C38500 (CuZn39Pb3 eşdeğeri) veri tabanı değeri",
+   "iso513": "N",
+   "tipik": false,
+   "kullanici": false,
+   "E": 97000,
+   "rho": 8.47e-09,
+   "Rp02": 250,
+   "Rm": 430,
+   "A": 10,
+   "k": 123,
+   "cp": 377000000.0,
+   "alpha": 1.93e-05,
+   "kc11": 700,
+   "mc": 0.27,
+   "nu": 0.31
+  },
+  {
+   "id": "Ti-6Al-4V",
+   "name": "Ti Grade 5",
+   "standart": "ASTM B348",
+   "grup": "titanyum",
+   "kaynak": "Rp02/Rm/A: ASTM B348 Grade 5 alt sinir (895/828/10; TIMET TIMETAL 6-4 veri sayfasi TMC-0150 (c)2000 ayni minimumlari ASTM B265 icin verir) - tipik degil; rho/E/nu/k/cp/alpha: TIMET TIMETAL 6-4 veri sayfasi TMC-0150 (20 C; E 107-122 GPa araliginin ortasi; alpha 0-100 C); kc11/mc: ISCAR 'Materials and Grades' VDI 3323 malzeme grubu tablosu (iscar.com Materials-group.pdf, kc1 = 1 mm2 talas kesiti icin), grup 37 (Ti alfa+beta, sertlestirilmis, 1050 N/mm2); kesme: HAIMER MILL F2004NN katalog s. 64 kesme verisi (karbur parmak freze, Ø10, kanal ae=100% D, ap=1xD; Vc aralik orta noktasi, fz '100% Ø' satiri, S icin kanal frezede %30 azaltildi; grup S1 (katalogda TiAl6V4 acikca listeli)) - oneri, baslangic degeri",
+   "iso513": "S",
+   "tipik": false,
+   "kullanici": false,
+   "E": 114500,
+   "nu": 0.31,
+   "rho": 4.42e-09,
+   "Rp02": 828,
+   "Rm": 895,
+   "A": 10,
+   "k": 6.6,
+   "cp": 580000000.0,
+   "alpha": 9e-06,
+   "kc11": 2110,
+   "mc": 0.22,
+   "kesme": {
+    "karbur": {
+     "Vc": 55,
+     "fz": 0.0385
+    }
+   }
+  },
+  {
+   "id": "POM-C",
+   "name": "Polioksimetilen kopolimer",
+   "standart": "",
+   "grup": "plastik",
+   "kaynak": "E/rho/Rm/A/k/cp/alpha/sertlik: Ensinger TECAFORM AH natural (POM-C) uretici veri sayfasi, tipik degerler (E ve Rm DIN EN ISO 527-2; k ve cp ISO 22007-4; alpha 23-60 C DIN EN ISO 11359); nu, Rp02 (akma gerilmesi 67 MPa, Rp0.2 degil), kc11/mc, kesme, fiyat: kaynak bulunamadi - bos",
+   "tipik": true,
+   "kullanici": false,
+   "E": 2800,
+   "rho": 1.41e-09,
+   "Rm": 67,
+   "A": 32,
+   "sertlik": "Shore D 82",
+   "k": 0.39,
+   "cp": 1400000000.0,
+   "alpha": 0.00013
+  }
+ ]
+}
