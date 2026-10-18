@@ -5,7 +5,7 @@
 > (kurallar: `BASLANGIC.md` bölüm 7). Sıra ve paralellik: `docs/yol-haritasi.md` → "Paralel çalışma: dalgalar".
 
 ## Açık dalga
-**Dalga 2 tamamlandı** (05, 06, 07, 11, 14, 15, 16, 20, 23). **Dalga 3 tamamlandı** (09, 12, 13, 17, 21, 24, 27); 03b, 28, 30, 41 ve Dalga 5'ten 36 tamamlandı. Dalga 5'in SPEC metinleri onaylandı. Dalga 1 tamamlandı (01, 02, 03, 04, 08).
+**Dalga 2 tamamlandı** (05, 06, 07, 11, 14, 15, 16, 20, 23). **Dalga 3 tamamlandı** (09, 12, 13, 17, 21, 24, 27); 03b, 28, 30, 41 ve Dalga 5'ten 35, 36, 45, 46 tamamlandı. Dalga 5'in SPEC metinleri onaylandı. Dalga 1 tamamlandı (01, 02, 03, 04, 08).
 
 ## SPEC tablosu
 | SPEC | Dalga | Durum | Kimde (dal / oturum) | Ayrıntı |
@@ -41,6 +41,9 @@
 | 30-tezgah-profili | — | tamamlandı (PR #50, `8d64ac4`; Ek A = SPEC 40 E2 dahil) | — | `durum/30-tezgah-profili.md` |
 | 41-kinematik-3arti2 | — | tamamlandı (PR #51, `53db99f`) | — | `durum/41-kinematik-3arti2.md` |
 | 36-montaj-sirasi | 5 | tamamlandı (PR #68, `cd25d0e`) | — | `durum/36-montaj-sirasi.md` |
+| 45-modal | 5 | tamamlandı (PR #78, `977d0bc`) | — | `durum/45-modal.md` |
+| 35-standart-parca | 5 | tamamlandı (PR #82, `8fb636c`) | — | `durum/35-standart-parca.md` |
+| 46-uctan-uca | 5 | tamamlandı (PR #83, `1807be6`); H10/H11/H14 SPEC 22/26/29'u bekliyor | — | `durum/46-uctan-uca.md` |
 | 06b-cam-3d-ek, 25-tezgah-torna-montaj, 26-tezgah-modelleme, 31-sinumerik-heidenhain | — | SPEC onaylı (2026-10-18 10:38); dalgası henüz atanmadı. | — | — |
 | 42-bes-eksen-yol, 43-tri-dexel, 44-tezgah-carpisma | — | SPEC onaylı; başlıyor (42: "4 ve 5 eksen işleme", 43: SPEC 05, 44: SPEC 06 oturumu) | — | — |
 | 29-islem-plani | — | SPEC metni onaylı ve birleşti (PR #58, `94989a3`); kod bekliyor | — | `durum/29-islem-plani.md` |
@@ -100,6 +103,9 @@
 | 41-kinematik-3arti2 | Tezgâh kinematiği ve 3+2 indeksli işleme (PR #51) | 2026-10-18 | 42 |
 | 36-montaj-sirasi | Montaj sırası ve demontaj yolu (PR #68) | 2026-10-18 | 119 |
 | 00-arayuzler | Dalga 5 A1: tolerans ve eklem arayüzü, `assy/model.py` (PR #85, `2929f2a`) | 2026-10-18 | 134 |
+| 45-modal | Modal analiz ve kesme kuvveti altında sehim, `core/modal.py` + `analiz/` (PR #78) | 2026-10-18 | 139 |
+| 35-standart-parca | Standart parça kütüphanesi ve otomatik bağlantı önerisi (PR #82) | 2026-10-18 | 177 |
+| 46-uctan-uca | Uçtan uca altın senaryo: flanş + mil (PR #83); H1–H9, H12, H13, H15 etkin | 2026-10-18 | 42 |
 | 05-cam-sim | Talaş simülasyonu: z-map, dexel, süre, çarpışma, oyma (PR #54) | 2026-10-18 | 175 |
 | 17-kroki | `sketch/model.py` eskiz veri modeli arayüzü (PR #55, `fb99eb6`) | 2026-10-18 | 138 |
 | — | CI: gmsh (mesh ekstrası) ve sistem kütüphaneleri kuruluyor (PR #57, `49a739f`) | 2026-10-18 | — |
