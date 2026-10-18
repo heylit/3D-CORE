@@ -64,8 +64,11 @@ def hole_moves(
         (MoveType.RAPID, (x, y, p[2])),
         (MoveType.RAPID, (x, y, r)),
     ]
-    if kind == "G81":
+    if kind in ("G81", "G82"):  # G82: dipte bekleme yolda temsil edilmez (SPEC 04b)
         seq.append((MoveType.LINEAR, (x, y, z)))
+    elif kind == "G84":  # rijit kılavuz: çıkış da F ile (SPEC 04b)
+        seq.append((MoveType.LINEAR, (x, y, z)))
+        seq.append((MoveType.LINEAR, (x, y, r)))
     elif kind == "G83":
         if q is None or q <= 0:
             raise CamError(f"G83: gagalama derinliği q pozitif olmalı (q={q})")
