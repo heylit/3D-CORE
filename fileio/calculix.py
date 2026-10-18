@@ -117,3 +117,21 @@ def to_inp(model: Model) -> str:
 def write_inp(model: Model, path: str | Path) -> None:
     """to_inp çıktısını dosyaya yazar."""
     Path(path).write_text(to_inp(model), encoding="utf-8")
+
+
+def to_inp_steady_state(
+    model: Model,
+    f_min: float,
+    f_max: float,
+    n_points: int,
+    *,
+    zeta: float,
+    n_modes: int,
+    bias: float = 1.0,
+) -> str:
+    """Harmonik tepki girdisi (SPEC 68c K5): *DENSITY'li malzeme, *FREQUENCY (n_modes) adımı ve
+    *STEADY STATE DYNAMICS (f_min, f_max [Hz], n_points, bias) adımı, *MODAL DAMPING ζ (tüm modlar).
+
+    Model bloğu to_inp ile aynı; yükler *CLOAD genlikleri. ρ ≤ 0 veya geçersiz girdi → ModelError.
+    """
+    raise NotImplementedError("SPEC 68c: to_inp_steady_state")

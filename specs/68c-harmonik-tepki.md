@@ -1,0 +1,127 @@
+# SPEC 68c — Harmonik tepki (frekans tepki fonksiyonu) (Dalga 7, A10)
+
+> Durum: **onaylı** (kullanıcı, 2026-10-18 16:19, önerilen cevaplarla; mesaj cmsg_01DTo5iWYb5RBUWgjk6xu1sGJGTUdh2rjZ3topbRjRQuit). Bağımlılık: SPEC 45 (modal, `core/modal.py`, `assemble_M`), 11, 67a/67b (yük ve mesnet).
+
+## Amaç
+Modal analiz (45) öz frekansları verir. Şu soruların cevabı için harmonik tepki gerekir:
+- Fikstür ya da parça belirli bir devirde zorlanınca ne kadar titreşir?
+- Rezonansta genlik kaçtır?
+
+Bu SPEC, harmonik bir kuvvet `F e^(iωt)` altında karmaşık yer değiştirme genliğini frekansa göre hesaplar. Sonuç
+FRF'dir: genlik ve faz. İki yol sunulur:
+- **Modal süperpozisyon:** hızlıdır, büyük modellerde kullanılır.
+- **Doğrudan çözüm:** küçük modeller için doğrulama amaçlıdır.
+
+Bu sonuç 71'in (chatter) kullandığı ölçülmüş FRF'nin yerine geçmez. Takım ucu FRF'si ölçülmeden doğru tahmin edilemez
+(kullanıcı kararı). Burada hesaplanan FRF parça ve fikstür içindir.
+
+## Teori
+Hareket denklemi `M ü + C u̇ + K u = F e^(iωt)`. Durağan çözüm `u = U e^(iωt)`:
+```
+(K − ω² M + iω C) U = F                                    doğrudan
+U = Σ_r φ_r (φ_rᵀ F) / (ω_r² − ω² + 2 i ζ_r ω_r ω)        modal (φᵀMφ = 1, SPEC 45)
+```
+Sönüm seçenekleri:
+- **Modal sönüm** `ζ_r` (sabit ya da mod başına): metal yapılar için tipik `0.01–0.05`. Değer kullanıcıdan gelir, kod
+  varsaymaz. Verilmezse `ModelError`.
+- **Rayleigh sönümü** `C = α M + β K`: doğrudan yol için. Modal eşdeğeri `ζ_r = α/(2ω_r) + β ω_r/2` olduğundan iki yol
+  aynı problemi çözer ve K3'te karşılaştırılır.
+
+Kesilmiş modal toplam yüksek modları atar. **Kalıntı esneklik** düzeltmesi isteğe bağlıdır ve varsayılan olarak açıktır:
+```
+U ≈ Σ_{r≤m} (…) + (K⁻¹ − Σ_{r≤m} φ_r φ_rᵀ / ω_r²) F
+```
+Statik sınırda (`ω → 0`) sonuç statik çözüme tam eşittir. Bunun için bir statik çözüm gerekir; `K` zaten
+çarpanlarına ayrılmıştır.
+
+Kapalı formül: ankastre–serbest eksenel çubuk, uçta `F e^(iωt)`, sönümsüz:
+```
+U(L) = F tan(βL) / (E A β),    β = ω √(ρ/E)
+```
+- `ω → 0` sınırında `F L/(EA)` olur.
+- Rezonans `βL = (2n − 1) π/2`'de oluşur.
+- `βL = π/4`'te `U/U_statik = tan(π/4)/(π/4) = 1.27324`.
+- Çelik, `L = 1000`, `A = 100` için `f_1 = c/(4L) = 1293.05` Hz.
+- Birinci modun uç statik esnekliğe katkısı `8/π²`'dir. Bu yüzden `ζ = 0.02` ile rezonansta
+  `|U| ≈ (8/π²) / (2ζ) · U_statik = 20.26 U_statik`. Diğer modlar ±%1 düzeltme getirir.
+
+Kaynak: Ewins, *Modal Testing*, 2. baskı, bölüm 2; Rao, *Mechanical Vibrations*, eksenel çubuk bölümü.
+
+## Dosyalar
+- **Yeni:**
+  - `core/harmonik.py`, `analiz/harmonik.py`
+  - `tests/unit/test_harmonik.py`, `tests/benchmarks/test_frf_cubuk.py`, `tests/analiz/test_harmonik_parca.py`
+  - `tests/reference/test_ccx_steady_state.py`
+  - `specs/68c-harmonik-tepki.md`, `durum/68c-harmonik-tepki.md`
+- **Değişecek:** `analiz/__init__.py`; `fileio/calculix.py` (`*STEADY STATE DYNAMICS` adımı).
+- **Dokunulmayacak:** `core/modal.py` (`modal()` ve `ModalResult` olduğu gibi kullanılır), `core/model.py`.
+
+## Arayüz
+```python
+# core/harmonik.py
+@dataclass(frozen=True)
+class FRF:
+    f: np.ndarray  # (q,) Hz
+    U: np.ndarray  # (q, n_dof) karmaşık, mm/N değil mm (yük modelin Load'larıdır)
+
+    def nokta(self, model, node_id, dof) -> np.ndarray: ...  # (q,) karmaşık
+    def genlik(self, model, node_id, dof) -> np.ndarray: ...  # |U|
+    def faz(self, model, node_id, dof) -> np.ndarray: ...  # derece, (−180, 180]
+
+
+def harmonic_modal(
+    model, f: Sequence[float], *, zeta: float | Sequence[float], n_modes: int, residual: bool = True
+) -> FRF: ...
+def harmonic_direct(model, f: Sequence[float], *, alpha: float = 0.0, beta: float = 0.0) -> FRF: ...
+def rayleigh_from_zeta(
+    f1: float, f2: float, zeta: float
+) -> tuple[float, float]: ...  # iki frekansta ζ veren α, β
+```
+- Yük, `model.loads`'tan genlik olarak okunur. Faz farklı yükler bu sürümde yoktur (Kapsam dışı).
+- Hatalar (`ModelError`):
+  - `f` boş ya da negatif
+  - `zeta` verilmedi, `≤ 0` ya da `≥ 1`
+  - `n_modes` geçersiz
+  - yük yok
+  - `rho ≤ 0`
+  - sönümsüz doğrudan çözümde tam rezonans (tekil)
+
+## Kabul kriterleri
+- [ ] **K1** Statik sınır:
+  - `f = 1e-6` Hz'de `harmonic_modal(residual=True)` statik çözüme göreli 1e-9 içinde eşittir (her modelde, her
+    `n_modes` ile).
+  - `residual=False` ve az modla fark vardır ve raporlanır (testte `> 1e-3` beklenir, düzeltmenin işe yaradığını gösterir).
+- [ ] **K2** Eksenel çubuk (`bar1d`, 200 eleman, sönüm çok küçük `ζ = 1e-6`):
+  - `βL = π/4` frekansında `U(L)/U_statik = 1.27324` (%0.1).
+  - `βL ∈ [0.1, 1.4]` aralığında 20 frekansta kapalı formla göreli %0.5 içinde.
+  - Faz rezonansın altında 0°, üstünde 180°'dir.
+- [ ] **K3** İki yolun eşdeğerliği (tet4 Kuhn konsolu, 2×2×10, tüm modlar):
+  - Rayleigh `α, β` ve onun ürettiği mod başına `ζ_r` ile `harmonic_modal(n_modes=n_f, residual=False)` ve
+    `harmonic_direct` 30 frekansta göreli 1e-8 içinde aynıdır.
+  - `rayleigh_from_zeta(f1, f2, ζ)` iki frekansta tam `ζ` verir.
+- [ ] **K4** Rezonans genliği (K2 çubuğu, `ζ = 0.02`, ilk 10 mod, kalıntı açık): `f_1`'de `|U| / U_statik` `20.26`'ya %1
+  içinde. Tepe frekansı `f_1 √(1 − 2ζ²)`'ye en yakın ızgara noktasıdır.
+- [ ] **K5** CalculiX yazıcı doğrulaması (`*STEADY STATE DYNAMICS`, modal sönüm, aynı ağ; `ccx` yoksa atlanır):
+  `to_inp_steady_state` çıktısı ccx ile çözülür; K3 konsolunda ccx'in yazdığı frekanslarda genlik, ccx'in kendi
+  frekansları ve kütlesiyle kurulan modal toplamla göreli 1e-4 içinde eşittir. Bizim çözücü ile ccx karşılaştırması
+  tet10'a (67a) ertelendi: ccx 2.21 C3D4'te farklı (toplanmış) kütle kullanır, f₁ farkı %0.1–0.8 kaçınılmazdır
+  (kullanıcı onayı 2026-10-18 19:08).
+- [ ] **K6** Parça köprüsü (OCCT): 67b dilinde `FaceRef` mesnet ve kuvvet verilir. Sonuç, ilk öz frekansın (45) altında
+  ve üstünde K1 ile K2 davranışını gösterir (statik sınır göreli 1e-9, faz dönmesi).
+- [ ] **K7** Hatalar: `zeta` yok, `zeta = 1`, `f = [-10]`, yük yok, sönümsüz doğrudan çözüm tam rezonansta
+  (`ModelError`).
+- [ ] **K8** `core/harmonik.py` numpy, scipy ve `core` dışında import etmez. `ruff` temiz.
+
+## Bağımlılık
+- 45 (birleşti).
+- 67a/67b (K6 köprüsü ve tet10; çekirdek kısım 67'yi beklemez).
+
+## Kararlar (kullanıcı onayı 2026-10-18 16:19; önerilen cevaplar kabul edildi)
+1. **Taban uyarımı (fikstürün tezgâh tablasından titreşmesi)?** Karar: sonraki ek. Yük vektörü `−M r ü_g` ile kolayca
+   eklenir ama kullanıcıdan uyarım spektrumu ister.
+2. **Sonuç Tezgah'ta Bode grafiği olarak gösterilsin mi?** Karar: evet; 47 ekranları ekinde, bu SPEC yalnız veriyi verir.
+
+## Kapsam dışı
+- Rastgele titreşim (PSD), şok tepkisi, zaman alanı geçici dinamik.
+- Faz farklı çoklu yükler, dönen yapılar (jiroskopik etki).
+- Takım ucu FRF tahmini: ölçüm gerekir, 71'in girdisidir.
