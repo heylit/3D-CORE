@@ -75,16 +75,16 @@ Geçersiz girdi ve OCCT başarısızlığı → `geometry.part.GeometryError` (s
 STEP için `Part.to_step` / `Part.from_step` (SPEC 00) kullanılır; bu SPEC onları işlenmiş parçalarla doğrular.
 
 ## Kabul kriterleri
-- [ ] K1 `block`, `cylinder`: V, S, ağırlık merkezi, sınır kutusu analitikle rel 1e-6; geçersiz boyut hata — `tests/geometry/test_features.py`
-- [ ] K2 `hole`: kör ve boydan boya delikte ΔV ve ΔS formülle rel 1e-6; ağırlık merkezi kaydırması formülle 1e-6 mm; parça dışı / geçersiz delik hata — `test_features.py`
-- [ ] K3 `pocket`: r = 0 ve r > 0 için ΔV = A_c·t ve ΔS = P·t rel 1e-6; delen cep ve büyük r hata — `test_features.py`
-- [ ] K4 `chamfer_top`: blokta ΔV = (d²/2)·2(a+b) − 4d³/3 rel 1e-6; aşırı büyük pah hata — `test_features.py`
-- [ ] K5 İşlemler girdiyi değiştirmiyor (girdi hacmi aynı kalıyor); zincir (blok → delik → cep → pah) hacmi tek tek ΔV toplamıyla tutuyor — `test_features.py`
-- [ ] K6 `mass_props`: blok ve silindirde m, ağırlık merkezi, I tensörü rel 1e-6; delikli blokta paralel eksen teoremiyle el hesabı; `principal_moments` döndürülmüş blokta değişmez — `tests/geometry/test_props.py`
-- [ ] K7 `tessellate`: blok ağında `mesh_volume = abc` rel 1e-9, ağ kapalı ve dışa bakan; silindirde tol küçüldükçe hata azalıyor ve `V_ağ ≤ π r² h` — `tests/geometry/test_mesh_stl.py`
-- [ ] K8 STL: delikli blok `to_stl` → `read_stl`; düz yüzlü blokta hacim rel 1e-6, silindirik delikte üçgen ağı hacmiyle rel 1e-6; açık ağ ve eksik dosya hata — `test_mesh_stl.py`
-- [ ] K9 STEP: işlenmiş parça (delik + cep + pah) STEP gidiş-dönüşünde V, S, ağırlık merkezi, sınır kutusu rel 1e-6 — `tests/geometry/test_step.py`
-- [ ] Tüm testler yeşil (`pytest` 0 failed, bu SPEC'te 0 "uygulanmamış"), `ruff check .` temiz
+- [x] K1 `block`, `cylinder`: V, S, ağırlık merkezi, sınır kutusu analitikle rel 1e-6; geçersiz boyut hata — `tests/geometry/test_features.py`
+- [x] K2 `hole`: kör ve boydan boya delikte ΔV ve ΔS formülle rel 1e-6; ağırlık merkezi kaydırması formülle 1e-6 mm; parça dışı / geçersiz delik hata — `test_features.py`
+- [x] K3 `pocket`: r = 0 ve r > 0 için ΔV = A_c·t ve ΔS = P·t rel 1e-6; delen cep ve büyük r hata — `test_features.py`
+- [x] K4 `chamfer_top`: blokta ΔV = (d²/2)·2(a+b) − 4d³/3 rel 1e-6; aşırı büyük pah hata — `test_features.py`
+- [x] K5 İşlemler girdiyi değiştirmiyor (girdi hacmi aynı kalıyor); zincir (blok → delik → cep → pah) hacmi tek tek ΔV toplamıyla tutuyor — `test_features.py`
+- [x] K6 `mass_props`: blok ve silindirde m, ağırlık merkezi, I tensörü rel 1e-6; delikli blokta paralel eksen teoremiyle el hesabı; `principal_moments` döndürülmüş blokta değişmez — `tests/geometry/test_props.py`
+- [x] K7 `tessellate`: blok ağında `mesh_volume = abc` rel 1e-9, ağ kapalı ve dışa bakan; silindirde tol küçüldükçe hata azalıyor ve `V_ağ ≤ π r² h` — `tests/geometry/test_mesh_stl.py`
+- [x] K8 STL: delikli blok `to_stl` → `read_stl`; düz yüzlü blokta hacim rel 1e-6, silindirik delikte üçgen ağı hacmiyle rel 1e-6; açık ağ ve eksik dosya hata — `test_mesh_stl.py`
+- [x] K9 STEP: işlenmiş parça (delik + cep + pah) STEP gidiş-dönüşünde V, S, ağırlık merkezi, sınır kutusu rel 1e-6 — `tests/geometry/test_step.py`
+- [x] Tüm testler yeşil (`pytest` 0 failed, bu SPEC'te 0 "uygulanmamış"), `ruff check .` temiz
 
 ## Kapsam dışı
 - `geometry/part.py` arayüz değişikliği (gerekirse ayrı arayüz PR'ı)
