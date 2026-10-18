@@ -1,7 +1,7 @@
 """
 CalculiX (ccx) girdi dosyası (.inp) yazıcısı (SPEC 13).
 
-Eşleme: `bar1d` (1B) → T3D2, `tet4` (3B) → C3D4; malzeme `*ELASTIC` E, ν; sınır koşulları
+Eşleme: `bar1d` (1B) → T3D2, `tet4` (3B) → C3D4, `tet10` → C3D10; malzeme `*ELASTIC` E, ν; sınır koşulları
 `*BOUNDARY`, yükler `*CLOAD`. 1B modelde bütün düğümlerde uy = uz = 0 tutulur.
 Gerçel sayılar `format(x, ".12e")` ile yazılır: ccx bir sayı alanını en çok 20 karakter okur.
 Birimler N, mm, MPa (CalculiX birimsizdir, olduğu gibi aktarılır).
@@ -17,7 +17,10 @@ import numpy as np
 from core.model import DOF_NAMES, Element, Model, ModelError
 
 # Eleman tipi -> (CalculiX tipi, izin verilen model boyutu)
-CCX_TIPI = {"bar1d": ("T3D2", 1), "tet4": ("C3D4", 3)}
+CCX_TIPI = {"bar1d": ("T3D2", 1), "tet4": ("C3D4", 3), "tet10": ("C3D10", 3)}
+
+# Sol el C3D10: köşe 2 ↔ 3 ve kenarlar 5 ↔ 7, 9 ↔ 10 (1 tabanlı) yer değiştirir
+SOL_EL_C3D10 = (0, 2, 1, 3, 6, 5, 4, 7, 9, 8)
 
 
 def _g(x: float) -> str:
@@ -26,14 +29,16 @@ def _g(x: float) -> str:
 
 
 def _dugum_sirasi(e: Element, model: Model) -> list[int]:
-    """C3D4 için pozitif hacimli düğüm sırası.
+    """C3D4 / C3D10 için pozitif hacimli düğüm sırası (C3D10'da kenar düğümleri köşelerle birlikte).
 
     det[x2−x1, x3−x1, x4−x1] < 0 ise 2. ve 3. düğüm yer değiştirir.
     """
-    if e.type != "tet4":
+    if e.type not in ("tet4", "tet10"):
         return list(e.nodes)
-    X = np.array([model.node(nid).xyz for nid in e.nodes])
+    X = np.array([model.node(nid).xyz for nid in e.nodes[:4]])
     if np.linalg.det(X[1:] - X[0]) < 0:
+        if e.type == "tet10":
+            return [e.nodes[i] for i in SOL_EL_C3D10]
         n1, n2, n3, n4 = e.nodes
         return [n1, n3, n2, n4]
     return list(e.nodes)
