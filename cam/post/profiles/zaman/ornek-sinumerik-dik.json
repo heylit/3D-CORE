@@ -1,0 +1,33 @@
+{
+  "aciklama": "UYDURMA, ölçülmedi: örnek değerler. Tezgâhta 2–3 programın gerçek süresiyle k'yı kalibre edin (SPEC 72 Karar 2).",
+  "machine": "ORNEK-SINUMERIK-DIK",
+  "dynamics": {
+    "v_max": [
+      40000.0,
+      40000.0,
+      40000.0
+    ],
+    "a_max": [
+      4000.0,
+      4000.0,
+      3500.0
+    ],
+    "j_max": [
+      40000.0,
+      40000.0,
+      30000.0
+    ],
+    "rot_v": [],
+    "rot_a": [],
+    "tol": 0.01,
+    "lookahead": null
+  },
+  "tool_change": 6.0,
+  "turret_index": 0.0,
+  "spindle_accel": 2000.0,
+  "pallet": 0.0,
+  "program_fixed": 15.0,
+  "k": 1.0,
+  "verified": false,
+  "spindle_overlap": "max"
+}
