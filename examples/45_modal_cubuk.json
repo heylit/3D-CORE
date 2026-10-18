@@ -1,0 +1,175 @@
+{
+  "name": "45_modal_cubuk",
+  "dim": 1,
+  "aciklama": "SPEC 45 K16: 10 elemanlı ankastre-serbest çelik çubuk, L = 100 mm, A = 10 mm², E = 210000 MPa, ρ = 7.85e-9 t/mm³. x = 0 tutulu. Beklenen (tutarlı kütle): ωₙ² = 6c²/h² · (1 − cos θₙ)/(2 + cos θₙ), θₙ = (2n−1)π/20, c² = E/ρ, h = 10 mm.",
+  "nodes": [
+    {
+      "id": 1,
+      "x": 0.0
+    },
+    {
+      "id": 2,
+      "x": 10.0
+    },
+    {
+      "id": 3,
+      "x": 20.0
+    },
+    {
+      "id": 4,
+      "x": 30.0
+    },
+    {
+      "id": 5,
+      "x": 40.0
+    },
+    {
+      "id": 6,
+      "x": 50.0
+    },
+    {
+      "id": 7,
+      "x": 60.0
+    },
+    {
+      "id": 8,
+      "x": 70.0
+    },
+    {
+      "id": 9,
+      "x": 80.0
+    },
+    {
+      "id": 10,
+      "x": 90.0
+    },
+    {
+      "id": 11,
+      "x": 100.0
+    }
+  ],
+  "elements": [
+    {
+      "id": 1,
+      "type": "bar1d",
+      "nodes": [
+        1,
+        2
+      ],
+      "material": "celik",
+      "section": "A10"
+    },
+    {
+      "id": 2,
+      "type": "bar1d",
+      "nodes": [
+        2,
+        3
+      ],
+      "material": "celik",
+      "section": "A10"
+    },
+    {
+      "id": 3,
+      "type": "bar1d",
+      "nodes": [
+        3,
+        4
+      ],
+      "material": "celik",
+      "section": "A10"
+    },
+    {
+      "id": 4,
+      "type": "bar1d",
+      "nodes": [
+        4,
+        5
+      ],
+      "material": "celik",
+      "section": "A10"
+    },
+    {
+      "id": 5,
+      "type": "bar1d",
+      "nodes": [
+        5,
+        6
+      ],
+      "material": "celik",
+      "section": "A10"
+    },
+    {
+      "id": 6,
+      "type": "bar1d",
+      "nodes": [
+        6,
+        7
+      ],
+      "material": "celik",
+      "section": "A10"
+    },
+    {
+      "id": 7,
+      "type": "bar1d",
+      "nodes": [
+        7,
+        8
+      ],
+      "material": "celik",
+      "section": "A10"
+    },
+    {
+      "id": 8,
+      "type": "bar1d",
+      "nodes": [
+        8,
+        9
+      ],
+      "material": "celik",
+      "section": "A10"
+    },
+    {
+      "id": 9,
+      "type": "bar1d",
+      "nodes": [
+        9,
+        10
+      ],
+      "material": "celik",
+      "section": "A10"
+    },
+    {
+      "id": 10,
+      "type": "bar1d",
+      "nodes": [
+        10,
+        11
+      ],
+      "material": "celik",
+      "section": "A10"
+    }
+  ],
+  "materials": [
+    {
+      "name": "celik",
+      "E": 210000.0,
+      "nu": 0.3,
+      "rho": 7.85e-09
+    }
+  ],
+  "sections": [
+    {
+      "name": "A10",
+      "A": 10.0
+    }
+  ],
+  "bcs": [
+    {
+      "node": 1,
+      "dof": "ux",
+      "value": 0.0
+    }
+  ],
+  "loads": []
+}

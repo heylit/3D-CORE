@@ -176,7 +176,8 @@ def test_modal_feed_and_g1_written_once():
 
 def test_modal_suppression_uses_rounded_text():
     """Ek A: bastırma yuvarlanmış metin üzerinden: fmt(10.0003) == fmt(10.0001) == "10." → X yazılmaz;
-    fmt(200.04, 1) == fmt(200, 1) == "200." → F yazılmaz."""
+    fmt(200.04, 1) == fmt(200, 1) == "200." → F yazılmaz.
+    Ek C1: yol op başında (Z5) kesiyor; güvenli Z (10) kesme seviyesinin üstünde verilir."""
     tp = Toolpath(
         "yuvarlama",
         freze6(),
@@ -187,7 +188,13 @@ def test_modal_suppression_uses_rounded_text():
             Move(G1, (10.0003, 5.0, 5.0), feed=200.04),
         ],
     )
-    assert body(write([tp], GRBL))[2:] == ["G0 X0. Y0. Z5.", "G1 X10. F200.", "Y5."]
+    assert body(write([tp], GRBL, safe_z=10.0))[2:] == [
+        "G0 X0. Y0. Z10.",
+        "Z5.",
+        "G1 X10. F200.",
+        "Y5.",
+        "G0 Z10.",  # Ek B: program sonu geri çekme
+    ]
 
 
 def test_g0_has_no_feed_and_feed_stays_modal_across_g0():
@@ -251,6 +258,7 @@ def test_arc_ij_from_rounded_center_and_start():
     x0 = 0.0004 → "0.";  cx = 5.0006 → "5.001";  I = 5.001 − 0 = 5.001 → `I5.001`.
     (Ham fark cx − x0 = 5.0002 → `I5.` olurdu; test ikisini ayırt eder.)
     Bitiş başlangıcın merkeze göre tam karşısı: x1 = 2·cx − x0 = 10.0008 → `X10.001`; r0 = r1 = 5.0002.
+    Ek C1: yay Z0'da kesiyor; güvenli Z (5) kesme seviyesinin üstünde verilir.
     """
     x0, cx = 0.0004, 5.0006
     tp = Toolpath(
@@ -260,7 +268,12 @@ def test_arc_ij_from_rounded_center_and_start():
         rpm=10_000.0,
         moves=[Move(G2, (2 * cx - x0, 0.0, 0.0), feed=500.0, center=(cx, 0.0))],
     )
-    assert body(write([tp], GRBL))[2:] == ["G0 X0. Y0. Z0.", "G2 X10.001 I5.001 J0. F500."]
+    assert body(write([tp], GRBL, safe_z=5.0))[2:] == [
+        "G0 X0. Y0. Z5.",
+        "Z0.",
+        "G2 X10.001 I5.001 J0. F500.",
+        "G0 Z5.",  # Ek B: program sonu geri çekme
+    ]
 
 
 # ---------------------------------------------------------------- Çok takım, devir

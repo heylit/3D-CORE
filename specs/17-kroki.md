@@ -245,6 +245,22 @@ CLAUDE.md "Test bağımsızlığı" aynen geçerli: arayüz PR'ı birleşince `d
 yazar, ayrı bir `yazici` oturumu kodu yazar. Kapalı formlar elle türetilir; FreeCAD / SolveSpace gibi dış
 çözücülerle çapraz kontrol bu SPEC'te yok (bağımlılık eklenmez).
 
+## Ek A — Ortak uçta teğetlik (kullanıcı kararı, 2026-10-18 11:00 UTC, "Formülü düzelt")
+Tablodaki TANGENT artığı (`d × (c − p0)/|d| − σ r`, `|c_b − c_a| − (r_a ± r_b)`) iki öğe bir uç noktayı
+paylaştığında Jacobian'da rank düşürür: yay ucunun yay üstünde olması ve çizginin o uçtan geçmesi zaten
+sağlandığı için teğetlik ikinci mertebeden bir koşula iner, K6'daki kanalda `dof` 3 yerine 7 çıkar.
+Bu yüzden teğet öğeler **ortak bir uç** paylaşıyorsa (çizgi ucu ile yay ucu, ya da iki yayın uçları; aynı
+nokta kimliği ya da COINCIDENT ile birleşmiş kimlikler) artık birinci mertebeden yazılır:
+
+| Durum | Artık `r` | Satır |
+|---|---|---|
+| çizgi, yay; ortak uç `q` | `(q − c) · d / |d|` (merkez → uç vektörü çizgiye dik) | 1 |
+| yay, yay; ortak uç `q` | `(q − c_a) × (q − c_b) / |q − c_b|` (iki merkez ve uç doğrudaş) | 1 |
+
+Birim mm'dir, ölçek gerekmez. Bu biçimde `σ` artığa girmez; `side` yine ilk konumdan belirlenip döndürülür.
+Ortak uç yoksa tablodaki artık geçerlidir. Daire (tam çember) uç taşımadığı için her zaman tablodaki biçimi
+kullanır. K6 `dof = 3` bu ek ile sağlanır.
+
 ## Kapsam dışı
 - Spline, elips, ofset eğrisi, desen (doğrusal / dairesel çoğaltma), ayna komutu (SYMMETRIC kısıtı var, ayna aracı yok)
 - 3D eskiz; eskizin katı parçadan kenar yansıtması (SPEC 26 bunu sabit referans geometri olarak verir)

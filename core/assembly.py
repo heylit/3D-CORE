@@ -10,7 +10,7 @@ import numpy as np
 import scipy.sparse as sp
 
 from core import elements
-from core.model import Model
+from core.model import Model, ModelError
 
 
 def assemble_K(model: Model) -> sp.csr_matrix:
@@ -39,3 +39,25 @@ def assemble_F(model: Model) -> np.ndarray:
     for ld in model.loads:
         F[model.dof_index(ld.node, ld.dof)] += ld.value
     return F
+
+
+def assemble_M(model: Model, lumped: bool = False) -> sp.csr_matrix:
+    """Tüm elemanların me matrislerini global M'ye ekler (n_dof x n_dof, seyrek) [t].
+
+    assemble_K ile aynı COO birleştirmesi. Eleman me sağlamıyorsa ModelError.
+    Teori: specs/45-modal.md
+    """
+    rows: list[int] = []
+    cols: list[int] = []
+    vals: list[float] = []
+    for e in model.elements:
+        eleman = elements.get(e.type)
+        if not hasattr(eleman, "me"):
+            raise ModelError(f"Eleman tipi '{e.type}' kütle matrisi (me) sağlamıyor")
+        m = eleman.me(e, model, lumped=lumped)
+        d = np.asarray(eleman.dofs(e, model))
+        rows.extend(np.repeat(d, len(d)))
+        cols.extend(np.tile(d, len(d)))
+        vals.extend(m.ravel())
+    n = model.n_dof
+    return sp.coo_matrix((vals, (rows, cols)), shape=(n, n)).tocsr()

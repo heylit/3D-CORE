@@ -1,0 +1,163 @@
+{
+  "tools": [
+    {
+      "id": 1,
+      "name": "Freze D6 Z3",
+      "kind": "duz",
+      "D": 6,
+      "flute_length": 20,
+      "corner_r": 0.0,
+      "flutes": 3,
+      "shank_d": 6,
+      "stickout": 30,
+      "holder": {
+        "name": "BT30-ER25",
+        "gauge_length": 60.0,
+        "profile": [
+          [
+            0.0,
+            17.5
+          ],
+          [
+            30.0,
+            20.0
+          ],
+          [
+            45.0,
+            25.0
+          ]
+        ]
+      },
+      "cutting": {
+        "C45": {
+          "Vc": 150,
+          "fz": 0.03,
+          "fn": null,
+          "ap": 6,
+          "ae": 0.6
+        },
+        "AlMg3": {
+          "Vc": 400,
+          "fz": 0.05,
+          "fn": null,
+          "ap": 6,
+          "ae": 1.5
+        }
+      }
+    },
+    {
+      "id": 2,
+      "name": "Matkap D5",
+      "kind": "matkap",
+      "D": 5,
+      "flute_length": 40,
+      "corner_r": 0.0,
+      "flutes": 2,
+      "shank_d": null,
+      "stickout": 45,
+      "holder": {
+        "name": "BT30-ER25",
+        "gauge_length": 60.0,
+        "profile": [
+          [
+            0.0,
+            17.5
+          ],
+          [
+            30.0,
+            20.0
+          ],
+          [
+            45.0,
+            25.0
+          ]
+        ]
+      },
+      "cutting": {
+        "C45": {
+          "Vc": 80,
+          "fz": 0.08,
+          "fn": null,
+          "ap": null,
+          "ae": null
+        }
+      }
+    },
+    {
+      "id": 3,
+      "name": "Küresel D10",
+      "kind": "kuresel",
+      "D": 10,
+      "flute_length": 22,
+      "corner_r": 5.0,
+      "flutes": 2,
+      "shank_d": null,
+      "stickout": 40,
+      "holder": {
+        "name": "BT30-ER25",
+        "gauge_length": 60.0,
+        "profile": [
+          [
+            0.0,
+            17.5
+          ],
+          [
+            30.0,
+            20.0
+          ],
+          [
+            45.0,
+            25.0
+          ]
+        ]
+      },
+      "cutting": {
+        "AlMg3": {
+          "Vc": 350,
+          "fz": 0.06,
+          "fn": null,
+          "ap": 0.5,
+          "ae": 0.5
+        }
+      }
+    },
+    {
+      "id": 11,
+      "name": "CNMG 120408 dış",
+      "kind": "tornalama",
+      "nose_r": 0.8,
+      "tip": 3,
+      "kappa_r": 95,
+      "eps_r": 80,
+      "width": 0.0,
+      "cutting": {
+        "C45": {
+          "Vc": 220,
+          "fz": null,
+          "fn": 0.25,
+          "ap": 2,
+          "ae": null
+        }
+      }
+    },
+    {
+      "id": 12,
+      "name": "Kanal 3 mm",
+      "kind": "kanal",
+      "nose_r": 0.2,
+      "tip": 8,
+      "kappa_r": 90,
+      "eps_r": 90,
+      "width": 3,
+      "cutting": {
+        "C45": {
+          "Vc": 120,
+          "fz": null,
+          "fn": 0.05,
+          "ap": null,
+          "ae": null
+        }
+      }
+    }
+  ]
+}
