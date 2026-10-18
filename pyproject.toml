@@ -19,7 +19,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["core*", "geometry*", "cam*", "assy*", "mesh*", "fileio*", "viz*"]
+include = ["core*", "geometry*", "cam*", "assy*", "sketch*", "mesh*", "fileio*", "viz*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
