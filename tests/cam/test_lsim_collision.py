@@ -106,17 +106,19 @@ def _boyuna(a_p: float, edge: float = 4.0):
 def test_K12_kenar_boyu_asimi():
     """l = 4, a_p = 6: ana kenar burundan l·e₁ = l·(−cos 93°, sin 93°) köşesine kadar keser; köşe
     dairesinin tepesi x = C_x + l·sin 93° + r = 14.8 + 3.9945 + 0.8 = 19.594 < 20. Bu üstteki şerit
-    (kapalı form 20 − 19.594 = 0.4055) kesilmez ve gövde ona her hücrede dokunur. Alt adımdan önceki
-    malzemeyle denetim yüzünden öndeki hücrede derinlik bundan büyük olabilir (SPEC 22 bilinen sınır),
-    bu yüzden kapalı form alt sınırdır."""
+    (kapalı form 20 − 19.594 = 0.4055) kesilmez ve gövde ona her hücrede dokunur; ilk kayıt k = 2.
+    Gövde e(173°) yönünde stok boyunca uzandığından adım 3'teki G0 geri çekilme de aynı şeride değer:
+    k = 3 kaydı olabilir, derinliği şerit kalınlığıdır. k = 2 derinliği için kapalı form alt sınırdır."""
     sonuc = _boyuna(6.0)
     _gecerli_kayitlar(sonuc)
     k = _tur(sonuc, "kenar_asimi")
-    assert len(k) == 1 and k[0].k == 2
+    assert [c.k for c in k] in ([2], [2, 3])
     C_x = 14.0 + R_N
     serit = 20.0 - (C_x + 4.0 * e(93.0)[1] + R_N)
     assert serit == pytest.approx(0.4055, abs=1e-3)
     assert serit - 1e-9 <= k[0].depth <= 6.0
+    if len(k) == 2:
+        assert k[1].depth == pytest.approx(serit, abs=1e-9)
     # kesilmeyen şerit son haritada kalır: boyuna pasonun ortasında [0, 14] ∪ [19.594, 20]
     zc = sonuc.rmap.centers()
     i = int(np.argmin(np.abs(zc + 10.25)))

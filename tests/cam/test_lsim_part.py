@@ -258,19 +258,20 @@ def _occt_mil():
 
     al = (bd.Align.CENTER, bd.Align.CENTER, bd.Align.MIN)
     s1 = bd.Pos(0, 0, -50) * bd.Cylinder(16.0, 15.0, align=al)
-    s2 = bd.Pos(0, 0, -35) * bd.Cylinder(15.0, 15.0, align=al)
+    s2 = bd.Pos(0, 0, -35) * bd.Cylinder(14.0, 15.0, align=al)
     s3 = bd.Pos(0, 0, -20) * bd.Cylinder(10.0, 20.0, align=al)
     return Part(s1 + s2 + s3, name="basamakli_mil")
 
 
 def _occt_profil() -> Profile:
-    """Aynı milin torna profili (ön uçtan arkaya)."""
-    return Profile.polygon([(0, 10), (-20, 10), (-20, 15), (-35, 15), (-35, 16)], closed=False)
+    """Aynı milin torna profili (ön uçtan arkaya). Omuz yükseklikleri (4, 2) ≥ r + pay = 1.1: SPEC 20 kaba
+    yolunun alçak omuz durumundan bağımsız, SPEC 22'nin kendi doğruluğu sınanır."""
+    return Profile.polygon([(0, 10), (-20, 10), (-20, 14), (-35, 14), (-35, 16)], closed=False)
 
 
 def _occt_bolge() -> Region:
     return Region(
-        Profile.polygon([(0, 0), (0, 10), (-20, 10), (-20, 15), (-35, 15), (-35, 16), (-50, 16), (-50, 0)])
+        Profile.polygon([(0, 0), (0, 10), (-20, 10), (-20, 14), (-35, 14), (-35, 16), (-50, 16), (-50, 0)])
     )
 
 
