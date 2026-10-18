@@ -1,0 +1,34 @@
+{
+  "ic_kose": {
+    "oran_uyari": {"deger": 1.1, "kaynak": "Köşe yarıçapı takım yarıçapından en az %10 büyük: Sandvik Coromant, Milling application guide, köşe frezeleme (takım tam sarılmasından kaçınma)"}
+  },
+  "derin_cep": {
+    "lambda_uyari": {"deger": 4.0, "kaynak": "Parmak freze L/D > 4: uzun boylu takım, sehim ve titreşim riski (Sandvik Coromant, Milling, takım sarkması)"},
+    "lambda_hata": {"deger": 8.0, "kaynak": "Parmak freze L/D > 8: standart dışı uzun takım (üretici katalogları, uzun boylu seriler en çok 6–8xD)"},
+    "genislik_tol": {"deger": 0.01, "kaynak": "SPEC 61 §2: iç daire çapı ikiye bölme toleransı [mm]"}
+  },
+  "delik": {
+    "oran_uyari": {"deger": 10.0, "kaynak": "h/d > 10: derin delik, gagalama ya da tabancalı matkap (Sandvik Coromant, Drilling, derin delik delme)"},
+    "oran_hata": {"deger": 20.0, "kaynak": "h/d > 20: tabancalı / BTA delme gerekir (Sandvik Coromant, Deep hole drilling)"},
+    "matkap_tol": {"deger": 0.01, "kaynak": "SPEC 61 §3: matkap çapı eşleşme toleransı [mm]"}
+  },
+  "erisim": {
+    "oran_uyari": {"deger": 0.95, "kaynak": "SPEC 61 §4: yüzün %95'inden azı görünüyorsa uyarı"},
+    "adim_derece": {"deger": 5.0, "kaynak": "SPEC 61 §4: 3+2 yön örnekleme adımı [°]"}
+  },
+  "ince_duvar": {
+    "aluminyum": {"deger": 0.8, "kaynak": "Alüminyum frezede en ince duvar ≈ 0,8 mm (Protolabs / Xometry CNC tasarım kılavuzları)"},
+    "celik": {"deger": 0.5, "kaynak": "Çelikte en ince duvar ≈ 0,5 mm (Protolabs / Xometry CNC tasarım kılavuzları)"},
+    "plastik": {"deger": 1.5, "kaynak": "Plastikte en ince duvar ≈ 1,5 mm (Protolabs / Xometry CNC tasarım kılavuzları)"},
+    "H_t_uyari": {"deger": 15.0, "kaynak": "Duvar yükseklik/kalınlık > 15: titreşim riski (sezgisel; CNC tasarım kılavuzları)"},
+    "paralel_aci_derece": {"deger": 10.0, "kaynak": "SPEC 61 §5: karşıt yüz paralellik açısı [°]"}
+  },
+  "torna": {
+    "ic_cap_uyari": {"deger": 4.0, "kaynak": "İç çap boy/çap > 4: çelik delik çubuğu sarkma sınırı (Sandvik Coromant, Internal turning)"},
+    "ic_cap_hata": {"deger": 7.0, "kaynak": "İç çap boy/çap > 7: karbür delik çubuğu sınırı (Sandvik Coromant, Internal turning)"}
+  },
+  "ornek": {
+    "N": {"deger": 64, "kaynak": "SPEC 61 §8: yüz başına örnek nokta sayısı"},
+    "tohum": {"deger": 0, "kaynak": "SPEC 61 K9: sabit tohum"}
+  }
+}
