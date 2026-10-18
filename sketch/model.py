@@ -362,27 +362,42 @@ class Sketch:
 # --- Çözücü çıktısı: bölgeler -------------------------------------------------------------------------
 
 
+def _src(src: str) -> None:
+    # Özellik ağacı (SPEC 18) yan yüzleri `yan:<src>` diye adlandırır; kimlik metin olmalı.
+    if not isinstance(src, str):
+        raise SketchError(f"src: eskiz öğe kimliği (str) bekleniyor ({src!r})")
+
+
 @dataclass(frozen=True)
 class SegLine:
-    """Bölge sınırında doğru parçası (uv, mm)."""
+    """Bölge sınırında doğru parçası (uv, mm).
+
+    src: kenarın geldiği eskiz öğesinin (Line) kimliği ("" → bilinmiyor).
+    """
 
     p0: np.ndarray
     p1: np.ndarray
+    src: str = ""
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "p0", _vec(self.p0, 2, "p0"))
         object.__setattr__(self, "p1", _vec(self.p1, 2, "p1"))
+        _src(self.src)
 
 
 @dataclass(frozen=True)
 class SegArc:
-    """Bölge sınırında yay (uv, mm). ccw: start'tan end'e dönüş yönü. start = end → tam daire."""
+    """Bölge sınırında yay (uv, mm). ccw: start'tan end'e dönüş yönü. start = end → tam daire.
+
+    src: yayın geldiği eskiz öğesinin (Arc ya da Circle) kimliği ("" → bilinmiyor).
+    """
 
     center: np.ndarray
     r: float
     start: np.ndarray
     end: np.ndarray
     ccw: bool
+    src: str = ""
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "center", _vec(self.center, 2, "center"))
@@ -390,6 +405,7 @@ class SegArc:
         object.__setattr__(self, "end", _vec(self.end, 2, "end"))
         if _sonlu(self.r, "r") <= 0:
             raise SketchError(f"SegArc: r > 0 olmalı ({self.r})")
+        _src(self.src)
 
 
 Seg = SegLine | SegArc
