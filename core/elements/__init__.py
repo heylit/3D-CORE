@@ -22,6 +22,9 @@ Her eleman modülü şu fonksiyonları sağlar (sözleşme):
         Kütle matrisi [t], ke ile aynı boyut ve DOF sırası; tutarlı veya toplanmış (specs/45-modal.md).
         Sağlamayan eleman tipi core.modal'da ModelError verir.
 
+    kt(element, model, k) -> np.ndarray              (isteğe bağlı; ısıl eleman)
+        Isıl iletkenlik matrisi, düğüm başına bir sıcaklık serbestliği (specs/56-isil-analiz.md).
+
 ke ve dofs her elemanda zorunludur.
 
 Yeni eleman eklemek = bu klasöre bir dosya + aşağıdaki sözlüğe bir satır.

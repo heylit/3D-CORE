@@ -10,6 +10,7 @@ Kaynak: CalculiX CrunchiX User's Manual 2.21 (C3D4, T3D2, *SOLID SECTION, *EL PR
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 import numpy as np
@@ -117,3 +118,16 @@ def to_inp(model: Model) -> str:
 def write_inp(model: Model, path: str | Path) -> None:
     """to_inp çıktısını dosyaya yazar."""
     Path(path).write_text(to_inp(model), encoding="utf-8")
+
+
+def to_inp_thermal(
+    model: Model,
+    k: float | Mapping[str, float],
+    temperatures: Sequence,
+    nodal_heat: Mapping[int, float],
+) -> str:
+    """Kararlı hal ısıl modeli CalculiX girdisine çevirir (SPEC 56).
+
+    DC3D4, *CONDUCTIVITY, *BOUNDARY 11, *CFLUX, *NODE PRINT NT.
+    """
+    raise NotImplementedError("SPEC 56: to_inp_thermal")
