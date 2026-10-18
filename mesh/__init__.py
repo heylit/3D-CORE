@@ -15,6 +15,7 @@ from mesh.secim import (
     triangle_normals,
 )
 from mesh.yukler import add_pressure, add_traction, fix
+from mesh.yuz_esleme import PartMesh, mesh_part
 
 __all__ = [
     "Refine",
@@ -29,4 +30,6 @@ __all__ = [
     "fix",
     "add_traction",
     "add_pressure",
+    "PartMesh",
+    "mesh_part",
 ]
