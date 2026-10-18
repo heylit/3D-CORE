@@ -1,6 +1,7 @@
 """
 Postprosesör katmanı (SPEC 30): tezgâh profili, tezgâh sınır denetimi, blok planı ve ISO biçimleyici.
-SPEC 31 aynı planı Siemens Sinumerik ve Heidenhain Klartext'e biçimler.
+SPEC 31 aynı planı Siemens Sinumerik ve Heidenhain Klartext'e biçimler (`format_sinumerik`,
+`format_heidenhain`; okuyucular `read_sinumerik`, `read_heidenhain`).
 
 - `post(ops, machine, ...)` = `check_machine` + `plan` + `format(..., dialect_for(machine))`; programın başına
   `(POST <AD> <DIL>)` ve doğrulanmamış profilde `(DOGRULANMAMIS PROFIL - ILK PARCADA KURU CALISTIRIN)`.
@@ -31,11 +32,17 @@ from cam.post.blocks import (
     ToolLength,
 )
 from cam.post.check import check_machine, check_safe_z, machine_extents
+from cam.post.format_heidenhain import HEIDENHAIN, format_heidenhain
 from cam.post.format_iso import HAAS, _guvenli_z, format, plan
+from cam.post.format_sinumerik import SINUMERIK, format_sinumerik
 from cam.post.machine import builtin_machines, load_machine, save_machine
+from cam.post.read_heidenhain import read_heidenhain
+from cam.post.read_sinumerik import read_sinumerik
 
 __all__ = [
     "HAAS",
+    "HEIDENHAIN",
+    "SINUMERIK",
     "Arc",
     "AxisLimits",
     "Block",
@@ -55,21 +62,25 @@ __all__ = [
     "check_machine",
     "dialect_for",
     "format",
+    "format_heidenhain",
+    "format_sinumerik",
     "load_machine",
     "machine_extents",
     "plan",
     "post",
+    "read_heidenhain",
     "read_program",
+    "read_sinumerik",
     "save_machine",
 ]
 
 
 UYARI = "DOGRULANMAMIS PROFIL - ILK PARCADA KURU CALISTIRIN"
-DILLER = {"grbl": GRBL, "fanuc": FANUC, "haas": HAAS}
+DILLER = {"grbl": GRBL, "fanuc": FANUC, "haas": HAAS, "sinumerik": SINUMERIK, "heidenhain": HEIDENHAIN}
 
 
 def dialect_for(machine: MachineProfile) -> Dialect:
-    """grbl → GRBL, fanuc → FANUC, haas → HAAS (SPEC 31: sinumerik, heidenhain)."""
+    """grbl → GRBL, fanuc → FANUC, haas → HAAS, sinumerik → SINUMERIK, heidenhain → HEIDENHAIN (SPEC 31)."""
     d = DILLER.get(machine.controller)
     if d is None:
         raise CamError(f"Tezgâh profili '{machine.name}': {machine.controller} dili henüz yok (SPEC 31)")
@@ -99,11 +110,19 @@ def post(
     if not machine.verified:
         yorum.append(Comment(UYARI))
     blocks = [Start(program_no, wcs), *yorum, *blocks[1:]]
+    if machine.controller == "sinumerik":
+        return format_sinumerik(blocks, d)
+    if machine.controller == "heidenhain":
+        return format_heidenhain(blocks, machine.presets or {}, d, str(program_no))
     return format(blocks, d)
 
 
 def read_program(
     text: str, machine: MachineProfile, tools: dict[int, Tool], arc_tol: float = 0.005
 ) -> list[Toolpath]:
-    """Profilin diliyle okuma (yorumlar ve `G53 G0 Z` yola yansımaz)."""
+    """Profilin diliyle okuma (yorumlar ve `G53 G0 Z` / `M91` yola yansımaz)."""
+    if machine.controller == "sinumerik":
+        return read_sinumerik(text, tools, arc_tol)
+    if machine.controller == "heidenhain":
+        return read_heidenhain(text, tools, arc_tol)
     return _read(text, tools, dialect_for(machine), arc_tol, machine_z=True)
