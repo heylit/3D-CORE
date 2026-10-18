@@ -4,7 +4,7 @@ Dal: `claude/spec-37-proje-kabuk-trviuv` · Oturum: bulut
 
 ## Sıradaki adım
 SPEC onaylandı (2026-10-18 11:13). `fileio/proje.py` iskeleti push edildi; bağımsız test thread'inin test
-commit'i bekleniyor. `tezgah/ekranlar/kabuk.py` ve `kabuk.ts` iskeleti A3 dalı açılınca onun üstüne.
+commit'i bekleniyor. Kabuk iskeleti (kabuk.py, ornekler_37.py, kabuk.ts, kabuk_ara.ts) A3 iskeleti ec8362f üstüne push edildi.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
