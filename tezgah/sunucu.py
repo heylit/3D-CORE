@@ -11,29 +11,42 @@ Uçlar:
     GET  /api/ekranlar              → A3 ekran kaydı (specs/24a-ekran-kaydi.md)
     POST /api/sifirla               → A3: ekranlar ve iş deposu varsayılana
     *    /api/ekran/<ad>/...        → A3: her ekranın kendi uçları
-Bilinmeyen iş → 404. Bilinmeyen işlem/anahtar → 422. Çekirdeğin `CamError` / `ModelError`'ı → 422,
-gövde {"detail": hata metni}. Parametre değişikliği sunucu süreci boyunca o işte kalır.
+Bilinmeyen iş → 404. Bilinmeyen işlem/anahtar → 422. Çekirdeğin hataları (KeyError, CamError, ModelError,
+AssyError, GeometryError, SketchError) → 422, gövde {"detail": hata metni}.
+Parametre değişikliği sunucu süreci boyunca o işte kalır.
 Sunucu yalnızca 127.0.0.1'de dinler (`__main__`).
 """
 
 from __future__ import annotations
 
-import threading
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, Response
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from assy.model import AssyError
 from cam.model import CamError
 from core.model import ModelError
-from tezgah import SEMA, kopru
+from geometry.part import GeometryError
+from sketch.model import SketchError
+from tezgah import SEMA, depo, kopru
+from tezgah import ekranlar as kayit
 from tezgah.ekranlar import Ekran
-from tezgah.isler import ORNEK_ISLER, ornek_is, parametre_uygula
 
 DIST = Path(__file__).parent / "arayuz" / "dist"
 IKILI = "application/octet-stream"
+
+# A3 §4: çekirdeğin hata türleri → 422, gövde {"detail": str(e)} (ekrandan bağımsız, tek yerde).
+CEKIRDEK_HATALARI: tuple[type[Exception], ...] = (
+    KeyError,
+    CamError,
+    ModelError,
+    AssyError,
+    GeometryError,
+    SketchError,
+)
 
 
 class Parametre(BaseModel):
@@ -45,25 +58,28 @@ class Parametre(BaseModel):
 def uygulama(dist: Path | None = DIST, ekranlar: list[Ekran] | None = None) -> FastAPI:
     """FastAPI uygulaması. `dist` varsa `/` altında statik servis edilir; None → yalnızca API.
 
-    `ekranlar` (A3): bağlanacak ekranlar; None → `tezgah.ekranlar.ekranlar()` (keşif).
+    `ekranlar` (A3): bağlanacak ekranlar; None → `tezgah.ekranlar.ekranlar()` (keşif). Liste doğrulanır
+    (kayıt hatası → ModelError). Kurulan uygulamada örnek işler varsayılan parametrelerle başlar.
     """
-    if ekranlar is not None:
-        raise NotImplementedError("A3: uygulanmadı")
+    liste = kayit.ekranlar() if ekranlar is None else kayit.dogrula(list(ekranlar))
+    kayit.bagla(liste)
+    depo.ornekleri_sifirla()
     app = FastAPI(title="Tezgah", docs_url="/api/belgeler", redoc_url=None, openapi_url="/api/openapi.json")
-    isler: dict[str, kopru.IsTanimi] = {}
-    kilit = threading.Lock()  # iş sözlüğü ve parametre değişikliği tek tek
+
+    async def cekirdek_hatasi(istek: Request, e: Exception) -> JSONResponse:
+        return JSONResponse({"detail": str(e)}, status_code=422)
+
+    for tur in CEKIRDEK_HATALARI:
+        app.add_exception_handler(tur, cekirdek_hatasi)
 
     def is_al(ad: str) -> kopru.IsTanimi:
-        if ad not in ORNEK_ISLER:
+        if not depo.var_mi(ad):
             raise HTTPException(404, f"Bilinmeyen iş: {ad!r}")
-        with kilit:
-            if ad not in isler:
-                isler[ad] = ornek_is(ad)
-            return isler[ad]
+        return depo.al(ad)
 
     @app.get("/api/isler")
     def isler_listesi() -> dict:
-        return {"sema": SEMA, "isler": list(ORNEK_ISLER)}
+        return {"sema": SEMA, "isler": depo.adlar()}
 
     @app.get("/api/is/{ad}")
     def is_json(ad: str) -> dict:
@@ -79,18 +95,53 @@ def uygulama(dist: Path | None = DIST, ekranlar: list[Ekran] | None = None) -> F
 
     @app.post("/api/is/{ad}/parametre")
     def parametre(ad: str, p: Parametre) -> dict:
-        eski = is_al(ad)
+        is_al(ad)
         try:
-            yeni = parametre_uygula(eski, p.islem, p.anahtar, p.deger)
-            j = kopru.is_json(yeni)
+            eski, yeni = depo.parametre(ad, p.islem, p.anahtar, p.deger)
         except KeyError as e:
             raise HTTPException(422, str(e.args[0]) if e.args else str(e)) from None
-        except (CamError, ModelError) as e:
-            raise HTTPException(422, str(e)) from None
-        with kilit:
-            isler[ad] = yeni
+        j = kopru.is_json(yeni)
         fark = j["sure"]["toplam"] - kopru.is_json(eski)["sure"]["toplam"]
         return {"sema": SEMA, "is": j, "sure_farki": fark}
+
+    @app.get("/api/ekranlar")
+    def ekran_listesi() -> dict:
+        """A3: {"ekranlar": [{ad, baslik, sira, tus, hazir, neden, bolum, bagimli}]}; yalnız sekmeler."""
+        L = []
+        for e in liste:
+            if not kayit.sekme_mi(e):
+                continue
+            neden = e.hazir() if e.hazir is not None else None
+            L.append(
+                {
+                    "ad": e.ad,
+                    "baslik": e.baslik,
+                    "sira": e.sira,
+                    "tus": e.tus,
+                    "hazir": neden is None,
+                    "neden": neden,
+                    "bolum": e.bolum,
+                    "bagimli": list(e.bagimli),
+                }
+            )
+        return {"ekranlar": L}
+
+    @app.post("/api/sifirla")
+    def sifirla() -> dict:
+        """A3: her ekranın `sifirla()`'sı; iş deposu varsayılana (dinamik işler silinir)."""
+        depo.sifirla()
+        for e in liste:
+            if e.sifirla is not None:
+                e.sifirla()
+        return {"sema": SEMA}
+
+    for e in liste:
+        if e.router is not None:
+            app.include_router(e.router, prefix=f"{kayit.ONEK}/{e.ad}", dependencies=[Depends(_hazir_mi(e))])
+    app.state.ekranlar = liste  # kabuk (SPEC 37) ekran listesini buradan okur
+    for e in liste:
+        if e.kur is not None:
+            e.kur(app)
 
     if dist is not None and (dist / "index.html").is_file():
         if (dist / "assets").is_dir():
@@ -100,14 +151,15 @@ def uygulama(dist: Path | None = DIST, ekranlar: list[Ekran] | None = None) -> F
         def kok() -> FileResponse:
             return FileResponse(dist / "index.html")
 
-    @app.get("/api/ekranlar")
-    def ekran_listesi() -> dict:
-        """A3: {"ekranlar": [{ad, baslik, sira, tus, hazir, neden, bolum, bagimli}]} (sıralı)."""
-        raise NotImplementedError("A3: uygulanmadı")
-
-    @app.post("/api/sifirla")
-    def sifirla() -> dict:
-        """A3: her ekranın `sifirla()`'sı; iş deposu varsayılana (dinamik işler silinir)."""
-        raise NotImplementedError("A3: uygulanmadı")
-
     return app
+
+
+def _hazir_mi(e: Ekran):
+    """Kullanılamaz ekranın uçları 503, `detail` = neden (A3 §1)."""
+
+    def denetle() -> None:
+        neden = e.hazir() if e.hazir is not None else None
+        if neden is not None:
+            raise HTTPException(503, neden)
+
+    return denetle

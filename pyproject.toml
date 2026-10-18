@@ -9,7 +9,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "pytest-html>=4", "ruff>=0.5", "httpx>=0.27"]
+dev = ["pytest>=8", "pytest-html>=4", "ruff==0.17.1", "httpx>=0.27"]
 viz = ["matplotlib>=3.8", "pyvista>=0.43"]
 mesh = ["gmsh>=4.11"]
 cad = ["build123d>=0.7"]
@@ -23,7 +23,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["core*", "geometry*", "cam*", "assy*", "sketch*", "mesh*", "fileio*", "viz*", "tezgah*"]
+include = ["core*", "geometry*", "cam*", "assy*", "sketch*", "mesh*", "fileio*", "viz*", "tezgah*", "atolye*", "analiz*", "malzeme*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -39,3 +39,10 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+
+# Paketlerimizi açıkça bildir: yoksa ruff, dalda henüz olmayan alt modülü (ör. cam.plan_turn)
+# üçüncü taraf sayar ve import sırası dala göre değişir.
+[tool.ruff.lint.isort]
+known-first-party = [
+    "core", "geometry", "cam", "assy", "sketch", "mesh", "fileio", "viz", "tezgah", "atolye", "analiz", "malzeme",
+]

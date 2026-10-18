@@ -1,365 +1,251 @@
-// SPEC 24 — ön yüz giriş noktası: durum, oynatma döngüsü, klavye, komut çubuğu, test kancası.
-// Çalışma alanları (Freze, ileride Torna / Montaj / Modelleme) `ALANLAR` listesine eklenir.
+// A3 — Tezgah kabuğu: üst sekmeler (/api/ekranlar ∩ src/ekranlar/*.ts), adres (#/<ad>?secim),
+// sekme tuşları, Ctrl K komut paleti, animasyon döngüsü ve test kancası. Ekrana özgü kod src/ekranlar/'dadır.
 
 import "./stil.css";
 
-import { SunucuHatasi, isAl, isListesi, noktalarAl, parametreGonder, simAl } from "./api";
-import { hareketSatir, satirUcNoktasi } from "./gcode";
+import { SunucuHatasi, degisiklikSonrasi, ekranApi } from "./api";
+import { ekranlariSirala, kayitliModuller, kisayolDogrula } from "./ekranlar/kayit";
+import type { EkranModulu, Kabuk, Komut, Sekme, SunucuEkrani } from "./ekranlar/tip";
 import type { TezgahKanca } from "./kanca";
-import { GcodePaneli, PARAMETRE, islemRengi, kanitlarCiz, mufettisCiz, sayi, solCiz } from "./paneller";
-import { type Katman, Sahne } from "./sahne";
-import { Serit, sureYaz } from "./serit";
-import type { Is, Nokta3, Noktalar, SimVeri } from "./tipler";
-import { hareketKonum } from "./yol";
-import { idxAt } from "./zaman";
+import { kanitlarCiz } from "./paneller";
+import { Sahne } from "./sahne";
+import { Serit } from "./serit";
+import type { Nokta3 } from "./tipler";
 
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector<T>(s)!;
 
-const ALANLAR = [
-  { kimlik: "freze", ad: "Freze", hazir: true },
-  { kimlik: "torna", ad: "Torna", hazir: false, not: "SPEC 25" },
-  { kimlik: "montaj", ad: "Montaj", hazir: false, not: "SPEC 25" },
-  { kimlik: "modelleme", ad: "Modelleme", hazir: false, not: "eskiz → ekstrüzyon" },
-];
-const HIZLAR = [1, 5, 20, 60];
-
-interface Durum {
-  ad: string;
-  is?: Is;
-  nk?: Noktalar;
-  sim: SimVeri | null;
-  hareketSatiri: Int32Array;
-  renkler: string[];
-  t: number;
-  oynuyor: boolean;
-  hiz: number;
-  secili: number;
-  sekme: "gcode" | "kanit";
-  katman: Katman;
-  uzerindeSatir: number;
-  fark: number | null;
-  hata: string | null;
-  dro: Nokta3;
-  hazir: boolean;
-  mesgul: boolean;
-  /** Sunucunun kabul ettiği, sahnesi henüz yüklenmekte olan iş (kanca bunu raporlar). */
-  gelenIs: Is | null;
-}
-
-const D: Durum = {
-  ad: "",
-  sim: null,
-  hareketSatiri: new Int32Array(0),
-  renkler: [],
-  t: 0,
-  oynuyor: false,
-  hiz: 20,
-  secili: 0,
-  sekme: "gcode",
-  katman: "islem",
-  uzerindeSatir: -1,
-  fark: null,
-  hata: null,
-  dro: [0, 0, 0],
-  hazir: false,
-  mesgul: false,
-  gelenIs: null,
-};
-
 const sahne = new Sahne($("#gorunum"));
-const serit = new Serit($<HTMLCanvasElement>("#seritTuval"), (t) => zamanAyarla(t, true));
-const gcode = new GcodePaneli($("#bolme"), satirUstunde, satiraGit);
+const serit = new Serit($<HTMLCanvasElement>("#seritTuval"));
 
-// --------------------------------------------------------------------- yükleme
+let sekmeler: Sekme[] = [];
+let etkin: Sekme | null = null;
+let acilis = 0; // yarışan sekme değişimlerinde yalnız sonuncusu geçerli
+let kabukHazir = false;
+let dinamikKomutlar: Komut[] = [];
+/** SPEC 37 kabuğu (src/ekranlar/kabuk.ts) yüklendiyse paleti ve Ctrl kısayollarını o üstlenir. */
+let projeKabugu = false;
 
-async function yukle(ad: string, kameraKoru = false, hazirIs?: Is): Promise<void> {
-  D.mesgul = true;
-  const [is, nk, sim] = await Promise.all([hazirIs ?? isAl(ad), noktalarAl(ad), simAl(ad).catch(() => null)]);
-  D.ad = ad;
-  D.is = is;
-  D.nk = nk;
-  D.sim = sim;
-  D.renkler = is.islemler.map(islemRengi);
-  D.hareketSatiri = hareketSatir(is.satir_hareket, is.hareketler.length);
-  D.t = Math.min(D.t, is.sure.toplam);
-  D.secili = Math.min(D.secili, is.islemler.length - 1);
-  sahne.isKur(is, nk, sim, D.renkler, kameraKoru);
-  const hatalar = is.kontroller.filter((k) => k.durum === "hata").map((k) => kontrolNoktasi(k.aciklama));
-  serit.kur(is, nk, D.renkler, hatalar.filter((k): k is number => k !== null));
-  gcode.kur(is);
-  panelleriCiz();
-  guncelle(true);
-  D.gelenIs = null;
-  D.mesgul = false;
-  D.hazir = true;
+interface KabukModulu {
+  baslat(kabuk: Kabuk, komutlar: () => Komut[], tazele: () => Promise<void>): void;
+  ekranDegisti(): Promise<void>;
 }
 
-function kontrolNoktasi(aciklama: string): number | null {
-  const m = /nokta (\d+)/.exec(aciklama);
-  return m ? Number(m[1]) : null;
+// Dosya yoksa (SPEC 37 birleşmeden) eşleme boştur: kabuk yüklenmez, eski komut çubuğu çalışır.
+const KABUK_DOSYASI = import.meta.glob<KabukModulu>("./ekranlar/kabuk.ts");
+const rozetler = new Map<string, string>();
+
+// --------------------------------------------------------------------- test kancası
+
+/** SPEC 24 kanca alanları freze ekranının kancasına (window.__tezgah.freze) gider. */
+function freze<T>(alan: string, yedek: T): T {
+  const f = (kanca.freze as Record<string, unknown> | undefined)?.[alan];
+  return typeof f === "function" ? (f as () => T)() : yedek;
 }
 
-// --------------------------------------------------------------------- çizim
+const kanca: TezgahKanca = {
+  get hazir() {
+    if (!kabukHazir || !etkin) return false;
+    const h = (kanca[etkin.ad] as Record<string, unknown> | undefined)?.hazir;
+    return h === undefined ? true : h === true;
+  },
+  hayaletKonum: () => freze<Nokta3 | null>("hayaletKonum", null),
+  dro: () => freze<Nokta3>("dro", [0, 0, 0]),
+  zaman: () => freze("zaman", 0),
+  gcodeSatirSayisi: () => freze("gcodeSatirSayisi", 0),
+  toplamSure: () => freze("toplamSure", 0),
+  yuzey: () => freze<Float32Array | null>("yuzey", null),
+  katmanlar: () => sahne.katmanlar(),
+};
+window.__tezgah = kanca;
 
-function panelleriCiz(): void {
-  const is = D.is!;
-  solCiz($("#sol"), is, D.nk!, D.secili, D.fark, islemSec);
-  mufettisCiz($("#mufettis"), is, D.secili, D.hata, parametreDegistir);
-  sekmeleriCiz();
-  hudCiz();
+/** Ekranın e2e kancası (window.__tezgah.<ad>). */
+function ekranKancasi(ad: string): Record<string, unknown> {
+  let k = kanca[ad] as Record<string, unknown> | undefined;
+  if (!k) {
+    k = {};
+    kanca[ad] = k;
+  }
+  return k;
 }
+
+// --------------------------------------------------------------------- kabuk servisleri
+
+function kabukFor(ad: string): Kabuk {
+  return {
+    sahne,
+    serit,
+    kanitlar: (k) => kanitlarCiz($("#bolme"), k),
+    mufettis: (alan) => $("#mufettis").replaceChildren(alan),
+    komut: (k) => {
+      if (k.kisayol) kisayolDogrula(k.kisayol);
+      dinamikKomutlar = dinamikKomutlar.filter((d) => d.kimlik !== k.kimlik).concat({ ...k, ekran: k.ekran ?? ad });
+    },
+    git: (adres) => {
+      location.hash = adres.startsWith("#") ? adres : `#${adres}`;
+    },
+    rozet: (ekran, metin) => {
+      if (metin === null) rozetler.delete(ekran);
+      else rozetler.set(ekran, metin);
+      sekmeleriCiz();
+    },
+    kanca: ekranKancasi(ad),
+    api: ekranApi(ad),
+  };
+}
+
+/** Ekranın kendi kısayolları kabuğunkilerle çakışamaz (§3: yüklemede Error). */
+function komutKisayollari(m: EkranModulu): void {
+  for (const k of m.komutlar?.() ?? []) if (k.kisayol) kisayolDogrula(k.kisayol);
+}
+
+// --------------------------------------------------------------------- sekmeler ve adres
 
 function sekmeleriCiz(): void {
-  const is = D.is!;
-  const hata = is.kontroller.filter((k) => k.durum !== "tamam").length;
-  const s = $("#sekmeler");
-  s.innerHTML = `<button role="tab" data-sekme="gcode" aria-selected="${D.sekme === "gcode"}">G-code <span class="sayi">${is.gcode.length}</span></button>
-    <button role="tab" data-sekme="kanit" aria-selected="${D.sekme === "kanit"}">Kanıtlar <span class="sayi">${hata ? `${hata} ⚠` : "✓"}</span></button>`;
-  s.querySelectorAll<HTMLButtonElement>("button").forEach((b) =>
-    b.addEventListener("click", () => sekmeSec(b.dataset.sekme as Durum["sekme"])),
-  );
+  const nav = $("#alanlar");
+  nav.replaceChildren();
+  for (const s of sekmeler) {
+    const b = document.createElement("button");
+    b.setAttribute("role", "tab");
+    b.setAttribute("data-testid", "ekran-sekmesi");
+    b.dataset.ekran = s.ad;
+    b.setAttribute("aria-selected", String(etkin?.ad === s.ad));
+    // SPEC 37 e2e işaretleri: içteki `sekme` (data-ekran) ve onun içindeki `rozet`.
+    const ic = document.createElement("span");
+    ic.setAttribute("data-testid", "sekme");
+    ic.dataset.ekran = s.ad;
+    ic.textContent = s.baslik;
+    const rozet = rozetler.get(s.ad);
+    if (rozet) {
+      const r = document.createElement("span");
+      r.className = "rozet";
+      r.setAttribute("data-testid", "rozet");
+      r.textContent = rozet;
+      ic.append(" ", r);
+    }
+    b.append(ic);
+    if (s.tus) b.title = `${s.baslik} (${s.tus})`;
+    if (!s.acik) {
+      b.setAttribute("aria-disabled", "true");
+      b.title = s.neden ?? "Kullanılamıyor";
+    } else b.addEventListener("click", () => git(s.ad));
+    nav.append(b);
+  }
 }
 
-function sekmeSec(sekme: Durum["sekme"]): void {
-  D.sekme = sekme;
+function git(ad: string, secim?: string): void {
+  location.hash = `#/${ad}${secim ? `?${secim}` : ""}`;
+}
+
+function adresCoz(): { ad: string; secim?: string } | null {
+  const m = /^#\/([a-z][a-z0-9_]*)(?:\?(.*))?$/.exec(location.hash);
+  return m ? { ad: m[1], secim: m[2] } : null;
+}
+
+/** Ekran alanlarını boşaltır (bir ekranın çizdiği paneller sonrakine kalmasın). */
+function alanlariBosalt(): void {
+  for (const id of ["sol", "mufettis", "sekmeler", "bolme", "hudBaslik", "hudKatman", "hudDro", "hudUyari"]) {
+    $(`#${id}`).replaceChildren();
+  }
+  $("#saat").innerHTML = "0:00 <span>/ 0:00</span>";
+}
+
+function hataGoster(metin: string): void {
+  const d = document.createElement("div");
+  d.className = "yukleniyor";
+  d.setAttribute("role", "alert");
+  d.textContent = metin;
+  $("#sol").replaceChildren(d);
+}
+
+async function adresiUygula(): Promise<void> {
+  const a = adresCoz();
+  const hedef = a ? sekmeler.find((s) => s.ad === a.ad && s.acik) : undefined;
+  if (!hedef) {
+    const ilk = sekmeler.find((s) => s.acik);
+    if (!ilk) return;
+    history.replaceState(null, "", `#/${ilk.ad}`);
+    if (etkin?.ad !== ilk.ad) await ac(ilk);
+    return;
+  }
+  if (etkin?.ad === hedef.ad) {
+    if (a?.secim) hedef.modul?.sec?.(new URLSearchParams(a.secim).get("is") ?? a.secim);
+    return;
+  }
+  await ac(hedef, a?.secim);
+}
+
+async function ac(s: Sekme, secim?: string): Promise<void> {
+  const no = ++acilis;
+  if (etkin) {
+    etkin.modul?.kapat();
+    sahne.katmanBirak(etkin.ad); // ekran unutsa da katmanı kalkar
+    const onceki = etkin.ad;
+    dinamikKomutlar = dinamikKomutlar.filter((k) => k.ekran !== onceki);
+  }
+  alanlariBosalt();
+  etkin = s;
   sekmeleriCiz();
-  if (sekme === "gcode") gcode.kur(D.is!);
-  else kanitlarCiz($("#bolme"), D.is!.kontroller);
-  guncelle(true);
-}
-
-function hudCiz(): void {
-  const is = D.is!;
-  const isl = is.islemler[D.secili];
-  $("#hudBaslik").innerHTML = `<b>${isl ? isl.ad : is.ad}</b><span>${is.ad} · ${is.kurulum.malzeme} · ${is.kurulum.wcs}</span>`;
-  const katmanlar: [Katman, string][] = [
-    ["islem", "İşlem"],
-    ["yuk", "Takım yükü"],
-  ];
-  $("#hudKatman").innerHTML = `<div class="parca" role="group" aria-label="Katman">${katmanlar
-    .map(([k, ad]) => `<button data-katman="${k}" aria-pressed="${D.katman === k}">${ad}</button>`)
-    .join("")}</div>${D.katman === "yuk" ? `<div class="lejant">düşük <span class="rampa"></span> yüksek</div>` : ""}`;
-  $("#hudKatman")
-    .querySelectorAll<HTMLButtonElement>("button")
-    .forEach((b) => b.addEventListener("click", () => katmanSec(b.dataset.katman as Katman)));
-  const hatalar = is.kontroller.filter((k) => k.durum === "hata");
-  $("#hudUyari").innerHTML = hatalar.length
-    ? hatalar.map((k) => `<div class="uyari-kutu hata"><b>${k.baslik}</b>${k.aciklama}</div>`).join("")
-    : `<div class="uyari-kutu tamam"><b>Kanıtlar tamam</b>${is.kontroller.length} kontrol, ihlal yok</div>`;
-}
-
-function katmanSec(k: Katman): void {
-  D.katman = k;
-  sahne.katman(k);
-  hudCiz();
-  guncelle(true);
-}
-
-/** t anına göre takım, yüzey, DRO, saat, G-code vurgusu. */
-function guncelle(zorla = false): void {
-  const is = D.is;
-  const nk = D.nk;
-  if (!is || !nk) return;
-  const k = idxAt(D.t, nk.zaman);
-  // görsel ara değer: k ile k+1 arasında, hareket yaysa yay üstünde
-  let p: Nokta3 = [nk.konum[3 * k], nk.konum[3 * k + 1], nk.konum[3 * k + 2]];
-  let islem = nk.islem[k];
-  if (k + 1 < nk.n && nk.zaman[k + 1] > nk.zaman[k]) {
-    const u = (D.t - nk.zaman[k]) / (nk.zaman[k + 1] - nk.zaman[k]);
-    const hk = nk.hareket[k + 1];
-    islem = nk.islem[k + 1];
-    if (hk >= 0) p = hareketKonum(is.hareketler[hk], u);
-    else {
-      const q = k + 1;
-      p = [0, 1, 2].map((i) => nk.konum[3 * k + i] + (nk.konum[3 * q + i] - nk.konum[3 * k + i]) * u) as Nokta3;
-    }
-  }
-  D.dro = p;
-  sahne.takimKonum(p, islem);
-  sahne.ilerleme(k);
-  serit.zaman(D.t);
-  const satir = k + 1 < nk.n && nk.satir[k + 1] >= 0 ? nk.satir[k + 1] : nk.satir[k];
-  if (D.sekme === "gcode") gcode.vurgula(satir, D.oynuyor || zorla);
-  const hk = nk.hareket[Math.min(k + 1, nk.n - 1)];
-  const F = hk >= 0 ? is.hareketler[hk].F : null;
-  $("#hudDro").innerHTML = `<div class="dro" data-test="dro">
-    <div><i>X</i><span>${sayi(p[0])}</span></div><div><i>Y</i><span>${sayi(p[1])}</span></div><div><i>Z</i><span>${sayi(p[2])}</span></div>
-    <div class="alt">${satir >= 0 ? `N${satir + 1}` : "—"} · ${F === null ? "G0 hızlı" : `F${F}`} · T${is.islemler[islem]?.takim.T ?? "-"}</div></div>`;
-  $("#saat").innerHTML = `${sureYaz(D.t)} <span>/ ${sureYaz(is.sure.toplam)}</span>`;
-}
-
-function zamanAyarla(t: number, durdur: boolean): void {
-  if (!D.is) return;
-  if (durdur) oynat(false);
-  D.t = Math.min(Math.max(t, 0), D.is.sure.toplam);
-  guncelle();
-}
-
-// --------------------------------------------------------------------- etkileşim
-
-function islemSec(i: number): void {
-  D.secili = i;
-  D.hata = null;
-  const isl = D.is!.islemler[i];
-  zamanAyarla(isl.t0, true);
-  panelleriCiz();
-}
-
-function satirUstunde(satir: number): void {
-  D.uzerindeSatir = satir;
-  gcode.ustundeki(satir);
-  const is = D.is!;
-  const p = satir >= 0 ? satirUcNoktasi(satir, is.satir_hareket, is.hareketler) : null;
-  const ar = satir >= 0 ? is.satir_hareket[satir] : null;
-  sahne.hayalet(p, ar ? is.hareketler[ar[1]].islem : 0);
-}
-
-function satiraGit(satir: number): void {
-  const is = D.is!;
-  const nk = D.nk!;
-  const ar = is.satir_hareket[satir];
-  if (!ar) return;
-  // satırın son hareketinin bittiği nokta
-  for (let k = 0; k < nk.n; k++) {
-    if (nk.hareket[k] === ar[1]) {
-      zamanAyarla(nk.zaman[k], true);
-      return;
-    }
-  }
-}
-
-async function parametreDegistir(anahtar: string, deger: number): Promise<void> {
-  if (D.mesgul) return;
-  D.mesgul = true;
   try {
-    const y = await parametreGonder(D.ad, D.secili, anahtar, deger);
-    D.fark = y.sure_farki;
-    D.hata = null;
-    D.gelenIs = y.is;
-    await yukle(D.ad, true, y.is);
+    await s.modul!.ac($("#sol"), kabukFor(s.ad), secim);
   } catch (e) {
-    D.hata = e instanceof SunucuHatasi ? e.message : String(e);
-    D.gelenIs = null;
-    D.mesgul = false;
-    mufettisCiz($("#mufettis"), D.is!, D.secili, D.hata, parametreDegistir);
+    if (no !== acilis) return;
+    hataGoster(`${s.baslik} açılamadı: ${e instanceof SunucuHatasi ? e.message : String(e)}`);
   }
 }
 
-const OYNAT_SVG = `<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 2.5v11l9-5.5z"/></svg>`;
-const DURAKLAT_SVG = `<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3.5 2.5h3v11h-3zM9.5 2.5h3v11h-3z"/></svg>`;
+// --------------------------------------------------------------------- komut paleti
 
-function oynat(acik: boolean): void {
-  if (acik && D.is && D.t >= D.is.sure.toplam) D.t = 0;
-  D.oynuyor = acik;
-  const b = $("#oynat");
-  b.innerHTML = acik ? DURAKLAT_SVG : OYNAT_SVG;
-  b.setAttribute("aria-label", acik ? "Duraklat (Boşluk)" : "Oynat (Boşluk)");
-}
-
-function hizCiz(): void {
-  const h = $("#hiz");
-  h.innerHTML = HIZLAR.map((v) => `<button data-hiz="${v}" aria-pressed="${D.hiz === v}">×${v}</button>`).join("");
-  h.querySelectorAll<HTMLButtonElement>("button").forEach((b) =>
-    b.addEventListener("click", () => {
-      D.hiz = Number(b.dataset.hiz);
-      hizCiz();
-    }),
-  );
-}
-
-function adim(yon: 1 | -1): void {
-  const nk = D.nk;
-  if (!nk) return;
-  const k = idxAt(D.t, nk.zaman);
-  let j = Math.min(Math.max(k + yon, 0), nk.n - 1);
-  while (j > 0 && j < nk.n - 1 && nk.zaman[j] === nk.zaman[k]) j += yon;
-  zamanAyarla(nk.zaman[j], true);
-}
-
-let onceki = performance.now();
-function dongu(simdi: number): void {
-  const dt = Math.min((simdi - onceki) / 1000, 0.1);
-  onceki = simdi;
-  if (D.oynuyor && D.is) {
-    D.t += dt * D.hiz;
-    if (D.t >= D.is.sure.toplam) {
-      D.t = D.is.sure.toplam;
-      oynat(false);
-    }
-    guncelle();
-  }
-  requestAnimationFrame(dongu);
-}
-
-// --------------------------------------------------------------------- komut çubuğu
-
-interface Komut {
-  ad: string;
+interface Satir {
+  baslik: string;
   aciklama: string;
-  calistir: () => void;
-  dinamik?: boolean;
+  dinamik: boolean;
+  calistir: () => void | Promise<void>;
 }
 
-const ESANLAMLI: Record<string, string> = {
-  cap: "D",
-  çap: "D",
-  takim: "D",
-  takım: "D",
-  d: "D",
-  paso: "ap",
-  derinlik: "ap",
-  ap: "ap",
-  ilerleme: "F",
-  f: "F",
-  devir: "rpm",
-  s: "rpm",
-  rpm: "rpm",
-  adim: "stepover",
-  adım: "stepover",
-  stepover: "stepover",
-  gagalama: "q",
-  q: "q",
-};
+const kucuk = (s: string) => s.toLocaleLowerCase("tr");
 
-function komutlar(sorgu: string): Komut[] {
-  const is = D.is;
-  if (!is) return [];
-  const out: Komut[] = [];
-  const m = /^\s*([^\d\s-]+)\s*(-?\d+(?:[.,]\d+)?)\s*$/.exec(sorgu.toLocaleLowerCase("tr"));
-  const isl = is.islemler[D.secili];
-  if (m) {
-    const anahtar = ESANLAMLI[m[1]];
-    const deger = Number(m[2].replace(",", "."));
-    if (anahtar && isl && anahtar in isl.parametreler) {
-      out.push({
-        ad: `${PARAMETRE[anahtar]?.ad ?? anahtar} = ${deger}`,
-        aciklama: `${isl.ad} · şu an ${isl.parametreler[anahtar]}`,
-        calistir: () => parametreDegistir(anahtar, deger),
-        dinamik: true,
-      });
+function paletKomutlari(): Komut[] {
+  return [...(etkin?.modul?.komutlar?.() ?? []), ...dinamikKomutlar.filter((k) => k.ekran === etkin?.ad)];
+}
+
+/** "çap 12": desenli komutun sözcüğü ya da anahtar kelimesi + sayı → sayıyla çalışan satır. */
+function satirlar(sorgu: string): Satir[] {
+  const K = paletKomutlari();
+  const out: Satir[] = [];
+  const m = /^\s*(.*?)\s*(-?\d+(?:[.,]\d+)?)\s*$/.exec(kucuk(sorgu));
+  if (m && m[1]) {
+    const soz = m[1];
+    const sayi = Number(m[2].replace(",", "."));
+    for (const k of K) {
+      if (!k.desen) continue;
+      const desenSoz = kucuk(k.desen.replace("<sayı>", "").trim());
+      if (desenSoz === soz || (k.anahtar_kelimeler ?? []).some((a) => kucuk(a) === soz)) {
+        out.push({
+          baslik: `${k.baslik.replace(/ \(.*\)$/, "")} = ${sayi}`,
+          aciklama: k.baslik,
+          dinamik: true,
+          calistir: () => k.calistir(sayi),
+        });
+      }
     }
   }
-  const sabit: Komut[] = [
-    { ad: D.oynuyor ? "Duraklat" : "Oynat", aciklama: "Boşluk", calistir: () => oynat(!D.oynuyor) },
-    { ad: "Başa dön", aciklama: "Home", calistir: () => zamanAyarla(0, true) },
-    { ad: "Sona git", aciklama: "End · son yüzey", calistir: () => zamanAyarla(is.sure.toplam, true) },
-    { ad: "Katman: işlem", aciklama: "yüzey işlem rengiyle", calistir: () => katmanSec("islem") },
-    { ad: "Katman: takım yükü", aciklama: "talaş kaldırma hızı", calistir: () => katmanSec("yuk") },
-    { ad: "G-code", aciklama: "sekme", calistir: () => sekmeSec("gcode") },
-    { ad: "Kanıtlar", aciklama: "sekme", calistir: () => sekmeSec("kanit") },
-    ...is.islemler.map((i) => ({
-      ad: `İşlem: ${i.ad}`,
-      aciklama: `${sureYaz(i.t0)} · T${i.takim.T}`,
-      calistir: () => islemSec(i.i),
-    })),
-  ];
-  const q = sorgu.trim().toLocaleLowerCase("tr");
-  return out.concat(sabit.filter((k) => !q || `${k.ad} ${k.aciklama}`.toLocaleLowerCase("tr").includes(q)));
+  const q = kucuk(sorgu.trim());
+  for (const k of K) {
+    if (k.desen) continue; // sayı ister: yalnız sayıyla yazılınca listelenir
+    const ek = k.anahtar_kelimeler ?? [];
+    const metin = kucuk([k.baslik, ...ek, k.kisayol ?? ""].join(" "));
+    if (!q || metin.includes(q)) {
+      out.push({ baslik: k.baslik, aciklama: k.kisayol ?? ek[ek.length - 1] ?? "", dinamik: false, calistir: () => k.calistir() });
+    }
+  }
+  return out;
 }
 
 let paletSecili = 0;
-let paletListe: Komut[] = [];
+let paletListe: Satir[] = [];
 let paletOnceki: HTMLElement | null = null;
+
+const paletAcik = () => !$("#perde").hidden;
 
 function paletAc(): void {
   paletOnceki = document.activeElement as HTMLElement | null;
@@ -367,6 +253,7 @@ function paletAc(): void {
   const g = $<HTMLInputElement>("#paletGirdi");
   g.value = "";
   g.placeholder = "Komut yaz: çap 12 · paso 2 · ilerleme 900 · cep · sona git";
+  paletSecili = 0;
   paletDoldur();
   g.focus();
 }
@@ -377,22 +264,31 @@ function paletKapat(): void {
 }
 
 function paletDoldur(): void {
-  paletListe = komutlar($<HTMLInputElement>("#paletGirdi").value);
+  paletListe = satirlar($<HTMLInputElement>("#paletGirdi").value);
   paletSecili = Math.min(paletSecili, Math.max(paletListe.length - 1, 0));
   const ul = $("#paletListe");
-  ul.innerHTML = paletListe
-    .map(
-      (k, i) =>
-        `<li role="option" data-i="${i}" aria-selected="${i === paletSecili}" class="${k.dinamik ? "dinamik" : ""}"><b>${k.ad}</b><span>${k.aciklama}</span></li>`,
-    )
-    .join("");
+  ul.replaceChildren(
+    ...paletListe.map((k, i) => {
+      const li = document.createElement("li");
+      li.setAttribute("role", "option");
+      li.dataset.i = String(i);
+      li.setAttribute("aria-selected", String(i === paletSecili));
+      if (k.dinamik) li.className = "dinamik";
+      const b = document.createElement("b");
+      b.textContent = k.baslik;
+      const s = document.createElement("span");
+      s.textContent = k.aciklama;
+      li.append(b, s);
+      return li;
+    }),
+  );
   ul.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
 }
 
 function paletCalistir(i: number): void {
   const k = paletListe[i];
   paletKapat();
-  k?.calistir();
+  if (k) void Promise.resolve(k.calistir()).catch((e) => console.warn("Komut çalışmadı:", e));
 }
 
 $("#paletGirdi").addEventListener("input", () => {
@@ -415,77 +311,80 @@ $("#paletListe").addEventListener("click", (e) => {
   if (li) paletCalistir(Number(li.dataset.i));
 });
 $("#perde").addEventListener("click", (e) => e.target === $("#perde") && paletKapat());
-$("#komutDugme").addEventListener("click", paletAc);
+$("#komutDugme").addEventListener("click", () => {
+  if (projeKabugu) window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true }));
+  else paletAc();
+});
 
-// --------------------------------------------------------------------- klavye
+// --------------------------------------------------------------------- klavye (kabuk)
 
+// Kabuk dinleyicisi ekranlarınkinden önce kurulur: palet açıkken tuşlar ekranlara gitmez.
 document.addEventListener("keydown", (e) => {
-  const paletAcik = !$("#perde").hidden;
-  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+  if (projeKabugu && (e.ctrlKey || e.metaKey)) return; // Ctrl K/Z/Y/S/O kabuğundur
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "k") {
     e.preventDefault();
-    if (paletAcik) paletKapat();
+    e.stopImmediatePropagation();
+    if (paletAcik()) paletKapat();
     else paletAc();
     return;
   }
-  if (e.key === "Escape") {
-    if (paletAcik) paletKapat();
-    else satirUstunde(-1);
+  if (paletAcik()) {
+    if (e.key === "Escape") paletKapat();
+    e.stopImmediatePropagation();
     return;
   }
-  if (paletAcik) return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
   const hedef = e.target as HTMLElement;
   if (hedef.matches("input, textarea, select") || hedef.isContentEditable) return;
-  if (e.key === " ") {
-    if (hedef.matches("button")) return; // odaklı düğmenin kendi Boşluk davranışı
-    e.preventDefault();
-    oynat(!D.oynuyor);
-  } else if (e.key === "ArrowRight") {
-    e.preventDefault();
-    adim(1);
-  } else if (e.key === "ArrowLeft") {
-    e.preventDefault();
-    adim(-1);
-  } else if (e.key === "Home") zamanAyarla(0, true);
-  else if (e.key === "End" && D.is) zamanAyarla(D.is.sure.toplam, true);
+  if (/^[0-9]$/.test(e.key)) {
+    const s = sekmeler.find((x) => x.tus === e.key);
+    if (s?.acik) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      git(s.ad);
+    }
+  }
 });
 
-// --------------------------------------------------------------------- kurulum
+// --------------------------------------------------------------------- döngü ve kurulum
 
-function alanlariCiz(): void {
-  $("#alanlar").innerHTML = ALANLAR.map(
-    (a) =>
-      `<button role="tab" aria-selected="${a.kimlik === "freze"}" ${a.hazir ? "" : `disabled title="Sonraki adım: ${a.not}"`}>${a.ad}</button>`,
-  ).join("");
+function dongu(simdi: number): void {
+  etkin?.modul?.kare?.(simdi / 1000);
+  requestAnimationFrame(dongu);
 }
 
-const kanca: TezgahKanca = {
-  get hazir() {
-    return D.hazir && !D.mesgul;
-  },
-  hayaletKonum: () => sahne.hayaletKonum(),
-  dro: () => [...D.dro] as Nokta3,
-  zaman: () => D.t,
-  gcodeSatirSayisi: () => (D.gelenIs ?? D.is)?.gcode.length ?? 0,
-  toplamSure: () => (D.gelenIs ?? D.is)?.sure.toplam ?? 0,
-  yuzey: () => sahne.yuzey(),
-  katmanlar: () => {
-    throw new Error("A3: uygulanmadı");
-  },
-};
-window.__tezgah = kanca;
+/** SPEC 37 kabuğu varsa bir kez başlatılır; ekranların değişiklikleri ona bildirilir. */
+async function projeKabugunuBaslat(): Promise<void> {
+  const yukle = KABUK_DOSYASI["./ekranlar/kabuk.ts"];
+  if (!yukle) return;
+  const m = await yukle();
+  projeKabugu = true;
+  m.baslat(kabukFor("kabuk"), paletKomutlari, async () => {
+    await etkin?.modul?.tazele?.();
+  });
+  degisiklikSonrasi(() => void m.ekranDegisti());
+}
 
 async function basla(): Promise<void> {
-  alanlariCiz();
-  hizCiz();
-  oynat(false);
-  $("#oynat").addEventListener("click", () => oynat(!D.oynuyor));
   setTimeout(() => $("#ipucu").style.setProperty("opacity", "0"), 7000);
   try {
-    const isler = await isListesi();
-    if (!isler.length) throw new Error("Sunucuda iş yok");
-    await yukle(isler[0]);
+    const moduller = kayitliModuller();
+    for (const m of moduller) komutKisayollari(m);
+    const r = await fetch("/api/ekranlar");
+    if (!r.ok) throw new SunucuHatasi(r.status, `${r.status} ${r.statusText}`);
+    const sunucu: SunucuEkrani[] = (await r.json()).ekranlar;
+    const adlar = new Set(sunucu.map((s) => s.ad));
+    for (const m of moduller) {
+      if (!adlar.has(m.ad) && m.ad !== "kabuk") console.warn(`Tezgah: '${m.ad}' ekranının ön yüzü var ama sunucuda yok; gösterilmiyor.`);
+    }
+    sekmeler = ekranlariSirala(sunucu, moduller);
+    sekmeleriCiz();
+    addEventListener("hashchange", () => void adresiUygula());
+    await projeKabugunuBaslat();
+    await adresiUygula();
+    kabukHazir = true;
   } catch (e) {
-    $("#gorunum").innerHTML = `<div class="yukleniyor" role="alert">Sunucuya ulaşılamadı: ${String(e)}</div>`;
+    hataGoster(`Sunucuya ulaşılamadı: ${String(e)}`);
   }
   requestAnimationFrame(dongu);
 }
