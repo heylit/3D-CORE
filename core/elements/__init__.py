@@ -1,7 +1,7 @@
 """
 Eleman kütüphanesi.
 
-Her eleman modülü şu üç fonksiyonu sağlar (sözleşme):
+Her eleman modülü şu fonksiyonları sağlar (sözleşme):
 
     ke(element, model) -> np.ndarray
         Global koordinatlarda eleman rijitlik matrisi (n x n, simetrik).
@@ -9,8 +9,13 @@ Her eleman modülü şu üç fonksiyonu sağlar (sözleşme):
     dofs(element, model) -> list[int]
         ke satır/sütunlarının karşılık geldiği global DOF numaraları.
 
-    axial_force(element, model, u) -> float
+    axial_force(element, model, u) -> float          (sadece çubuk tipi elemanlar)
         Global yer değiştirme vektörü u'dan eleman iç kuvveti [N] (+ çekme).
+
+    stress(element, model, u) -> np.ndarray (6,)     (sadece katı elemanlar)
+        Gerilme tensörü [MPa], Voigt: xx, yy, zz, xy, xz, yz (specs/11-tet4.md).
+
+ke ve dofs her elemanda zorunludur.
 
 Yeni eleman eklemek = bu klasöre bir dosya + aşağıdaki sözlüğe bir satır.
 assembly.py ve solver.py'ye DOKUNULMAZ.
