@@ -5,7 +5,7 @@
 > (kurallar: `BASLANGIC.md` bölüm 7). Sıra ve paralellik: `docs/yol-haritasi.md` → "Paralel çalışma: dalgalar".
 
 ## Açık dalga
-**Dalga 2 tamamlandı** (05, 06, 07, 11, 14, 15, 16, 20, 23). **Dalga 3 tamamlandı** (09, 12, 13, 17, 21, 24, 27); 03b, 28, 30, 41 ve Dalga 5'ten 35, 36, 45, 46 tamamlandı. Dalga 5'in SPEC metinleri onaylandı. Dalga 1 tamamlandı (01, 02, 03, 04, 08).
+**Dalga 2 tamamlandı** (05, 06, 07, 11, 14, 15, 16, 20, 23). **Dalga 3 tamamlandı** (09, 12, 13, 17, 21, 24, 27); 03b, 22, 28, 30, 41 ve Dalga 5'ten 33, 35, 36, 38, 40, 45, 46 tamamlandı. Dalga 5'in SPEC metinleri onaylandı. Dalga 1 tamamlandı (01, 02, 03, 04, 08).
 
 ## SPEC tablosu
 | SPEC | Dalga | Durum | Kimde (dal / oturum) | Ayrıntı |
@@ -34,7 +34,7 @@
 | 21-torna-gcode | 3 | tamamlandı (PR #42, `11c7414`) | — | `durum/21-torna-gcode.md` |
 | 27-ozellik-tanima | 3 | tamamlandı (PR #46, `8918a0a`) | — | `durum/27-ozellik-tanima.md` |
 | 10-montaj-cam | 3 → 5 | Dalga 5'e alındı | — | — |
-| 22-torna-sim | 4 | SPEC onaylı (2026-10-18 10:38) | — | — |
+| 22-torna-sim | 4 | tamamlandı (PR #41, `835845e`) | — | `durum/22-torna-sim.md` |
 | 18-ozellik-agaci, 19-adaptif-kaba | 4 → 5 | Dalga 5'e alındı | — | — |
 | 03b-cep-kalan-malzeme | — | tamamlandı (PR #49, `4e59efe`) | — | `durum/03b-cep-kalan-malzeme.md` |
 | 28-torna-profili | 4 | tamamlandı (PR #56, `fba8875`) | — | `durum/28-torna-profili.md` |
@@ -44,6 +44,9 @@
 | 45-modal | 5 | tamamlandı (PR #78, `977d0bc`) | — | `durum/45-modal.md` |
 | 35-standart-parca | 5 | tamamlandı (PR #82, `8fb636c`) | — | `durum/35-standart-parca.md` |
 | 46-uctan-uca | 5 | tamamlandı (PR #83, `1807be6`); H10/H11/H14 SPEC 22/26/29'u bekliyor | — | `durum/46-uctan-uca.md` |
+| 40-torna-ek | 5 | tamamlandı (PR #75, `eefa134`) | — | `durum/40-torna-ek.md` |
+| 38-is-foyu | 5 | tamamlandı (PR #69, `4066ee9`); K10 (SPEC 29 uyarlayıcısı) `cam.plan` gelince çalışır | — | `durum/38-is-foyu.md` |
+| 33-kinematik | 5 | tamamlandı (PR #72, `d2c581c`) | — | `durum/33-kinematik.md` |
 | 06b-cam-3d-ek, 25-tezgah-torna-montaj, 26-tezgah-modelleme, 31-sinumerik-heidenhain | — | SPEC onaylı (2026-10-18 10:38); dalgası henüz atanmadı. | — | — |
 | 42-bes-eksen-yol, 43-tri-dexel, 44-tezgah-carpisma | — | SPEC onaylı; başlıyor (42: "4 ve 5 eksen işleme", 43: SPEC 05, 44: SPEC 06 oturumu) | — | — |
 | 29-islem-plani | — | SPEC metni onaylı ve birleşti (PR #58, `94989a3`); kod bekliyor | — | `durum/29-islem-plani.md` |
@@ -106,6 +109,12 @@
 | 45-modal | Modal analiz ve kesme kuvveti altında sehim, `core/modal.py` + `analiz/` (PR #78) | 2026-10-18 | 139 |
 | 35-standart-parca | Standart parça kütüphanesi ve otomatik bağlantı önerisi (PR #82) | 2026-10-18 | 177 |
 | 46-uctan-uca | Uçtan uca altın senaryo: flanş + mil (PR #83); H1–H9, H12, H13, H15 etkin | 2026-10-18 | 42 |
+| 00-arayuzler | Dalga 5 A2: yüz referansı arayüzü (PR #99, `38bf070`); A1a, A1b, A2 tamam | 2026-10-18 | 43 |
+| 04b (30 tarafı) | SPEC 04b için postprosesör blokları, `cam/post/` (PR #98, `01fe3ac`) | 2026-10-18 | — |
+| 22-torna-sim | Torna talaş simülasyonu, K1–K19 (PR #41) | 2026-10-18 | 173 |
+| 40-torna-ek | Torna ekleri: eksenel delme ve punta, ters bağlama, profilli kanal (PR #75) | 2026-10-18 | 172 |
+| 38-is-foyu | İş föyü, `atolye/` (PR #69) | 2026-10-18 | 106 |
+| 33-kinematik | Montaj kinematiği (PR #72) | 2026-10-18 | 122 |
 | 05-cam-sim | Talaş simülasyonu: z-map, dexel, süre, çarpışma, oyma (PR #54) | 2026-10-18 | 175 |
 | 17-kroki | `sketch/model.py` eskiz veri modeli arayüzü (PR #55, `fb99eb6`) | 2026-10-18 | 138 |
 | — | CI: gmsh (mesh ekstrası) ve sistem kütüphaneleri kuruluyor (PR #57, `49a739f`) | 2026-10-18 | — |
