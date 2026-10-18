@@ -157,16 +157,16 @@ Malzeme kaldırmayan işlem (ΔV ≤ 1e-9 mm³) → `GeometryError` (SPEC 02 ile
   (giriş ile çıkış noktası arası). Kesici gövde p'nin PAY = 1 mm gerisinden başlar (SPEC 02 ile aynı).
 
 ## Kabul kriterleri
-- [ ] K1 `fillet_vertical`: blokta ΔV = (4 − π) r² c ve ΔS formülle rel 1e-6; sınır kutusu değişmez — `tests/geometry/test_fillet.py`
-- [ ] K2 `fillet_top`: blokta ΔV = (1 − π/4) r²·2(a+b) − 4r³(5/3 − π/2) rel 1e-6; silindirde ve boydan boya delik ağzında Pappus ΔV rel 1e-6 — `test_fillet.py`
-- [ ] K3 `fillet_all`: blokta V ve S kapalı formla rel 1e-6; ağırlık merkezi blok merkezinde 1e-6 mm — `test_fillet.py`
-- [ ] K4 Fillet hataları: r ≤ 0, kenar boyundan büyük r → `GeometryError`; girdi parça değişmiyor — `test_fillet.py`
-- [ ] K5 `countersink_hole`: kör ve boydan boyada ΔV = kesik koni + silindir rel 1e-6 (α = 90° ve 82° dahil); `Hole` kaydı (origin, axis, d, depth, csk_d, csk_angle) doğru; geçersiz girdiler hata — `tests/geometry/test_holes.py`
-- [ ] K5b `counterbore_hole`: tablo değerleriyle (M6, M8) ve açık ölçülerle kör / boydan boya ΔV = π(D² − d²)t_c/4 + π d² t/4 rel 1e-6; tablo tutarlılığı (D > d_k, t_c > k, d > d_n); açık ölçü tabloyu eziyor; kayıtta cbore_d, cbore_depth; geçersiz girdiler hata — `test_holes.py`
-- [ ] K6 `parse_thread` ve `tapped_hole`: tablo değerleri ve ince hatve; ΔV = π (d_n − P)² t / 4 rel 1e-6; kayıtta diş bilgisi; bozuk yazım, tabloda olmayan diş, thread_depth > depth hata — `test_holes.py`
-- [ ] K7 `inclined_hole`: θ = 0°, 30°, 45°'de boydan boya ΔV = π r² c / cos θ ve kayıt depth = c / cos θ rel 1e-6; kör ΔV = π r² t rel 1e-6; yüzey dışı p, malzemeye girmeyen n, sıfır n hata — `test_holes.py`
-- [ ] K8 Kayıt zinciri: blok → `hole` → `countersink_hole` → `counterbore_hole` → `tapped_hole` → `inclined_hole` → `chamfer_top` → `fillet_vertical` sonunda `part.holes` 5 kaydı sırayla taşıyor; girdi parçaların kayıtları değişmiyor — `test_holes.py`
-- [ ] Tüm testler yeşil (`pytest` 0 failed, bu SPEC'te 0 "uygulanmamış"), `ruff check .` ve `ruff format --check .` temiz; SPEC 02 testleri değişmeden geçiyor
+- [x] K1 `fillet_vertical`: blokta ΔV = (4 − π) r² c ve ΔS formülle rel 1e-6; sınır kutusu değişmez — `tests/geometry/test_fillet.py`
+- [x] K2 `fillet_top`: blokta ΔV = (1 − π/4) r²·2(a+b) − 4r³(5/3 − π/2) rel 1e-6; silindirde ve boydan boya delik ağzında Pappus ΔV rel 1e-6 — `test_fillet.py`
+- [x] K3 `fillet_all`: blokta V ve S kapalı formla rel 1e-6; ağırlık merkezi blok merkezinde 1e-6 mm — `test_fillet.py`
+- [x] K4 Fillet hataları: r ≤ 0, kenar boyundan büyük r → `GeometryError`; girdi parça değişmiyor — `test_fillet.py`
+- [x] K5 `countersink_hole`: kör ve boydan boyada ΔV = kesik koni + silindir rel 1e-6 (α = 90° ve 82° dahil); `Hole` kaydı (origin, axis, d, depth, csk_d, csk_angle) doğru; geçersiz girdiler hata — `tests/geometry/test_holes.py`
+- [x] K5b `counterbore_hole`: tablo değerleriyle (M6, M8) ve açık ölçülerle kör / boydan boya ΔV = π(D² − d²)t_c/4 + π d² t/4 rel 1e-6; tablo tutarlılığı (D > d_k, t_c > k, d > d_n); açık ölçü tabloyu eziyor; kayıtta cbore_d, cbore_depth; geçersiz girdiler hata — `test_holes.py`
+- [x] K6 `parse_thread` ve `tapped_hole`: tablo değerleri ve ince hatve; ΔV = π (d_n − P)² t / 4 rel 1e-6; kayıtta diş bilgisi; bozuk yazım, tabloda olmayan diş, thread_depth > depth hata — `test_holes.py`
+- [x] K7 `inclined_hole`: θ = 0°, 30°, 45°'de boydan boya ΔV = π r² c / cos θ ve kayıt depth = c / cos θ rel 1e-6; kör ΔV = π r² t rel 1e-6; yüzey dışı p, malzemeye girmeyen n, sıfır n hata — `test_holes.py`
+- [x] K8 Kayıt zinciri: blok → `hole` → `countersink_hole` → `counterbore_hole` → `tapped_hole` → `inclined_hole` → `chamfer_top` → `fillet_vertical` sonunda `part.holes` 5 kaydı sırayla taşıyor; girdi parçaların kayıtları değişmiyor — `test_holes.py`
+- [x] Tüm testler yeşil (`pytest` 0 failed, bu SPEC'te 0 "uygulanmamış"), `ruff check .` ve `ruff format --check .` temiz; SPEC 02 testleri değişmeden geçiyor
 
 ## Kapsam dışı
 - Helisel (gerçek) diş geometrisi; inç / UNC / boru dişi; sol diş
