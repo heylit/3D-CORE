@@ -31,39 +31,84 @@ export interface Olay {
   detail: string;
 }
 
-/** `pozlar` ikilisi (başlık uint32 sema, n, m + float32[n·m·12]) → PozDizisi. Sürüm / boy hatası → Error. */
+function birim(q: Dordey): Dordey {
+  const r = Math.hypot(...q);
+  return q.map((v) => v / r) as Dordey;
+}
+
+/** `pozlar` ikilisi (başlık uint32 sema, n, m, 8 baytın katına tamamlanmış: 16 bayt; + float32[n·m·12]) → PozDizisi. Sürüm / boy hatası → Error. */
 export function pozlarCoz(tampon: ArrayBuffer, sema = 1): PozDizisi {
-  void tampon;
-  void sema;
-  throw new Error("SPEC 47b: uygulanmadı");
+  const dv = new DataView(tampon);
+  if (tampon.byteLength < 16) throw new Error(`pozlar dizisi çok kısa (${tampon.byteLength} bayt)`);
+  const surum = dv.getUint32(0, true);
+  if (surum !== sema) throw new Error(`pozlar dizisi sürümü ${surum}, beklenen ${sema}`);
+  const n = dv.getUint32(4, true);
+  const m = dv.getUint32(8, true);
+  const beklenen = 16 + n * m * 12 * 4;
+  if (tampon.byteLength !== beklenen)
+    throw new Error(`pozlar dizisi boyu tutmuyor (${tampon.byteLength} bayt, beklenen ${beklenen})`);
+  const veri = new Float32Array(n * m * 12);
+  for (let i = 0; i < veri.length; i++) veri[i] = dv.getFloat32(16 + 4 * i, true);
+  return { n, m, veri };
 }
 
 /** k. noktada b. gövdenin sunucu pozu (birebir; ara değer yok). Aralık dışı → Error. */
 export function pozAl(pozlar: PozDizisi, k: number, b: number): Poz {
-  void pozlar;
-  void k;
-  void b;
-  throw new Error("SPEC 47b: uygulanmadı");
+  const { n, m, veri } = pozlar;
+  if (!Number.isInteger(k) || k < 0 || k >= n) throw new Error(`nokta indeksi ${k} aralık dışında (n = ${n})`);
+  if (!Number.isInteger(b) || b < 0 || b >= m) throw new Error(`gövde indeksi ${b} aralık dışında (m = ${m})`);
+  const o = (k * m + b) * 12;
+  const v = Array.from(veri.subarray(o, o + 12));
+  return { R: v.slice(0, 9) as Matris3, t: v.slice(9, 12) as Vek3 };
 }
 
 /** Dönme matrisi → birim dördey (w ≥ 0). */
 export function dordey(R: Matris3): Dordey {
-  void R;
-  throw new Error("SPEC 47b: uygulanmadı");
+  // Shepperd: en büyük köşegen bileşenden (sayısal kararlılık).
+  const [a, b, c, d, e, f, g, h, i] = R;
+  const iz = a + e + i;
+  let q: Dordey;
+  if (iz > 0) {
+    const S = 2 * Math.sqrt(1 + iz);
+    q = [S / 4, (h - f) / S, (c - g) / S, (d - b) / S];
+  } else if (a > e && a > i) {
+    const S = 2 * Math.sqrt(1 + a - e - i);
+    q = [(h - f) / S, S / 4, (b + d) / S, (c + g) / S];
+  } else if (e > i) {
+    const S = 2 * Math.sqrt(1 + e - a - i);
+    q = [(c - g) / S, (b + d) / S, S / 4, (f + h) / S];
+  } else {
+    const S = 2 * Math.sqrt(1 + i - a - e);
+    q = [(d - b) / S, (c + g) / S, (f + h) / S, S / 4];
+  }
+  if (q[0] < 0) q = q.map((v) => -v) as Dordey;
+  return birim(q);
 }
 
 /** Birim dördey → ortonormal dönme matrisi. */
 export function dordeyMatris(q: Dordey): Matris3 {
-  void q;
-  throw new Error("SPEC 47b: uygulanmadı");
+  const [w, x, y, z] = birim(q);
+  return [
+    1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y),
+    2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x),
+    2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y),
+  ]; // prettier-ignore
 }
 
 /** Kısa yoldan SLERP, s ∈ [0, 1]; sonuç birim dördey. */
 export function slerp(q0: Dordey, q1: Dordey, s: number): Dordey {
-  void q0;
-  void q1;
-  void s;
-  throw new Error("SPEC 47b: uygulanmadı");
+  let b = q1;
+  let c = q0[0] * q1[0] + q0[1] * q1[1] + q0[2] * q1[2] + q0[3] * q1[3];
+  if (c < 0) {
+    // kısa yol: −q aynı dönmedir
+    b = q1.map((v) => -v) as Dordey;
+    c = -c;
+  }
+  if (c > 1 - 1e-12) return birim(q0.map((v, i) => v + s * (b[i] - v)) as Dordey);
+  const om = Math.acos(Math.min(1, c));
+  const k0 = Math.sin((1 - s) * om) / Math.sin(om);
+  const k1 = Math.sin(s * om) / Math.sin(om);
+  return birim(q0.map((v, i) => k0 * v + k1 * b[i]) as Dordey);
 }
 
 /**
@@ -71,24 +116,41 @@ export function slerp(q0: Dordey, q1: Dordey, s: number): Dordey {
  * dönme SLERP. `kf` tam sayıysa sunucu pozu birebir döner. `kf` [0, n−1] dışına kırpılmaz → Error.
  */
 export function pozAraDeger(pozlar: PozDizisi, kf: number, b: number): Poz {
-  void pozlar;
-  void kf;
-  void b;
-  throw new Error("SPEC 47b: uygulanmadı");
+  if (!(kf >= 0 && kf <= pozlar.n - 1)) throw new Error(`kesirli indeks ${kf} aralık dışında (n = ${pozlar.n})`);
+  const k = Math.floor(kf);
+  const s = kf - k;
+  const a = pozAl(pozlar, k, b);
+  if (s === 0) return a;
+  const c = pozAl(pozlar, k + 1, b);
+  return {
+    R: dordeyMatris(slerp(dordey(a.R), dordey(c.R), s)),
+    t: a.t.map((v, i) => v + s * (c.t[i] - v)) as Vek3,
+  };
 }
 
 /** Zaman `t` [s] → kesirli nokta indeksi (zaman dizisi azalmayan; eşit zamanlı ardışık noktalarda ilki). */
 export function zamandanIndeks(t: number, zaman: ArrayLike<number>): number {
-  void t;
-  void zaman;
-  throw new Error("SPEC 47b: uygulanmadı");
+  const n = zaman.length;
+  if (n === 0 || !(t >= zaman[0] && t <= zaman[n - 1]))
+    throw new Error(`zaman ${t} şerit aralığı dışında`);
+  // İlk k: zaman[k] ≥ t (ikili arama).
+  let lo = 0;
+  let hi = n - 1;
+  while (lo < hi) {
+    const orta = (lo + hi) >> 1;
+    if (zaman[orta] >= t) hi = orta;
+    else lo = orta + 1;
+  }
+  if (zaman[lo] === t || lo === 0) return lo;
+  return lo - 1 + (t - zaman[lo - 1]) / (zaman[lo] - zaman[lo - 1]);
 }
 
 /** Olay → şerit zamanı: olayın kendi `t`'si; `zaman[k] ≤ t ≤ zaman[k+1]` değilse Error (tutarsız sunucu verisi). */
 export function olayZamani(olay: Olay, zaman: ArrayLike<number>): number {
-  void olay;
-  void zaman;
-  throw new Error("SPEC 47b: uygulanmadı");
+  const { k, t } = olay;
+  if (!Number.isInteger(k) || k < 0 || k + 1 >= zaman.length || !(zaman[k] <= t && t <= zaman[k + 1]))
+    throw new Error(`olay zamanı tutarsız: k = ${k}, t = ${t}`);
+  return t;
 }
 
 /**
@@ -102,10 +164,30 @@ export function eklemSeridi(
   j: number,
   genislik: number,
 ): { t: Float64Array; min: Float64Array; max: Float64Array } {
-  void zaman;
-  void q;
-  void sutun;
-  void j;
-  void genislik;
-  throw new Error("SPEC 47b: uygulanmadı");
+  const n = zaman.length;
+  if (n === 0 || genislik < 1 || !Number.isInteger(genislik)) throw new Error("eklem şeridi: boş dizi ya da genişlik");
+  if (q.length !== n * sutun || j < 0 || j >= sutun) throw new Error("eklem şeridi: q boyu ya da sütun");
+  const t0 = zaman[0];
+  const dt = (zaman[n - 1] - t0) / genislik;
+  const t = new Float64Array(genislik);
+  const min = new Float64Array(genislik).fill(Infinity);
+  const max = new Float64Array(genislik).fill(-Infinity);
+  for (let p = 0; p < genislik; p++) t[p] = t0 + (p + 0.5) * dt;
+  for (let i = 0; i < n; i++) {
+    const p = dt > 0 ? Math.min(genislik - 1, Math.floor((zaman[i] - t0) / dt)) : 0;
+    const v = q[i * sutun + j];
+    if (v < min[p]) min[p] = v;
+    if (v > max[p]) max[p] = v;
+  }
+  // Nokta düşmeyen piksel: komşu noktalar arasında doğrusal değer (yalnız görsel).
+  for (let p = 0; p < genislik; p++) {
+    if (min[p] <= max[p]) continue;
+    const kf = zamandanIndeks(t[p], zaman);
+    const k = Math.min(Math.floor(kf), n - 2);
+    const s = kf - k;
+    const v = q[k * sutun + j] + s * (q[(k + 1) * sutun + j] - q[k * sutun + j]);
+    min[p] = v;
+    max[p] = v;
+  }
+  return { t, min, max };
 }

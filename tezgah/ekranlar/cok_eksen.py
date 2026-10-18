@@ -25,10 +25,15 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 
 from tezgah.ekranlar import Ekran
+from tezgah.ekranlar import _cok_eksen_kopru as kopru
 
 OCTET = "application/octet-stream"
 
 router = APIRouter()
+
+# Bellekteki durum: örnek adı → güncel iş (parametre değişiklikleri), parmak izi → simülasyon sonuçları.
+_isler: dict[str, object] = {}
+_simler: dict[str, list] = {}
 
 
 class Parametre(BaseModel):
@@ -38,12 +43,16 @@ class Parametre(BaseModel):
 
 def hazir() -> str | None:
     """None → SPEC 41–44 modüllerinin hepsi var; yoksa eksikleri sayan neden metni."""
-    raise NotImplementedError("SPEC 47b: uygulanmadı")
+    eksik = kopru.eksik_moduller()
+    if not eksik:
+        return None
+    return "Çok eksen çekirdeği eksik: " + ", ".join(eksik)
 
 
 def sifirla() -> None:
     """Örnek işleri ve simülasyon önbelleğini başlangıç değerine döndürür."""
-    raise NotImplementedError("SPEC 47b: uygulanmadı")
+    _isler.clear()
+    _simler.clear()
 
 
 @router.get("/ornekler")

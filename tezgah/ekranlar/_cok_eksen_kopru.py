@@ -32,9 +32,13 @@ Hata: geçersiz girdi `CamError` (ya da çekirdeğin hata türü) fırlatır; se
 
 from __future__ import annotations
 
+import importlib
 from typing import TYPE_CHECKING
 
 import numpy as np
+
+from cam.model import CamError
+from tezgah import SEMA
 
 if TYPE_CHECKING:
     from cam.multiaxis.machine import MachineModel
@@ -62,7 +66,13 @@ GEREKEN_MODULLER: tuple[tuple[str, str], ...] = (
 
 def eksik_moduller() -> list[str]:
     """`GEREKEN_MODULLER`'den import edilemeyenlerin "modül (SPEC NN)" metinleri; hepsi varsa boş liste."""
-    raise NotImplementedError("SPEC 47b: uygulanmadı")
+    eksik = []
+    for modul, spec in GEREKEN_MODULLER:
+        try:
+            importlib.import_module(modul)
+        except ImportError:
+            eksik.append(f"{modul} ({spec})")
+    return eksik
 
 
 # ---------------------------------------------------------------- JSON
@@ -135,6 +145,39 @@ def simule(is_: CokEksenIsi, cell: float = SIM_HUCRE) -> list[SimResult5]:
 # ---------------------------------------------------------------- ikili diziler
 
 
+def _blok(a: np.ndarray) -> bytes:
+    """Dizinin little-endian baytları, 8'in katına sıfırla tamamlanmış."""
+    b = a.astype(a.dtype.newbyteorder("<"), copy=False).tobytes()
+    return b + bytes(-len(b) % 8)
+
+
+def _baslik_ikili(*sayilar: int) -> bytes:
+    """uint32 sema + sayılar, 8'in katına tamamlanmış."""
+    return _blok(np.array((SEMA, *sayilar), dtype=np.uint32))
+
+
+def _oku(veri: bytes, ofs: int, dtype: str, n: int, ne: str) -> tuple[np.ndarray, int]:
+    dt = np.dtype(dtype).newbyteorder("<")
+    boy = dt.itemsize * n
+    if ofs + boy > len(veri):
+        raise CamError(f"{ne} beklenenden kısa ({len(veri)} bayt)")
+    a = np.frombuffer(veri, dtype=dt, count=n, offset=ofs)
+    return a.astype(dt.newbyteorder("="), copy=True), ofs + boy + (-boy % 8)
+
+
+def _baslik(veri: bytes, ne: str, m: int) -> tuple[list[int], int]:
+    """Başlığı okur ve sürümü denetler; (sayılar, sonraki ofset)."""
+    b, ofs = _oku(veri, 0, "u4", 1 + m, ne)
+    if int(b[0]) != SEMA:
+        raise CamError(f"{ne} sürümü {int(b[0])}, beklenen {SEMA}")
+    return [int(v) for v in b[1:]], ofs
+
+
+def _son(veri: bytes, ofs: int, ne: str) -> None:
+    if ofs != len(veri):
+        raise CamError(f"{ne} boyu tutmuyor ({len(veri)} bayt, beklenen {ofs})")
+
+
 def noktalar_ikili(is_: CokEksenIsi) -> bytes:
     """Nokta dizisi (SPEC 47 `noktalar`).
 
@@ -155,7 +198,16 @@ def noktalar_ikili(is_: CokEksenIsi) -> bytes:
 def noktalar_coz(veri: bytes) -> dict[str, np.ndarray]:
     """→ {"konum" (n, 3), "zaman", "islem", "hizli", "a" (n, 3), "q" (n, 3+k), "g93"}.
     Sürüm / boy hatası → CamError."""
-    raise NotImplementedError("SPEC 47b: uygulanmadı")
+    (n, k), ofs = _baslik(veri, "Nokta dizisi", 2)
+    out = {}
+    for ad, dt, m in (("konum", "f4", 3), ("zaman", "f8", 1), ("islem", "i2", 1), ("hizli", "u1", 1),
+                      ("a", "f4", 3), ("q", "f8", 3 + k), ("g93", "f4", 1)):  # fmt: skip
+        out[ad], ofs = _oku(veri, ofs, dt, n * m, "Nokta dizisi")
+    _son(veri, ofs, "Nokta dizisi")
+    out["konum"] = out["konum"].reshape(n, 3)
+    out["a"] = out["a"].reshape(n, 3)
+    out["q"] = out["q"].reshape(n, 3 + k)
+    return out
 
 
 def pozlar_ikili(is_: CokEksenIsi) -> bytes:
@@ -171,7 +223,11 @@ def pozlar_ikili(is_: CokEksenIsi) -> bytes:
 
 def pozlar_coz(veri: bytes) -> dict[str, np.ndarray]:
     """→ {"R" (n, m, 3, 3), "t" (n, m, 3)}. Sürüm / boy hatası → CamError."""
-    raise NotImplementedError("SPEC 47b: uygulanmadı")
+    (n, m), ofs = _baslik(veri, "Poz dizisi", 2)
+    ham, ofs = _oku(veri, ofs, "f4", n * m * 12, "Poz dizisi")
+    _son(veri, ofs, "Poz dizisi")
+    ham = ham.reshape(n, m, 12)
+    return {"R": ham[:, :, :9].reshape(n, m, 3, 3).copy(), "t": ham[:, :, 9:].copy()}
 
 
 def sapma_ikili(is_: CokEksenIsi) -> bytes:
@@ -189,7 +245,11 @@ def sapma_ikili(is_: CokEksenIsi) -> bytes:
 
 def sapma_coz(veri: bytes) -> dict[str, np.ndarray]:
     """→ {"e" (s, 2), "tcp" (s, SAPMA_ARA, 3)}. Sürüm / boy hatası → CamError."""
-    raise NotImplementedError("SPEC 47b: uygulanmadı")
+    (s, ara), ofs = _baslik(veri, "Sapma dizisi", 2)
+    e, ofs = _oku(veri, ofs, "f4", 2 * s, "Sapma dizisi")
+    tcp, ofs = _oku(veri, ofs, "f4", 3 * s * ara, "Sapma dizisi")
+    _son(veri, ofs, "Sapma dizisi")
+    return {"e": e.reshape(s, 2), "tcp": tcp.reshape(s, ara, 3)}
 
 
 def dexel_ikili(dexeller: list[TriDexel]) -> bytes:
@@ -210,7 +270,26 @@ def dexel_ikili(dexeller: list[TriDexel]) -> bytes:
 def dexel_coz(veri: bytes) -> list[dict]:
     """→ görüntü başına {"izgara": {"x0", "y0", "z0", "dx", "dy", "dz", "nx", "ny", "nz"},
     "x" | "y" | "z": list[list[tuple[float, float]]]} (ışın sırası `dexel_ikili` gibi). Hata → CamError."""
-    raise NotImplementedError("SPEC 47b: uygulanmadı")
+    (g,), ofs = _baslik(veri, "Dexel dizisi", 1)
+    out = []
+    for _ in range(g):
+        x, ofs = _oku(veri, ofs, "f8", 6, "Dexel dizisi")
+        nn, ofs = _oku(veri, ofs, "u4", 3, "Dexel dizisi")
+        izgara = dict(zip(("x0", "y0", "z0", "dx", "dy", "dz"), (float(v) for v in x), strict=True))
+        izgara |= dict(zip(("nx", "ny", "nz"), (int(v) for v in nn), strict=True))
+        goruntu: dict = {"izgara": izgara}
+        for eksen in ("z", "x", "y"):
+            (r,), ofs = _oku(veri, ofs, "u4", 1, "Dexel dizisi")
+            say, ofs = _oku(veri, ofs, "u2", int(r), "Dexel dizisi")
+            uc, ofs = _oku(veri, ofs, "f4", 2 * int(say.sum()), "Dexel dizisi")
+            sinir = np.concatenate([[0], np.cumsum(say, dtype=np.int64)]) * 2
+            goruntu[eksen] = [
+                [(float(uc[a + 2 * i]), float(uc[a + 2 * i + 1])) for i in range((b - a) // 2)]
+                for a, b in zip(sinir[:-1], sinir[1:], strict=True)
+            ]
+        out.append(goruntu)
+    _son(veri, ofs, "Dexel dizisi")
+    return out
 
 
 def govde_ikili(model: MachineModel, ad: str) -> bytes:
@@ -227,4 +306,8 @@ def govde_ikili(model: MachineModel, ad: str) -> bytes:
 
 def govde_coz(veri: bytes) -> dict[str, np.ndarray]:
     """→ {"V" (nv, 3), "T" (nt, 3)}. Sürüm / boy hatası → CamError."""
-    raise NotImplementedError("SPEC 47b: uygulanmadı")
+    (nv, nt), ofs = _baslik(veri, "Gövde ağı", 2)
+    V, ofs = _oku(veri, ofs, "f4", 3 * nv, "Gövde ağı")
+    T, ofs = _oku(veri, ofs, "u4", 3 * nt, "Gövde ağı")
+    _son(veri, ofs, "Gövde ağı")
+    return {"V": V.reshape(nv, 3), "T": T.reshape(nt, 3)}
