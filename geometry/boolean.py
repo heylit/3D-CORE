@@ -104,7 +104,10 @@ def cut(a: Part, b: Part) -> Part:
     """A − B; delik kayıtları korunur, boş sonuç GeometryError. Ad: a.name."""
     sekil = _boolean(BRepAlgoAPI_Cut, a, b, "cut")
     if _hacim(sekil) <= V_BOS:
-        raise GeometryError(f"cut: '{a.name}' − '{b.name}' sonucu boş")
+        raise GeometryError(
+            f"{a.name} − {b.name}: kesim sonucu boş (hacim 0 mm³) — "
+            "kesen parçayı küçültün ya da konumunu değiştirin"
+        )
     return _yeni_part(sekil, a.name, a.holes)
 
 

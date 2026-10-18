@@ -14,22 +14,29 @@ Ekran listesi: `app.state.ekranlar` (A3 `uygulama(ekranlar=...)` verdiyse), yoks
 
 from __future__ import annotations
 
+import hashlib
 import heapq
 import tempfile
 import threading
+import time
 from collections import OrderedDict
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from pathlib import Path
 
 from fastapi import APIRouter, FastAPI, HTTPException, Request
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.responses import JSONResponse, Response
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
+import fileio.kurtarma as kr
 import fileio.proje as pj
+import tezgah.hata as hata
 import tezgah.ornekler_37 as ornekler_37
 from assy.model import AssyError
 from cam.model import CamError
 from core.model import ModelError
+from fileio.kurtarma import KurtarmaAyari
 from fileio.proje import Onbellek, Proje, ProjeError, kanonik, ozet
 from geometry.part import GeometryError
 from sketch.model import SketchError
@@ -41,6 +48,8 @@ ONEK = "/api/proje"
 ETIKET_BASLIGI = "X-Tezgah-Etiket"
 ONBELLEK_SINIRI = 256 * 1024 * 1024  # bellekteki önbellek, bayt
 VARSAYILAN_KLASOR = Path.home() / "3D-CORE projeleri"
+
+SECIMLER = ("kurtar", "yoksay", "ikisi")  # SPEC 54 §5 açılış seçenekleri
 
 # Kullanıcıya 422 olarak dönen çekirdek hataları (A3 hata işleyicisiyle aynı küme).
 CEKIRDEK_HATALARI = (ProjeError, CamError, ModelError, AssyError, GeometryError, SketchError, KeyError)
@@ -164,12 +173,23 @@ class Kabuk:
     def __init__(
         self,
         ekranlar: Sequence[Ekran],
-        kurtarma: object | None = None,  # fileio.kurtarma.KurtarmaAyari (SPEC 54 Karar 9)
+        kurtarma: KurtarmaAyari | None = None,
         klasor: Path | None = None,
     ) -> None:
         self._kurtarma = kurtarma  # None → otomatik kayıt kapalı (SPEC 54 §5)
         self._klasor = klasor
         self.kurtarma_uyarilari: list[str] = []
+        self._kk = threading.Lock()  # yazıcı iş parçacığının defteri (ana kilidi tutmaz)
+        self._yazici: threading.Thread | None = None
+        self._zamanlayici: threading.Thread | None = None
+        self._dur = threading.Event()
+        self._sayac = 0  # bu oturumdaki kurtarma yazımları
+        self._nesil = 0  # her başarılı değişiklikte artar
+        self._yazilan_nesil = 0  # kurtarma dosyasındaki nesil
+        self._yazim_hatasi = False
+        self._kaynak_ozet: str | None = None  # P'nin dosya baytlarının sha256'sı
+        self._bekleyen: tuple[dict, Path] | None = None  # açılışta önerilen kurtarma
+        self._kurtarma_sifirla()
         self._ekranlar = [e for e in ekranlar if e.ad != AD]
         self._sahip = _sahipler(self._ekranlar)
         self._sira = sira(self._ekranlar)
@@ -341,6 +361,7 @@ class Kabuk:
             ekran = self._ekran_adi({yamalar[0]["bolum"]})
             self._proje = pj.uygula(self._proje, etiket, ekran, {b: yeni[b] for b in degisen})
             self._kirli, self.son_etki = True, etki
+            self._degisti()
             return etki
 
     def yakala(self, etiket: str, ekran: str | None = None) -> Etki | None:
@@ -357,6 +378,7 @@ class Kabuk:
             ekran = ekran or self._ekran_adi(degisen)
             self._proje = pj.uygula(self._proje, etiket, ekran, {b: yeni[b] for b in degisen})
             self._kirli, self.son_etki = True, etki
+            self._degisti()
             return etki
 
     def _gecis(self, hedef: Proje) -> Etki:
@@ -366,6 +388,7 @@ class Kabuk:
         etki = self._yay(eski, yeni, degisen, kendisi=True)
         self._proje = hedef
         self._kirli, self.son_etki = True, etki
+        self._degisti()
         return etki
 
     def geri_al(self) -> Etki:
@@ -394,6 +417,7 @@ class Kabuk:
         self._yay(eski, yeni, set(self._sira), kendisi=True)
         self._proje = Proje(p.ad, yeni, {}, p.gecmis, tuple(uyarilar))
         self._yol, self._kirli, self.son_etki = yol, False, None
+        self._kurtarma_sifirla()
 
     def yeni(self, ad: str) -> None:
         with self._kilit:
@@ -408,10 +432,14 @@ class Kabuk:
             self._proje = Proje(ad, bolumler)
             self._son_ozet = {b: self._ozet(b) for b in self._sira}
             self._yol, self._kirli, self.son_etki = None, False, None
+            self._kurtarma_sifirla()
 
     def ac(self, yol: str | Path) -> None:
         with self._kilit:
+            P = Path(yol)
             self._yukle(pj.ac(yol), str(yol))
+            self._kaynak_ozet = hashlib.sha256(P.read_bytes()).hexdigest()
+            self._kurtarma_oner(P)
 
     def ac_bayt(self, veri: bytes) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -430,6 +458,8 @@ class Kabuk:
 
     def kaydet(self, yol: str | Path | None = None) -> Path:
         with self._kilit:
+            self.kurtarma_bekle()
+            adsiz = None if self._yol is not None else self._kurtarma_hedefi()
             hedef = yol if yol is not None else self._yol
             if hedef is None:
                 raise ProjeError("kaydedilecek yol yok: önce bir dosya yolu verin")
@@ -442,6 +472,12 @@ class Kabuk:
             pj.kaydet(self.proje, p)
             self._yol = str(hedef) if Path(str(hedef)).is_absolute() else str(p)
             self._kirli = False
+            self._kaynak_ozet = hashlib.sha256(p.read_bytes()).hexdigest()
+            kr.kurtarma_temizle(p)  # SPEC 54 Karar 5
+            if adsiz is not None:
+                for a in (adsiz, adsiz.with_name(adsiz.name + ".json")):
+                    a.unlink(missing_ok=True)
+            self._kurtarma_sifirla()
             return p
 
     def bayt(self) -> bytes:
@@ -450,27 +486,177 @@ class Kabuk:
 
     # ----------------------------------------------------- SPEC 54 §5 otomatik kayıt
 
+    def _kok_klasor(self) -> Path:
+        return Path(self._klasor) if self._klasor is not None else VARSAYILAN_KLASOR
+
+    def gunluk_yolu(self) -> Path:
+        """Çekirdek dışı hataların günlüğü (SPEC 54 §2)."""
+        return self._kok_klasor() / ".gunluk" / "hatalar.log"
+
+    def _kurtarma_sifirla(self) -> None:
+        """Yeni yüklenen / oluşturulan / kaydedilen proje: sayaç ve zaman baştan."""
+        self._ilk_ozet = hashlib.sha256(f"{time.time_ns()}-{id(self)}".encode()).hexdigest()
+        self._son_yazim = time.time()
+        self._yeni_kayit = 0
+        self._adsiz_hedef: Path | None = None
+        self._bekleyen = None
+        with self._kk:
+            self._yazilan_nesil = self._nesil
+
+    def _kurtarma_hedefi(self) -> Path:
+        if self._yol is not None:
+            return kr.kurtarma_yolu(Path(self._yol), self._proje.ad, self._ilk_ozet)
+        if self._adsiz_hedef is not None:
+            return self._adsiz_hedef
+        return kr.kurtarma_yolu(None, self._proje.ad, self._ilk_ozet, self._kok_klasor() / ".kurtarma")
+
+    def _degisti(self) -> None:
+        """Başarılı değişiklikten sonra (önizleme değil): sayaç ve gerekirse kurtarma yazımı."""
+        self._nesil += 1
+        self._yeni_kayit += 1
+        self.kurtarma_adimi()
+
     def kurtarma_adimi(self, simdi: float | None = None) -> bool:
         """Zamanı geldiyse kurtarma yazımını arka planda başlatır; başladıysa True."""
-        raise NotImplementedError("SPEC 54: Kabuk.kurtarma_adimi")
+        if self._kurtarma is None:
+            return False
+        with self._kilit:
+            if self._yazici is not None and self._yazici.is_alive():
+                return False
+            with self._kk:
+                if self._yazilan_nesil == self._nesil:  # kurtarma dosyası zaten güncel
+                    return False
+            simdi = time.time() if simdi is None else simdi
+            if not kr.yazmali_mi(simdi, self._son_yazim, self._yeni_kayit, self._kirli, self._kurtarma):
+                return False
+            p = replace(self._proje, onbellek={})
+            yol = self._kurtarma_hedefi()
+            kaynak = self._kaynak_ozet if self._yol is not None else None
+            self._sayac += 1
+            self._son_yazim, self._yeni_kayit = time.time(), 0
+            t = threading.Thread(
+                target=self._kurtarma_yaz, args=(p, yol, kaynak, self._sayac, self._nesil), daemon=True
+            )
+            self._yazici = t
+            t.start()
+            return True
+
+    def _kurtarma_yaz(self, p: Proje, yol: Path, kaynak: str | None, sayac: int, nesil: int) -> None:
+        try:
+            kr.kurtarma_yaz(p, yol, kaynak, sayac)
+        except Exception as e:  # noqa: BLE001 — disk dolu / izin: uygulama sürer, bir kez uyarı
+            with self._kk:
+                if not self._yazim_hatasi:
+                    self._yazim_hatasi = True
+                    self.kurtarma_uyarilari.append(
+                        f"{yol.name}: kurtarma dosyası yazılamadı ({e}) — diskte yer açın ya da projeyi "
+                        "başka bir klasöre kaydedin"
+                    )
+            return
+        with self._kk:
+            self._yazim_hatasi = False
+            self._yazilan_nesil = nesil
 
     def kurtarma_bekle(self, zaman_asimi: float = 10.0) -> bool:
         """Süren kurtarma yazımının bitmesini bekler; bittiyse True."""
-        raise NotImplementedError("SPEC 54: Kabuk.kurtarma_bekle")
+        t = self._yazici
+        if t is None:
+            return True
+        t.join(zaman_asimi)
+        return not t.is_alive()
 
     def zamanlayici_baslat(self, aralik: float = 1.0) -> None:
-        raise NotImplementedError("SPEC 54: Kabuk.zamanlayici_baslat")
+        if self._zamanlayici is not None and self._zamanlayici.is_alive():
+            return
+        self._dur = dur = threading.Event()
+
+        def dongu() -> None:
+            while not dur.wait(aralik):
+                self.kurtarma_adimi()
+
+        self._zamanlayici = threading.Thread(target=dongu, daemon=True, name="kurtarma-zamanlayici")
+        self._zamanlayici.start()
 
     def zamanlayici_durdur(self) -> None:
-        raise NotImplementedError("SPEC 54: Kabuk.zamanlayici_durdur")
+        self._dur.set()
+        if self._zamanlayici is not None:
+            self._zamanlayici.join(5.0)
+            self._zamanlayici = None
+
+    def _kurtarma_oner(self, P: Path) -> None:
+        """P açıldıktan sonra: kurtarma dosyası okunur ve farklıysa öneri bekler; bozuksa uyarı."""
+        self.kurtarma_uyarilari = []
+        b = kr.kurtarma_bul(P)
+        if b is None:
+            return
+        if not b["okunur"]:
+            self.kurtarma_uyarilari.append(b["neden"])
+        elif b["farkli"]:
+            self._bekleyen = (b, P)
 
     def kurtarma_durumu(self) -> dict:
         """GET /api/proje/kurtarma: {"bulunan", "adsizlar", "uyarilar"}."""
-        raise NotImplementedError("SPEC 54: Kabuk.kurtarma_durumu")
+        klasor = self._kok_klasor() / ".kurtarma"
+        adsizlar = sorted(str(a) for a in klasor.glob(f"*.3dc{kr.UZANTI}")) if klasor.is_dir() else []
+        with self._kk:
+            uyarilar = list(self.kurtarma_uyarilari)
+        return {
+            "bulunan": dict(self._bekleyen[0]) if self._bekleyen is not None else None,
+            "adsizlar": adsizlar,
+            "uyarilar": uyarilar,
+        }
 
     def kurtarma_sec(self, secim: str, yol: str | None = None) -> str | None:
         """ "kurtar" | "yoksay" | "ikisi"; "ikisi" kopyanın yolunu döndürür."""
-        raise NotImplementedError("SPEC 54: Kabuk.kurtarma_sec")
+        if secim not in SECIMLER:
+            raise ProjeError(f"kurtarma: bilinmeyen seçim {secim!r} — kurtar, yoksay ya da ikisi seçin")
+        with self._kilit:
+            self.kurtarma_bekle()
+            if yol is not None:
+                return self._adsiz_sec(secim, Path(yol))
+            if self._bekleyen is None:
+                raise ProjeError("kurtarma: bekleyen öneri yok — kurtarma dosyası olan bir projeyi açın")
+            b, P = self._bekleyen
+            if secim == "yoksay":
+                kr.kurtarma_eskit(P)
+                self._bekleyen = None
+                return None
+            p = pj.ac(b["yol"])
+            if secim == "kurtar":
+                self._yukle(p, str(P))
+                self._kirli = True
+                self._nesil += 1
+                return None
+            kopya = P.with_name(f"{P.stem} (kurtarılan){P.suffix}")
+            n = 2
+            while kopya.exists():
+                kopya = P.with_name(f"{P.stem} (kurtarılan {n}){P.suffix}")
+                n += 1
+            pj.kaydet(replace(p, onbellek={}), kopya)
+            kr.kurtarma_temizle(P)
+            self._bekleyen = None
+            return str(kopya)
+
+    def _adsiz_sec(self, secim: str, yol: Path) -> str | None:
+        """Karar 8: hiç kaydedilmemiş projenin kurtarma dosyası `yol` ile seçilir."""
+        if not yol.is_file():
+            raise ProjeError(f"{yol.name}: kurtarma dosyası yok — kurtarma listesini yenileyin")
+        if secim == "yoksay":
+            eski = yol.with_name(yol.name + ".eski")
+            yol.replace(eski)
+            yan = yol.with_name(yol.name + ".json")
+            if yan.exists():
+                yan.replace(eski.with_name(eski.name + ".json"))
+            return None
+        if secim == "ikisi":
+            raise ProjeError(
+                f"{yol.name}: 'ikisi' yalnız kaydedilmiş projede var — 'kurtar' ile açıp sonra kaydedin"
+            )
+        self._yukle(pj.ac(yol), None)
+        self._kirli = True
+        self._nesil += 1
+        self._adsiz_hedef = yol
+        return None
 
 
 # ---------------------------------------------------------------- FastAPI bağlantısı
@@ -482,8 +668,16 @@ def _kabuk_al(app: FastAPI) -> Kabuk:
     k = getattr(app.state, "kabuk", None)
     if k is None:
         liste = getattr(app.state, "ekranlar", None)
-        k = Kabuk(liste if liste is not None else ekranlar())
+        ayar = getattr(app.state, "kurtarma_ayari", None)
+        if ayar is None:
+            ayar = KurtarmaAyari()
+        elif ayar is False:
+            ayar = None
+        klasor = getattr(app.state, "proje_klasoru", None)
+        k = Kabuk(liste if liste is not None else ekranlar(), kurtarma=ayar, klasor=klasor)
         app.state.kabuk = k
+        if ayar is not None:
+            k.zamanlayici_baslat()
     return k
 
 
@@ -491,6 +685,7 @@ def _hata(e: Exception, k: Kabuk) -> JSONResponse:
     govde = {"detail": str(e.args[0]) if isinstance(e, KeyError) and e.args else str(e)}
     if k.son_hata_bolumu is not None:
         govde["bolum"] = k.son_hata_bolumu
+    govde["hata"] = hata.hata_karti(e)
     return JSONResponse(govde, status_code=422)
 
 
@@ -570,6 +765,11 @@ def _router(app: FastAPI) -> APIRouter:
 
     @r.post("/kurtarma")
     def kurtarma_sec(govde: dict) -> dict:
+        if govde.get("secim") not in SECIMLER:
+            raise HTTPException(422, "secim kurtar, yoksay ya da ikisi olmalı")
+        if govde.get("yol") is None and _kabuk_al(app).kurtarma_durumu()["bulunan"] is None:
+            raise HTTPException(409, "bekleyen kurtarma önerisi yok")
+
         def sec(k: Kabuk) -> dict:
             kopya = k.kurtarma_sec(govde.get("secim"), govde.get("yol"))
             return {"proje": k.durum(), "kopya": kopya}
@@ -601,6 +801,7 @@ def _yakalanir(istek: Request) -> bool:
 def kur(app: FastAPI) -> None:
     """`/api/proje` router'ını ve yakalama ara katmanını uygulamaya bağlar (A3 Ekran.kur)."""
     app.include_router(_router(app))
+    _hata_isleyicileri(app)
 
     @app.middleware("http")
     async def yakala(istek: Request, sonraki):
@@ -622,6 +823,34 @@ def kur(app: FastAPI) -> None:
         except CEKIRDEK_HATALARI as e:
             return _hata(e, k)
         return yanit
+
+
+def _hata_isleyicileri(app: FastAPI) -> None:
+    """SPEC 54 §2: ekran uçlarının çekirdek hataları da kartlı 422; çekirdek dışı istisna 500 + günlük."""
+
+    async def cekirdek(istek: Request, e: Exception) -> JSONResponse:
+        return _hata(e, _kabuk_al(app))
+
+    async def http(istek: Request, e: StarletteHTTPException):
+        neden = e.__context__
+        if e.status_code == 422 and isinstance(neden, CEKIRDEK_HATALARI):
+            govde = {"detail": e.detail, "hata": hata.hata_karti(neden)}
+            return JSONResponse(govde, status_code=422, headers=getattr(e, "headers", None))
+        return await http_exception_handler(istek, e)
+
+    async def ic(istek: Request, e: Exception) -> JSONResponse:
+        uc = istek.url.path
+        gunluk = _kabuk_al(app).gunluk_yolu()
+        try:
+            hata.gunluge_yaz(e, uc, gunluk)
+        except OSError:
+            pass  # günlük yazılamasa da kart döner
+        return JSONResponse({"detail": "beklenmeyen hata", "hata": hata.ic_hata_karti(e, uc, gunluk)}, 500)
+
+    for tur in CEKIRDEK_HATALARI:
+        app.add_exception_handler(tur, cekirdek)
+    app.add_exception_handler(StarletteHTTPException, http)
+    app.add_exception_handler(Exception, ic)
 
 
 # ---------------------------------------------------------------- A3 kaydı
