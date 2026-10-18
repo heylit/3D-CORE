@@ -81,7 +81,7 @@ bilgisayardaki yerel klasör. Mimari buna göre kuruldu:
   `DURUM.md`) bir SPEC PR'ında değişmez. Değişmesi gerekiyorsa ayrı, küçük bir "arayüz PR'ı" açılır,
   kullanıcı onaylar, önce o birleşir.
 - **Sıra:** `docs/yol-haritasi.md` → "Paralel çalışma: dalgalar". Bir dalgadaki SPEC'ler aynı anda başlar.
-- **Aynı kurulum her yerde:** `pip install -e ".[dev,cad]"` ve `pytest`. OCCT gerektiren testler
+- **Aynı kurulum her yerde:** `pip install -e ".[dev,cad,viz]"` ve `pytest`. OCCT gerektiren testler
   `@pytest.mark.occt` ile işaretlenir; build123d yoksa atlanır, böylece saf modüller her yerde hızlı test edilir.
 
 ### Her SPEC için döngü
@@ -174,7 +174,7 @@ Sıra ve paralellik: `docs/yol-haritasi.md` → "Paralel çalışma: dalgalar". 
 ## 10. Hızlı komutlar
 
 ```powershell
-pip install -e ".[dev]"        # kurulum
+pip install -e ".[dev,cad,viz]" # kurulum
 pytest                          # tüm testler
 pytest tests/benchmarks -v      # sadece analitik benchmark'lar
 ruff check . --fix              # lint + otomatik düzeltme

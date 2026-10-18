@@ -52,7 +52,7 @@ examples/       JSON örnek problemler
 - Yeni bağımlılık ekleme; gerekiyorsa sor.
 
 ## Komutlar
-- Kurulum (bulut ve yerel aynı): `pip install -e ".[dev,cad]"`  (sadece FEM için `.[dev]` yeter)
+- Kurulum (bulut ve yerel aynı): `pip install -e ".[dev,cad,viz]"`  (sadece FEM için `.[dev]` yeter)
 - Test: `pytest`  (tek dosya: `pytest tests/benchmarks/test_bar.py -v`)
 - Lint: `ruff check .`  (otomatik düzelt: `ruff check . --fix`, biçim: `ruff format .`)
 - Tam yerel CI (Windows): `.\ci.ps1`
