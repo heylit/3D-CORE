@@ -55,5 +55,4 @@ SPEC dosyasının "Açık sorular" / "Varsayımlar" bölümüne bakınız.
 - Testler 3ba81cb (cherry-pick); kod ayrı commit'te: `check_lathe` (kurs, devir, feed·S, taret, freze yolu, G54),
   `post_lathe` = `check_lathe` + `write_lathe` + başlığın 3 satırından sonra iki yorum; `post()` torna profilinde
   CamError ("post_lathe kullanın"), `dialect_for` torna profilinde `FANUC_TORNA`.
-- Test durumu: 46 / 47 geçti; `test_K16_axial_drill_post_equals_write_lathe` E3 (#88) birleşene kadar uygulanmamış
-  (CI'da kırmızı). PR #111, #88'den sonra main alınıp birleştirilir.
+- Test durumu: 47 / 47 geçti (E3 #88 main'de).
