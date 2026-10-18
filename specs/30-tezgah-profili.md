@@ -294,3 +294,22 @@ Bu yüzden altın metin, `tool_change_z = None` olan profil kopyasıyla üretili
 2. `Wcs.origin` sözleşmesi SPEC 14'ün `wcs_from_touch` tanımına uyar; SPEC 14 birleşince Teori'deki
    `z_ölçü` formülü ona göre netleştirilir.
 3. Profilde eksen kursu varken `setup` zorunludur (yoksa `CamError`).
+
+## Ek A — Torna profili (SPEC 40 Ek E2; kullanıcı onayı 2026-10-18 11:13, proje sohbetinde yazılı)
+Yukarıdaki "Torna yazıcısıyla ilişki" taslağı SPEC 40 bölüm D ile kesinleşti; kurallar orada, burada yalnız
+`cam/post/` tarafının özeti var (çelişirse SPEC 40 D geçerlidir). Ayrı küçük PR olarak uygulanır; `cam/model.py`
+doğrulama eki (E1, `kind = "lathe"`) "CAM model arayüzü" thread'inindir.
+- Kurs: `X_m = 2·(x + o_x)` (profilde X **çap**, yolda `x` **yarıçap**), `Z_m = z + o_z`; her uç, `G0` dahil, ve
+  yayların `(x, z)` düzleminde süpürdüğü eksen yönü noktaları; takım değiştirme noktası `tool_change = (x_tc, z_tc)`
+  aynı dönüşümle kurs içinde. Kurs varken `setup` zorunlu.
+- Devir: sabit devirde ve `G96`'nın `G50` sınırında `S = round(rpm)`, `rpm_min ≤ S ≤ rpm_max`.
+- İlerleme (mm/dev): her kesme hareketinde `feed · S ≤ feed_max` (mm/dk; `G96`'da güvenli taraf).
+- Taret: `tool_slots` varsa `1 ≤ T ≤ tool_slots`.
+- Yol türü: `kind = "lathe"` profile freze yolu (`plane = XY` veya `feed_mode = PER_MIN`) → `CamError`.
+- `post_lathe(ops, machine, setup, spindle, tool_change, program_no=1) -> str` = `check_machine` +
+  `write_lathe(…, dialect_for(machine))` + iki yorum satırı (`(POST <AD> <DIL>)`, doğrulanmamış profil uyarısı),
+  `FANUC_TORNA` başlığından sonra.
+- Örnek profil `cam/post/profiles/ornek-fanuc-torna.json`: `ORNEK-FANUC-TORNA`, X çap `[0, 400]`, Z `[-600, 0]`,
+  `rpm_max = 4000`, `feed_max = 5000`, `tool_slots = 12`, `verified = false`. Bu dosya eklenince
+  `builtin_machines()` dört profil verir (K3 testi o PR'da SPEC 40 test thread'iyle güncellenir).
+- Kabul: SPEC 40 K14–K16 (`tests/cam/test_post_lathe.py`, SPEC 40 test thread'i).
