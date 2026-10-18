@@ -1,7 +1,7 @@
 """
 SPEC 47b — Çok eksen ekranı: A3 kaydı (`EKRAN`) ve uçları (`/api/ekran/cok_eksen` altında).
 
-İnce katman: hesap `cok_eksen_kopru`'dadır, örnekler `cok_eksen_ornekler`'dedir. Çekirdek hataları
+İnce katman: hesap `_cok_eksen_kopru`'dadır, örnekler `_cok_eksen_ornekler`'dedir. Çekirdek hataları
 (`CamError`, `ModelError` …) kabuğun ortak işleyicisiyle 422 olur (A3); bilinmeyen örnek → 404.
 
 Uçlar:

@@ -40,7 +40,7 @@ if TYPE_CHECKING:
     from cam.multiaxis.machine import MachineModel
     from cam.sim.tridexel import SimResult5, TriDexel
 
-    from tezgah.ekranlar.cok_eksen_ornekler import CokEksenIsi
+    from tezgah.ekranlar._cok_eksen_ornekler import CokEksenIsi
 
 GOUGE_TOL = 1e-3  # mm: SPEC 43 çakma eşiği (simulate5 varsayılanı)
 SIM_HUCRE = 1.0  # mm: POST /simule tri-dexel hücresi

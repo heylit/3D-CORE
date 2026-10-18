@@ -15,9 +15,9 @@ Kod SPEC 41 (PR #51), 42, 43, 44 ve A3 koduna bağlı; `main`'de olmayan modüll
 
 ## Son oturum
 **2026-10-18**
-- Python: `tezgah/ekranlar/cok_eksen.py` (EKRAN: ad `cok_eksen`, tuş `5`, sıra 50; uçlar), `cok_eksen_kopru.py`
+- Python: `tezgah/ekranlar/cok_eksen.py` (EKRAN: ad `cok_eksen`, tuş `5`, sıra 50; uçlar), `_cok_eksen_kopru.py`
   (cok_json, kontroller, olaylar, sapma_ozeti, sim_ozeti, simule, parmak_izi, parametre_uygula, sure;
-  noktalar/pozlar/sapma/dexel/govde `*_ikili` + `*_coz`), `cok_eksen_ornekler.py` (CokEksenIsi, ornek,
+  noktalar/pozlar/sapma/dexel/govde `*_ikili` + `*_coz`), `_cok_eksen_ornekler.py` (CokEksenIsi, ornek,
   tezgah_modeli, egik_yuz_3arti2, kubbe_5eksen, kubbe_carpisma).
 - TS: `src/ekranlar/cok_eksen.ts` (EkranModulu), `src/ekranlar/cok_eksen_yardim.ts` (pozlarCoz, pozAl, dordey,
   dordeyMatris, slerp, pozAraDeger, zamandanIndeks, olayZamani, eklemSeridi).
@@ -27,5 +27,4 @@ Kod SPEC 41 (PR #51), 42, 43, 44 ve A3 koduna bağlı; `main`'de olmayan modüll
   çakışmasın diye `durum/47-cok-eksen.md`.
 
 ## Açık sorular
-- A3 `ekranlar()`, `EKRAN` vermeyen yardımcı modülleri (`cok_eksen_kopru`, `cok_eksen_ornekler`) atlamalı
-  (SPEC 47 "Mimari ve dosyalar" bu dosyaları `tezgah/ekranlar/` altına koyuyor). Koordinatöre iletildi.
+- Yok. (Koordinatör kararı 11:45: A3 `_` önekli modülleri import etmez; yardımcılar `_cok_eksen_*.py`.)

@@ -15,8 +15,9 @@ bilerek dar seçilmiş varyantıdır; `examples/`'ta değil, burada `DAR_PROFIL`
 - `kubbe_carpisma`: `kubbe_5eksen` + takım tutucusunun geçtiği yerde fikstür kutusu; varsayılan profil
   `ac_besik`.
 
-Bu modül `EKRAN` vermez; ekran kaydı (A3) yalnız `cok_eksen.py`'nin `EKRAN`'ını kullanır. SPEC 41–44 modülleri
-fonksiyonların içinde import edilir: onlar yokken bu modülün importu başarılıdır.
+Bu modül `EKRAN` vermez (`_` önekli: A3 import etmez); ekran kaydı yalnız `cok_eksen.py`'nin `EKRAN`'ını
+kullanır. SPEC 41–44 modülleri fonksiyonların içinde import edilir: onlar yokken bu modülün importu
+başarılıdır.
 """
 
 from __future__ import annotations
