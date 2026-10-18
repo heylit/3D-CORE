@@ -1,0 +1,53 @@
+/* SPEC 26 — Model ekranı: sol panel (araçlar, parametreler, geçmiş), müfettiş kanıtları, ölçü kutusu. */
+.m-sol { display: flex; flex-direction: column; gap: 10px; padding: 14px 14px 18px; min-width: 0; }
+.m-sol h3 { margin: 8px 0 0; font: 600 11px var(--govde); letter-spacing: .14em; text-transform: uppercase; color: var(--soluk); }
+.m-baslik { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.m-baslik b { font: 800 24px/1.1 var(--baslik); letter-spacing: .03em; overflow-wrap: anywhere; }
+.m-baslik span { color: var(--soluk); font-size: 12px; white-space: nowrap; }
+.m-eylem { display: flex; flex-wrap: wrap; gap: 6px; }
+.m-dugme {
+  border: 1px solid var(--cizgi); background: var(--panel-2); border-radius: 7px; padding: 7px 11px; cursor: pointer;
+  font-weight: 600; max-width: 100%;
+}
+.m-dugme:hover { border-color: var(--celik); }
+.m-dugme.birincil { background: var(--pirinc); color: #1b1408; border-color: var(--pirinc); }
+.m-dugme:disabled { opacity: .5; cursor: not-allowed; }
+.m-araclar { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 4px; }
+.m-arac {
+  border: 1px solid var(--cizgi); background: transparent; border-radius: 6px; padding: 5px 8px; cursor: pointer;
+  text-align: left; font-size: 12.5px; color: var(--soluk); min-width: 0;
+}
+.m-arac[aria-pressed="true"] { color: var(--yazi); border-color: var(--pirinc); box-shadow: inset 3px 0 0 var(--pirinc); }
+.m-parametreler { display: flex; flex-direction: column; gap: 4px; }
+.m-parametre { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); align-items: center; gap: 8px; }
+.m-parametre span { font: 600 12.5px var(--mono); color: var(--soluk); overflow-wrap: anywhere; }
+.m-parametre input, .m-girdi {
+  width: 100%; min-width: 0; background: var(--zemin); border: 1px solid var(--cizgi); border-radius: 6px;
+  padding: 5px 8px; font: 13px var(--mono);
+}
+.m-parametre input:focus, .m-girdi:focus { border-color: var(--pirinc); }
+.m-gecmis { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.m-dilim {
+  width: 100%; display: flex; gap: 8px; align-items: baseline; border: 1px solid var(--cizgi); background: var(--panel-2);
+  border-radius: 6px; padding: 5px 9px; cursor: pointer; text-align: left; min-width: 0;
+}
+.m-dilim .tur { font-size: 11px; color: var(--soluk); min-width: 70px; }
+.m-dilim b { font: 600 12.5px var(--mono); overflow-wrap: anywhere; }
+.m-dilim[aria-current="true"] { border-color: var(--pirinc); box-shadow: inset 3px 0 0 var(--pirinc); }
+.m-dilim.sonra { opacity: .45; }
+.m-dilim.hatali { border-color: var(--hata); }
+.m-soluk { color: var(--soluk); margin: 0; }
+.m-mufettis { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; }
+.m-kanit { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.m-kanit span { color: var(--soluk); font-size: 12px; text-transform: uppercase; letter-spacing: .12em; }
+.m-kanit b { font: 600 15px var(--mono); }
+.m-celiski { border: 1px solid var(--hata); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 6px; background: #2a1715; }
+.m-celiski p { margin: 0; color: var(--soluk); font-size: 12.5px; }
+.m-kisit { text-align: left; border: 1px solid var(--cizgi); background: var(--panel); border-radius: 6px; padding: 5px 8px; cursor: pointer; font: 12.5px var(--mono); overflow-wrap: anywhere; }
+.m-kisit:hover { border-color: var(--hata); text-decoration: line-through; }
+.m-mesaj { margin: 0; color: var(--uyari); font-size: 12.5px; }
+.m-girdi { position: absolute; z-index: 5; width: 150px; box-shadow: 0 6px 20px #0008; }
+.m-dof { display: flex; align-items: baseline; gap: 8px; }
+.m-dof span { font-size: 11px; letter-spacing: .14em; color: var(--soluk); }
+.m-dof b { font: 600 20px var(--mono); color: var(--camgobegi); }
+.m-dof.tam b { color: var(--tamam); }
