@@ -142,6 +142,15 @@ def assert_paths_close(got: Toolpath, exp: Toolpath) -> None:
             assert math.dist(g.center, e.center) <= TOL_CENTER, (i, g.center, e.center)
 
 
+def with_retract(tp: Toolpath, safe_z: float) -> Toolpath:
+    """SPEC 04 Ek B: yazıcı program sonunda güvenli Z'nin (verilmezse op başlarının en yükseği)
+    altındaysa `G0 Z<safe_z>` ekler; okununca bu, yolun son hareketidir."""
+    x, y, z = tp.points()[-1]
+    if round(z, 3) >= round(safe_z, 3):
+        return tp
+    return Toolpath(tp.name, tp.tool, tp.start, [*tp.moves, Move(G0, (x, y, safe_z))], tp.rpm)
+
+
 # ---------------------------------------------------------------- K4: gidiş-dönüş
 
 
@@ -157,7 +166,7 @@ def test_random_roundtrip(dialect):
     assert g.tool == tp.tool
     assert g.rpm == 12_000               # devir tam
     assert g.name == "T1-1"              # Ek A: yol adı T<n>-<k>
-    assert_paths_close(g, tp)
+    assert_paths_close(g, with_retract(tp, tp.start[2]))
 
 
 @pytest.mark.parametrize("seed", [1, 2, 3])
@@ -167,7 +176,7 @@ def test_random_roundtrip_other_seeds(seed):
     got = read(write([tp], GRBL), {1: tp.tool}, GRBL)
     assert len(got) == 1
     got[0].validate()
-    assert_paths_close(got[0], tp)
+    assert_paths_close(got[0], with_retract(tp, tp.start[2]))
 
 
 @pytest.mark.parametrize("dialect", [GRBL, FANUC], ids=["GRBL", "FANUC"])
@@ -243,7 +252,9 @@ def test_multi_tool_program_reads_two_paths(dialect):
 
 def test_rpm_change_starts_new_path():
     """SPEC Arayüz `read`: `S` değişiminde yeni yol başlar. Üç op, hepsi T1; op2 ve op3 12000 dev/dk
-    → iki yol: T1-1 (op1), T1-2 (op2 + G0 → op3.start + op3)."""
+    → iki yol: T1-1 (op1), T1-2 (op2 + G0 → op3.start + op3).
+    Ek B: op'lar Z0'da bittiği için her geçişte ve sonda güvenli Z5'e `G0` geri çekme var;
+    devir değişiminden önceki geri çekme ilk yola aittir."""
     t1 = freze6()
     op1 = Toolpath("a", t1, (0.0, 0.0, 5.0), rpm=10_000.0, moves=[Move(G1, (0.0, 0.0, 0.0), feed=100.0)])
     op2 = Toolpath("b", t1, (10.0, 0.0, 5.0), rpm=12_000.0, moves=[Move(G1, (10.0, 0.0, 0.0), feed=100.0)])
@@ -251,6 +262,8 @@ def test_rpm_change_starts_new_path():
     got = read(write([op1, op2, op3], GRBL), {1: t1}, GRBL)
     assert [g.name for g in got] == ["T1-1", "T1-2"]
     assert [g.rpm for g in got] == [10_000, 12_000]
-    assert_paths_close(got[0], op1)
+    assert_paths_close(got[0], with_retract(op1, 5.0))
     assert_paths_close(got[1], Toolpath("bek", t1, op2.start, rpm=12_000.0,
-                                        moves=[*op2.moves, Move(G0, op3.start), *op3.moves]))
+                                        moves=[*op2.moves, Move(G0, (10.0, 0.0, 5.0)),
+                                               Move(G0, op3.start), *op3.moves,
+                                               Move(G0, (20.0, 0.0, 5.0))]))

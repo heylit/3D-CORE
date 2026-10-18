@@ -5,6 +5,8 @@ Kontrolör dilleri (son işlemci ayarları): GRBL 1.1 ve Fanuc (0i/31i tipi).
 - 'M6': her takım değişiminde yazılır (Fanuc: `T1 M6`).
 - 'M0': ilk takımda yazılmaz, sonrakilerde yazılır (GRBL: `T1`, `T2 M0`); GRBL 1.1 M6
   desteklemez, takım değişimi operatöre bırakılır (SPEC 04 varsayımı).
+`tool_length_comp`: takım değişiminden sonraki ilk satıra `G43 ... H<n>` yazılsın mı (Fanuc).
+GRBL 1.1'de G43 yok (yalnız G43.1); takım boyu operatörün Z sıfırlamasına kalır.
 `header` satırlarında `{program_no}` yer tutucusu `write(..., program_no)` ile doldurulur.
 """
 
@@ -25,6 +27,7 @@ class Dialect:
     tool_change: str            # 'M6' veya 'M0' (yukarıya bakınız)
     canned_cycles: bool         # G81/G83 yazılsın mı (yoksa kanonik açılım)
     peck_clearance: float       # G83 geri çekilme payı c [mm]
+    tool_length_comp: bool = False  # takım değişiminden sonra G43 H<n> yazılsın mı
 
 
 GRBL = Dialect(
@@ -46,9 +49,10 @@ FANUC = Dialect(
     feed_decimals=1,
     line_numbers=True,
     line_step=10,
-    header=("%", "O{program_no:04d}", "G21 G90 G17 G94 G40 G49 G80"),
+    header=("%", "O{program_no:04d}", "G21 G90 G17 G94 G40 G49 G80 G54"),
     footer=("M5", "M30", "%"),
     tool_change="M6",
     canned_cycles=True,
     peck_clearance=0.5,
+    tool_length_comp=True,
 )

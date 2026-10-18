@@ -10,6 +10,10 @@ Kurallar (SPEC 04 Ek A):
 - modal bastırma yuvarlanmış metin üzerinden: `fmt(yeni) == fmt(durum)` ise yazılmaz;
 - G0'da F yazılmaz; yayda I ve J her zaman yazılır;
 - op başında takım farklıysa takım değişimi, sonra `S<rpm> M3`, sonra üç eksenli `G0 X Y Z`.
+
+Ek B (tezgâh güvenliği, inceleme 2026-10-18 K1–K3) bazı beklenen metinleri değiştirdi: program
+sonunda ve op geçişlerinde güvenli Z'ye geri çekme, takım değişiminden önce `M5`, Fanuc'ta `G54` ve
+`G0 G43 X Y Z H<n>`. Ek B satırları yanlarında işaretli.
 """
 
 from __future__ import annotations
@@ -69,10 +73,10 @@ M30
 GOLDEN_FANUC = """\
 %
 O0001
-N10 G21 G90 G17 G94 G40 G49 G80
+N10 G21 G90 G17 G94 G40 G49 G80 G54
 N20 T1 M6
 N30 S10000 M3
-N40 G0 X0. Y0. Z5.
+N40 G0 G43 X0. Y0. Z5. H1
 N50 G1 Z-1. F100.
 N60 X10. F300.
 N70 Y10.
@@ -149,6 +153,7 @@ def test_modal_feed_and_g1_written_once():
       X10.               ← G1 ve F modal, Y/Z değişmedi
       X20.
       Y5.
+      G0 Z5.             ← Ek B: program sonunda güvenli Z'ye (op başı Z5) geri çekme
     """
     tp = Toolpath(
         "k3",
@@ -163,7 +168,7 @@ def test_modal_feed_and_g1_written_once():
         ],
     )
     out = write([tp], GRBL)
-    assert body(out)[2:] == ["G0 X0. Y0. Z5.", "G1 Z-1. F200.", "X10.", "X20.", "Y5."]
+    assert body(out)[2:] == ["G0 X0. Y0. Z5.", "G1 Z-1. F200.", "X10.", "X20.", "Y5.", "G0 Z5."]
     words = out.split()
     assert words.count("G1") == 1
     assert sum(w.startswith("F") for w in words) == 1
@@ -208,6 +213,7 @@ def test_g0_has_no_feed_and_feed_stays_modal_across_g0():
         "X20.",          # G0 modal, F yok
         "G1 Z-1.",       # F150 durumda zaten var
         "X30. F400.",
+        "G0 Z5.",        # Ek B: program sonu geri çekme
     ]
 
 
@@ -235,6 +241,7 @@ def test_arc_always_writes_I_J_and_full_circle():
         "G2 I5. J0. F500.",
         "Z-3. I5. J0.",
         "G3 X10. I5. J0.",
+        "G0 Z-1.",       # Ek B: güvenli Z = op başı Z−1'e geri çekme
     ]
 
 
@@ -301,6 +308,7 @@ def three_ops() -> list[Toolpath]:
 # Ek A kurallarından elle: op2 aynı takım + devir → takım/S satırı yok, ama op başı `G0 X Y Z`
 # her zaman üç eksenle; op3'te GRBL ikinci takım `T2 M0`, ardından her zaman `S8000 M3`.
 # op2 yayı: I = 45 − 40 = 5, J = 0; F 100'den 300'e değiştiği için yazılır.
+# Ek B: takım değişiminden önce M5 (op'lar zaten Z5'te bittiği için ek geri çekme yok).
 MULTI_GRBL = """\
 G21 G90 G17 G94
 T1
@@ -313,6 +321,7 @@ G0 X40. Y0. Z5.
 G1 Z-2. F100.
 G2 X50. I5. J0. F300.
 G0 Z5.
+M5
 T2 M0
 S8000 M3
 G0 X0. Y30. Z5.
@@ -330,10 +339,13 @@ def test_multi_tool_grbl_text():
 
 
 def test_multi_tool_fanuc_text():
-    """Fanuc: aynı gövde, her satır N10'dan 10'ar artan numaralı, takım değişimi `T<n> M6` (Ek A)."""
+    """Fanuc: aynı gövde, her satır N10'dan 10'ar artan numaralı, takım değişimi `T<n> M6` (Ek A);
+    Ek B: başta G54, takım değişiminden sonraki ilk satır `G0 G43 X Y Z H<n>`."""
     govde = lines_of(MULTI_GRBL)[1:]                      # GRBL başı hariç
-    govde = [{"T1": "T1 M6", "T2 M0": "T2 M6"}.get(ln, ln) for ln in govde]
-    satirlar = ["G21 G90 G17 G94 G40 G49 G80"] + govde
+    degis = {"T1": "T1 M6", "T2 M0": "T2 M6",
+             "G0 X0. Y0. Z5.": "G0 G43 X0. Y0. Z5. H1", "G0 X0. Y30. Z5.": "G0 G43 X0. Y30. Z5. H2"}
+    govde = [degis.get(ln, ln) for ln in govde]
+    satirlar = ["G21 G90 G17 G94 G40 G49 G80 G54"] + govde
     beklenen = ["%", "O0001"] + [f"N{10 * (i + 1)} {ln}" for i, ln in enumerate(satirlar)] + ["%"]
     assert lines_of(write(three_ops(), FANUC)) == beklenen
 
@@ -352,9 +364,11 @@ def test_rpm_change_only_writes_S_and_rounds_rpm():
         "S10000 M3",
         "G0 X0. Y0. Z5.",
         "G1 Z0. F100.",
+        "G0 Z5.",          # Ek B: devir değişiminden önce geri çekme
         "S12000 M3",
         "G0 X10. Y0. Z5.",
         "G1 Z0.",
+        "G0 Z5.",          # Ek B: program sonu geri çekme
         "M5",
         "M30",
     ]
