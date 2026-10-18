@@ -116,7 +116,8 @@ ada halkası CW kuralıyla) ve keskin sola dönüşlü her köşe (gelen ve gide
 `r_corner = 0` → her takım köşede malzeme bırakır (SPEC 03'ün köşe artığı); CAM uyarmalıdır.
 
 ### 9. Torna: profilden alın, kaba zarf, kanal, girinti
-Girdi: SPEC 20 kuralındaki yarı kesit profili (`(u, v) = (z, x)`, açık, `side = "dis" | "ic"`). Hesap SPEC 20 gibi
+Girdi: SPEC 20 kuralındaki yarı kesit profili (`(u, v) = (z, x)`, açık, `side = "dis" | "ic"`); katı parçadan
+gelen profil SPEC 28 `TurnProfile.outer` (`side="dis"`) veya `TurnProfile.inner` (`side="ic"`) alanıdır. Hesap SPEC 20 gibi
 dış çerçevede yapılır (`cam.lathe.prepare`: ön→arka yönlendirme, içte `x → −x` aynası) ve çıktılar geri aynalanır.
 1. **Ön koşul**: profilde `t_z > ANG` olan nokta (öne dönen, arka kesim) → `CamError`. `stock` verildiyse dışta
    `max x ≤ D/2`, içte `min x ≥ d/2` (`tol` ile), değilse `CamError`.
@@ -270,7 +271,8 @@ Analitik değerler `1e-6` mm (alan `1e-6` bağıl) içinde.
   (`t_z > 0`), stoktan taşan profil, hatalı `side` → `CamError`. (`::test_ic_taraf_ve_hatalar`)
 
 ## Kapsam dışı
-- Katı parçadan dönel yarı kesit profili çıkarmak: ayrı SPEC ("Katı parçadan torna profili"). Bu SPEC profili `Profile` olarak girdi alır.
+- Katı parçadan dönel yarı kesit profili çıkarmak: SPEC 28 (`28-torna-profili`, `TurnProfile`). Bu SPEC profili `Profile`
+  olarak girdi alır (`TurnProfile.outer` / `.inner`).
 - Çok bağlamalı (alttan / yandan) işleme, 4–5 eksen; eğik düzlem, pah, yuvarlatma, serbest yüzey özellikleri
   (3B yüzey işleme SPEC 06'nın girdisi olan ağdır, özellik değildir).
 - Açık bölgede çokgen farkı ve açık cep takım yolu; özelliklerden otomatik işlem / takım seçimi (işlem planlama).

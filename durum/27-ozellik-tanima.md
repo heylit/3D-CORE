@@ -3,7 +3,7 @@
 Dal: `claude/project-thread-ysr96h` · Oturum: bulut
 
 ## Sıradaki adım
-SPEC metni kullanıcı onayında; onaydan sonra `NotImplementedError` iskeleti, ardından ayrı oturumda testler.
+İskelet push edildi; testleri ayrı bir thread yazacak, kod ondan sonra ayrı commit'te.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
@@ -15,6 +15,8 @@ SPEC metni kullanıcı onayında; onaydan sonra `NotImplementedError` iskeleti, 
 - Yöntem OCCT'de ön denendi: dilim kesitleri, düz / silindir yüz sorguları, havşa koni alan dengesi (fark 111.5608 mm²
   formülle aynı), STEP'te Ø30 silindirin 270° + 90° iki yüze bölündüğü görüldü (silindir birleştirme kuralı eklendi).
 - Arayüz değişikliği gerekmiyor: sadece `Part.bbox/area/holes/planar_faces/cylindrical_faces/section_z`.
+- SPEC kullanıcı onayı: 2026-10-18 10:38 UTC, proje sohbetinde yazılı ("… 27 … metinlerini onaylıyorum").
+- Torna girdisi atfı SPEC 28 `TurnProfile.outer` / `.inner` olarak güncellendi; `NotImplementedError` iskeletleri eklendi.
 
 ## Açık sorular
-- Katıdan dönel profil çıkarma ayrı bir SPEC'te ("Katı parçadan torna profili"); SPEC 27 torna tarafında profili girdi alır.
+_(yok)_ — torna girdisi SPEC 28 `TurnProfile` (SPEC 28 onaylı, kodu ayrı thread'de).
