@@ -4,6 +4,11 @@ Testler yalnızca onaylanan davranış sözleşmesinden yazıldı; uygulama kodu
 
 Davranış: 3 eksen yazıcı (cam.gcode.write) iş düzlemi (frame) taşıyan ya da takım ekseni +z dışında
 olan bir hareketi bulunan yolu CamError ile reddeder. axis = (0, 0, 1) ile None aynı programı verir.
+
+SPEC 51 ile: reddetme yalnız profilde 5 eksen post seçenekleri (`multiaxis`) yokken. Profilsiz 3 eksen
+yazıcı (`cam.gcode.write`) ve SPEC 30 `post` her zaman 3 eksendir; `post5` profilde `multiaxis` varsa
+aynı yolları yazar, yoksa (kinematik olsa bile) CamError. Bu bölüm SPEC 51 test thread'inde, SPEC metninden
+yazıldı; `post5` uygulaması okunmadı.
 """
 
 from __future__ import annotations
@@ -14,6 +19,8 @@ import pytest
 
 from cam.gcode import FANUC, GRBL, write
 from cam.model import CamError, Frame, Move, MoveType, Tool, ToolKind, Toolpath
+from cam.post import post, post5
+from tests.cam.post5_ortak import KURULUM, TAKIM, TAKIMLAR, ac_masa, makine
 
 G0, G1, G3 = MoveType.RAPID, MoveType.LINEAR, MoveType.ARC_CCW
 
@@ -86,3 +93,43 @@ def test_frame_rejected(dialect, frame):
 def test_frame_in_second_op_rejected(dialect):
     with pytest.raises(CamError):
         write([yol(), yol(frame=Frame(origin=(0.0, 0.0, 0.0), R=I3))], dialect)
+
+
+# ---------------------------------------------------------------- SPEC 51: profil multiaxis'e göre
+
+EGIK = Frame(
+    origin=(0.0, 0.0, 0.0),
+    R=((1.0, 0.0, 0.0), (0.0, math.cos(0.5), -math.sin(0.5)), (0.0, math.sin(0.5), math.cos(0.5))),
+)
+COK_EKSENLI = [
+    pytest.param(lambda: yol(axis=(0.6, 0.0, 0.8)), id="egik_eksen"),
+    pytest.param(lambda: yol(frame=EGIK), id="cerceve"),
+]
+PROFIL_DILLERI = pytest.mark.parametrize("dil", ["sinumerik", "heidenhain", "fanuc"])
+
+
+def _takimli(tp: Toolpath) -> Toolpath:
+    """Ölçü boylu takım (post5 TCP / döner eksen hesabı L ister)."""
+    tp.tool = TAKIM
+    return tp
+
+
+@PROFIL_DILLERI
+@pytest.mark.parametrize("yap", COK_EKSENLI)
+def test_spec30_post_multiaxis_yok_reddeder(dil, yap):
+    with pytest.raises(CamError):
+        post([_takimli(yap())], makine(dil, ac_masa(), multiaxis=False), KURULUM)
+
+
+@PROFIL_DILLERI
+@pytest.mark.parametrize("yap", COK_EKSENLI)
+def test_post5_kinematik_var_multiaxis_yok_reddeder(dil, yap):
+    with pytest.raises(CamError):
+        post5([_takimli(yap())], makine(dil, ac_masa(), multiaxis=False), KURULUM, TAKIMLAR)
+
+
+@PROFIL_DILLERI
+@pytest.mark.parametrize("yap", COK_EKSENLI)
+def test_post5_multiaxis_var_yazar(dil, yap):
+    metin = post5([_takimli(yap())], makine(dil, ac_masa()), KURULUM, TAKIMLAR)
+    assert isinstance(metin, str) and metin.strip()

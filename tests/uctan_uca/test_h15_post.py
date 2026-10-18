@@ -26,9 +26,12 @@ post = halka("30", "cam.post", "post", "builtin_machines", "dialect_for", "read_
 
 CELL = 0.5
 ISO_DILLER = ("grbl", "fanuc", "haas")  # gcode_ref yalnız ISO dilini okur (Sinumerik / Heidenhain SPEC 31)
-# Torna profili (SPEC 40 Ek E2) freze yolunu yazmaz; burada yalnız freze profilleri
+# Torna profili (SPEC 40 Ek E2) freze yolunu yazmaz; burada yalnız freze profilleri.
+# 5 eksen profilleri (SPEC 51: kinematik / multiaxis) 3 eksen uçtan uca testinin dışında.
 MAKINELER = sorted(
-    n for n, m in post.builtin_machines().items() if m.controller in ISO_DILLER and m.kind == "mill"
+    n
+    for n, m in post.builtin_machines().items()
+    if m.controller in ISO_DILLER and m.kind == "mill" and m.multiaxis is None and m.kinematics is None
 )
 
 

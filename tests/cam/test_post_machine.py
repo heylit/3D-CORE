@@ -26,12 +26,17 @@ ORNEKLER = {
     "ORNEK-HEIDENHAIN-DIK": ("ornek-heidenhain-dik.json", "heidenhain"),
     # SPEC 40 Ek E2: örnek torna profili kod commit'inde gelir
     "ORNEK-FANUC-TORNA": ("ornek-fanuc-torna.json", "fanuc"),
+    # SPEC 51: 5 eksen örnek profilleri kod commit'inde gelir (uydurma kinematik ve kurs, verified: false)
+    "ORNEK-SINUMERIK-5X": ("ornek-sinumerik-5x.json", "sinumerik"),
+    "ORNEK-HEIDENHAIN-5X": ("ornek-heidenhain-5x.json", "heidenhain"),
+    "ORNEK-FANUC-5X": ("ornek-fanuc-5x.json", "fanuc"),
 }
+BES_EKSEN = {"ORNEK-SINUMERIK-5X", "ORNEK-HEIDENHAIN-5X", "ORNEK-FANUC-5X"}
 TORNALAR = {"ORNEK-FANUC-TORNA"}
 
 
 def _ornek_dosyalari_var(*adlar: str) -> None:
-    """SPEC 31 profil dosyası henüz yoksa test "uygulanmamış" sayılır (CI'da kırmızı)."""
+    """SPEC 31 / 51 profil dosyası henüz yoksa test "uygulanmamış" sayılır (CI'da kırmızı)."""
     eksik = [ad for ad in adlar or ORNEKLER if not (PROFIL_DIZINI / ORNEKLER[ad][0]).is_file()]
     if eksik:
         raise NotImplementedError(f"SPEC 31: örnek profil dosyası yok: {eksik}")
@@ -74,6 +79,9 @@ def test_builtin_machines_are_the_three_examples():
         assert m.kind == ("lathe" if ad in TORNALAR else "mill")
         assert m.verified is False  # SPEC: uydurma kurs ve sınırlar, verified: false
         m.validate()
+        if ad in BES_EKSEN:  # SPEC 51: döner eksenli kinematik ve 5 eksen post seçenekleri
+            assert m.kinematics is not None and len(m.kinematics.rotary) == 2
+            assert m.multiaxis is not None
 
 
 @pytest.mark.parametrize("ad", list(ORNEKLER))
