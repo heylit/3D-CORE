@@ -196,7 +196,9 @@ def _katsayi(ld: Load, tp: Toolpath, F: float, mat: KienzleMaterial, limits: Spi
              target_hex: float | None) -> tuple[float, str]:  # fmt: skip
     """Bir kesme bölütü için c = min(c_ince, c_P, c_M, max_factor) ve gerekçesi."""
     adaylar: list[tuple[float, str]] = []
-    if not isinstance(tp.tool, LatheTool):
+    if isinstance(tp.tool, LatheTool):
+        adaylar.append((1.0, "inceltme"))  # h = f·sin κr kavramadan bağımsız: torna ilerlemesi yalnız düşer
+    else:
         fz = F / (tp.rpm * tp.tool.flutes)
         hedef = fz if target_hex is None else target_hex
         adaylar.append((hedef / max_chip_thickness(fz, ld.ae, tp.tool.D), "inceltme"))

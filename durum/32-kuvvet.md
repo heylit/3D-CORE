@@ -9,6 +9,7 @@ SPEC 22 (`simulate_lathe`) ve A0 (`MachineProfile.spindle_power_kw` / `spindle_t
 | Tarih | Geçen | Kalan | Not |
 |---|---|---|---|
 | 2026-10-18 | — | — | Sadece SPEC taslağı; kod ve test yok. |
+| 2026-10-18 | 153 SPEC 32 | 1 uygulanmamış | SPEC 22 sonrası; kalan: `from_profile` (A0). |
 | 2026-10-18 | 146 SPEC 32 | 8 uygulanmamış | Bağımsız testler (150fd08 + 18db041, cherry-pick) + kod. Kalan 8: torna (SPEC 22) ve `from_profile` (A0) bağımlılıkları. |
 
 ## Son oturum
@@ -16,7 +17,8 @@ SPEC 22 (`simulate_lathe`) ve A0 (`MachineProfile.spindle_power_kw` / `spindle_t
 - `cam/kuvvet.py`: Kienzle, kavrama, güç/tork, `milling_loads` (olay listesinden `ap`, `Q = ΔV/t⁰`, eşdeğer `ae`),
   `lathe_loads` (`section_at` farkından `r_k`), `check_spindle`. `cam/ilerleme_opt.py`: `split_moves`, bölüt yüklerinin
   en kötüsüne indirgeme, `c` kapalı formu, aşağı yuvarlama, `split=True` birleştirme, yeniden simülasyonla doğrulama.
-- Torna yolu SPEC 22 kodu olmadığı için henüz çalıştırılamadı (PR #41'in dalında yalnız iskelet var).
+- SPEC 22 (#41) main'e girdi; torna testleri çalıştı. Düzeltme: tornada `c_ince = 1` adayı eklendi (ilerleme yalnız
+  düşer, SPEC "İlerleme ayarı" 1); önceden `max_factor`'a kadar artıyordu.
 
 **2026-10-18 — SPEC**
 - `specs/32-kuvvet.md` taslağı: Kienzle (`Fc = K·kc1.1·b·h^(1−mc)`), freze kavrama açısı ve `hm`/`hex`,
