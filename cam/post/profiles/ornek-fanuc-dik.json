@@ -1,0 +1,17 @@
+{
+  "name": "ORNEK-FANUC-DIK",
+  "controller": "fanuc",
+  "kind": "mill",
+  "x": {"min": -400.0, "max": 400.0},
+  "y": {"min": -250.0, "max": 250.0},
+  "z": {"min": -500.0, "max": 0.0},
+  "rpm_min": 50.0,
+  "rpm_max": 10000.0,
+  "feed_max": 10000.0,
+  "rapid": [30000.0, 30000.0, 24000.0],
+  "tool_slots": 20,
+  "tool_change_z": 0.0,
+  "program_no_range": [1, 7999],
+  "decimals": 3,
+  "verified": false
+}

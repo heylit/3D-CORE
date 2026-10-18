@@ -1,22 +1,23 @@
 # DURUM — SPEC 22 torna-sim
 
-Dal: `claude/project-thread-012y8t` · Oturum: bulut
+Dal: `claude/project-thread-012y8t` · Oturum: bulut (kod: session_01774ib8WCsNwcEC8uqzHvZh)
 
 ## Sıradaki adım
-İskelet push edildi; testler ayrı oturumda yazılacak, sonra cherry-pick ve kod ayrı commit'te.
+PR #41 CI (pytest + kapı) yeşilse birleştir.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
 |---|---|---|---|
-| 2026-10-18 | — | — | Sadece SPEC taslağı; kod ve test yok. |
+| 2026-10-18 | 173 | 0 | Testler `9a2b157`, `97c7159`, `787c85e` (session_012CV12jWqYWKvYs5L85ZpEU, dal `claude/project-thread-py581v`). |
 
 ## Son oturum
 **2026-10-18**
-- `specs/22-torna-sim.md` taslağı: radyal dexel (z sütunu, r aralıkları), Pappus hacmi, `G95`/`G96` süre, kesici kenar boyu,
-  tutucu, ayna (`Setup.fixtures`) çarpışması, çakma, SPEC 24 olay listesi.
-- SPEC onayı: 2026-10-18 09:45 UTC kart, 10:38 UTC yazılı onay. Profil çıkarma ayrı SPEC ("Katı parçadan torna profili").
-- Arayüz eki `LatheTool.edge_len`, `LatheHolder` PR #52 ile `main`'de (`47082f6`); SPEC 05 PR #54 ile `main`'de.
-- `cam/sim/radial.py`, `lathe_shape.py`, `lathe_time.py`, `lathe.py` iskeletleri (`NotImplementedError`).
+- SPEC onayı: 09:45 UTC kart, 10:38 UTC yazılı onay; E4 11:13 UTC; Ek 1 (denetim kesimden sonra) ve Ek 2 (gövde
+  uzantısı eksende kırpılır) 11:24 UTC.
+- Kod: `cam/sim/radial.py` (radyal dexel, `profile_rmap`, `mesh_rmap`, `part_rmap`), `lathe_shape.py` (kesici bölge,
+  gövde, tutucu, matkap beşgeni, kesin süpürme aralığı), `lathe_time.py` (`G95`/`G96` kapalı form), `lathe.py`
+  (sürücü, çarpışmalar, olay listesi).
+- Ek 3 (11:42 UTC onaylı): taraf, yolun kuralı sağlayan ilk noktasından (initial ile stok içinde başlayan yol için).
 
 ## Açık sorular
-_(yok)_
+_(yok)_ — K12, K16 test beklentileri test oturumunda düzeltildi; SPEC 20 kaba yol omuz çakması ayrı thread'de.
