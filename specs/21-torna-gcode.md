@@ -202,3 +202,78 @@ Toleranslar: yarıçap `x` `0,25·10⁻³`, `z` `0,5·10⁻³` mm; ilerleme `0,5
 - Sistem B/C, Siemens, LinuxCNC torna (`G7`) dilleri: yeni `LatheDialect` ile ileride.
 - `cam/model.py`'ye iş mili yönü veya takım değiştirme noktası eklemek (bu SPEC'te `write_lathe` parametresi; SPEC 14'ün
   `Setup`'ı ileride taşıyabilir: ayrı arayüz PR'ı).
+
+## Ek E3 — Eksenel delme (SPEC 40)
+> Kaynak: SPEC 40 "Başka sahiplere ek listesi" E3. Kullanıcı onayı: 2026-10-18 11:13 UTC, proje sohbetinde yazılı satır
+> ("… SPEC 40'ın 21/22/30 eklerini … onaylıyorum"). Ayrı PR; yukarıdaki K1–K11 değişmez.
+
+### Teori
+SPEC 40'ın eksenel delme ve punta yolları iş mili ekseninde (`x = 0`) duran bir **freze takımıyla** (`cam.model.Tool`,
+`kind ∈ {DRILL, CONE}`) yapılır; iş parçası döner. Takım ekseni iş mili eksenidir: programlanan nokta matkap ucudur,
+`X` hep `0`'dır, telafi yoktur. Kontrolör çevrimi (`G74`/`G83`) yine yazılmaz; her paso açık `G0`/`G1` satırıdır.
+- **Eksenel yol**: takımı `Tool` olan yol. Koşullar (yazıcı, aksi `CamError`): `kind ∈ {DRILL, CONE}` (`FLAT`, `BALL`
+  hâlâ reddedilir, K6); `start` ve bütün hareket uçları `|x| ≤ 1e-9`; yay yok; `css = None` (`x = 0`'da `G96` devri `n_max`'a
+  kilitlenir, anlamsızdır). Diğer kurallar (`plane = ZX`, `PER_REV`, takım no. `1..99`, `tc`, çapraz `G0` yok) aynen.
+  `CONE` türü `cam/model.py`'ye SPEC 40 / A0 ile girer; yazıcı ve okuyucu türü adıyla tanır (`kind.name`), o tür yokken
+  yalnız `DRILL` vardır.
+- **Yazım**: iş mili `G97 S<n> M3|M4`; op başı yukarıdaki kuralla `G0 X0.` (`z_tc`'de), `G0 Z<z_A>`; kesme `G1 Z… F…`,
+  hızlı `G0 Z…` (`X` değişmediği için yazılmaz). İlerleme `G99` mm/dev (sistem A; SPEC 40'taki `G95` sistem B karşılığıdır,
+  başlık değişmez). Taret numarası `T<id:02d><id:02d>`, torna takımlarıyla aynı istasyon kuralı.
+- **Okuma**: `tools` sözlüğü `LatheTool` ve `Tool` alabilir. `T` ile seçilen `Tool`'un türü `DRILL`/`CONE` değilse `CamError`.
+  Eksenel yolda:
+  - `T` / iş mili değişiminden sonraki ilk `G0`'ın bitişi (yolun `start`'ı) `x = 0`'da olmalı;
+  - yol başlarken iş mili `G96` kipindeyse `CamError` (sabit devir ister);
+  - `G2 G3 G32` → `CamError`; `x ≠ 0`'a giden `G1` → `CamError`;
+  - `x ≠ 0`'a giden `G0` eksenden **çıkıştır**: yola eklenmez ve yolu kapatır (takım değiştirme noktasına geri çekilme).
+    Çıkıştan sonra yeni bir `T` veya iş mili değişimi gelmeden hareket → `CamError`.
+  Böylece okunan eksenel yolun bütün noktaları `x = 0`'dadır (SPEC 40 E4 simülasyonu eksen dışı `Tool` kabul etmez).
+- `|x| ≤ 1e-9` toleransı okuyucuda da geçerlidir (`U` artımsal yazımda yuvarlama).
+
+### Arayüz değişikliği
+- `write_lathe(ops: list[Toolpath], …)`: `ops` içinde eksenel yol olabilir; imza aynı.
+- `read_lathe(text, tools: dict[int, LatheTool | Tool], …)`: imza aynı, `tools` değer tipi genişler.
+- `cam/model.py` değişmez.
+
+### Altın örnek (K12)
+Takım `Tool(5, "matkap-10", DRILL, D=10, flute_length=40)`; yol `rpm = 800`, `css = None`, `start = (0, 0, 2)`; hareketler
+`G1 (0, 0, −10) F0.12`, `G0 (0, 0, 2)`, `G0 (0, 0, −9.5)`, `G1 (0, 0, −20) F0.12`, `G0 (0, 0, 2)` (SPEC 40 `"tam"`, `q = 10`,
+`e = 0,5`, `cl = 2`). `write_lathe([yol], spindle="M3", tool_change=(50, 50))`:
+```
+%
+O0001
+N10 G21 G18 G40 G99 G54
+N20 G0 X100. Z50.
+N30 T0505
+N40 G97 S800 M3
+N50 G0 X0.
+N60 Z2.
+N70 G1 Z-10. F0.12
+N80 G0 Z2.
+N90 Z-9.5
+N100 G1 Z-20.
+N110 G0 Z2.
+N120 Z50.
+N130 X100.
+N140 M5
+N150 M30
+%
+```
+`read_lathe(metin, {5: matkap})` bunu tek yol olarak okur: `start = (0, 0, 50)`, hareketler `G0 (0, 0, 2)` + yukarıdaki beş
+hareket + `G0 (0, 0, 50)`; son `G0 X100.` eksenden çıkıştır, yola girmez. `rpm = 800`, `css = None`.
+
+### Kabul kriterleri (Ek E3)
+Toleranslar yukarıdaki gibi. Test yolları uydurma geometridir; testler `tests/cam/test_gcode_lathe_drill.py`'de.
+- [ ] K12 Altın metin: yukarıdaki program satır satır aynı; `spindle="M4"` ile tek fark `M4`; okununca yukarıdaki yol
+- [ ] K13 Yazıcı: torna yolu + eksenel yol + torna yolu tek programda: takım değişimlerinde K4 sırası (`G0 Z<z_tc>`,
+  `G0 X<2x_tc>`, `M5`, `T`, iş mili, `G0 X<2x_A>`, `G0 Z<z_A>`), eksenel bölümde `G96` yok, her satır `X0.` veya yalnız `Z`;
+  hatalar → `CamError`: `start` veya bir hareket ucu `x ≠ 0` (`x = 1e-6` dahil), yay, `css` verilmiş, `FLAT` / `BALL` takım,
+  takım no. `0` / `100`, `tc` yolun altında
+- [ ] K14 Okuyucu: `tools`'ta `Tool` kabul; hatalar → `CamError` (mesajda satır numarası): `FLAT` takım seçilmiş, eksenel yol
+  `G96` kipinde başlıyor, `T` sonrası ilk `G0` `x ≠ 0`'da bitiyor, eksenel yolda `G2` / `G3` / `G32`, `x ≠ 0`'a `G1`,
+  eksenden çıkış `G0`'ından sonra `T` / iş mili değişimi olmadan hareket; çıkış `G0`'ı yola girmiyor; `U0` / `W` artımsal
+  yazım eksenel yolda okunuyor
+- [ ] K15 Gidiş-dönüş: SPEC 20 `face` + `turn` + elle kurulmuş `"tam"` ve `"kirma"` biçimli eksenel yollar (iki ayrı matkap,
+  biri `CONE` türü varsa `CONE`) + `groove` tek programda yazılıp okununca K10 toleransları; eksenel yolların bütün noktaları
+  `x = 0`; SPEC 40 `lathe_drill` / `lathe_center` varsa (`importorskip`) onların yolları da aynı ölçütle
+- [ ] `pytest` 0 failed (K1–K11 değişmeden yeşil), bu ekin testlerinde 0 "uygulanmamış"; `ruff check .` ve
+  `ruff format --check .` temiz
