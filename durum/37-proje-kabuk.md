@@ -3,10 +3,9 @@
 Dal: `claude/spec-37-proje-kabuk-trviuv` · Oturum: bulut
 
 ## Sıradaki adım
-Kod yazıldı; main ve A3 kancaları (#105, 68cda83) dala birleştirildi, ön yüz ve sunucu kancaları uyumlu.
-Kalan tek kırmızı: K14 (`test_kabuk_iplik.py`) SPEC 25 torna/montaj ekranlarını (#48) bekliyor; `torna_isleri`
-ve `montajlar` bölümleri o ekranlardan gelir. #105 ve #48 main'e girince main dala merge edilir, testler
-yeniden çalıştırılır, yeşilse PR birleştirilir.
+Kod yazıldı; main ve A3 (#105) dalda. K14, SPEC 25 ekranları main'e girene kadar atlanıyor (test oturumunun
+b4c672c düzeltmesi, SPEC 37'nin "A3, 24, 25 main'e girene kadar atlanır" kuralı). CI yeşilse PR birleştirilir.
+B1 (proje dosyası sürümü) iskeleti ve testleri yerelde ayrı tutuluyor; #70 birleşince ayrı PR olur.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
