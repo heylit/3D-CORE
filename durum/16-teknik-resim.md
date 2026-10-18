@@ -3,7 +3,7 @@
 Dal: `claude/spec-16-teknik-resim-u8ylv2` · Oturum: bulut
 
 ## Sıradaki adım
-SPEC metninin kullanıcı onayı (proje sohbeti); onaydan sonra ayrı bir `dogrulayici` oturumu testleri yazar.
+SPEC metninin kullanıcı onayı (proje sohbeti); onaydan sonra ayrı bir `dogrulayici` oturumu `tests/geometry/drawing/` testlerini yazar.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
@@ -17,6 +17,7 @@ SPEC metninin kullanıcı onayı (proje sohbeti); onaydan sonra ayrı bir `dogru
   `HLRBRep_HLRToShape` ile sadece `VCompound` / `OutLine*` alınınca cepte `L_h = 2t + w` tutuyor.
 - İzdüşen daireler dejenere B-spline doğru olarak geliyor; üst / alt kenarlar üst üste düşüyor → `clean_edges` gerekli.
 - Kod `geometry/drawing/` altına (yeni üst düzey paket `pyproject.toml` değişikliği isterdi).
+- `geometry/drawing/` iskeleti (veri tipleri + `NotImplementedError` gövdeli fonksiyonlar) test oturumu için push edildi.
 
 ## Açık sorular
 - SPEC onayı bekleniyor. Varsayılanlar: DXF/SVG kendi yazıcımız (yeni bağımlılık yok, `ezdxf` yalnızca test
