@@ -30,7 +30,7 @@ class Primitive:
     """Bağlama elemanının yerel çerçevesinde bir kutu ya da Z eksenli silindir."""
 
     shape: Stock | CylinderStock
-    frame: Frame = _BIRIM
+    frame: Frame = field(default_factory=lambda: _BIRIM)
 
     def to_dict(self) -> dict:
         """{"shape": shape.to_dict(), "frame": frame.to_dict()}"""
