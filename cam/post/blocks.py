@@ -90,7 +90,9 @@ class Arc:
 
 @dataclass(frozen=True)
 class Cycle:
-    """Delik çevrimi satırı (G81/G83, G98/G99). `first` → çevrimin ilk satırı (Z R Q F yazılır)."""
+    """Delik çevrimi satırı (G81/G82/G83/G84, G98/G99). `first` → çevrimin ilk satırı (Z R Q P F yazılır).
+
+    `p`: G82 dipte bekleme [s] (SPEC 04b); biçimleyici dile göre ms (Fanuc) veya s (Haas) yazar."""
 
     kind: str
     retract: str
@@ -101,6 +103,21 @@ class Cycle:
     q: float | None
     F: float | None
     first: bool
+    p: float | None = None
+
+
+@dataclass(frozen=True)
+class RigidTap:
+    """Rijit kılavuz modu (SPEC 04b): Fanuc `M29 S<rpm>`; Haas'ta satır yok (G84 doğrudan rijit)."""
+
+    rpm: int
+
+
+@dataclass(frozen=True)
+class Dwell:
+    """Bekleme [s] (açılmış G82, SPEC 04b): GRBL `G4 P<s>`."""
+
+    seconds: float
 
 
 @dataclass(frozen=True)
@@ -123,6 +140,8 @@ Block = (
     | Rapid
     | Linear
     | Arc
+    | RigidTap
+    | Dwell
     | Cycle
     | CycleEnd
     | End

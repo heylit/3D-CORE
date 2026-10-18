@@ -12,6 +12,14 @@ Kod yazıldı (testler 62a03ea, ayrı thread). `test_K2_blocks_carry_rounded_val
 |---|---|---|---|
 | 2026-10-18 | 173 | 1 | SPEC 30 testleri; kalan: K2 yuvarlama testinin geçersiz yayı. Tüm paket 2660 geçti |
 
+## SPEC 04b blok ekleri (2026-10-18, ayrı PR)
+`Cycle.p`, `RigidTap`, `Dwell`; `Dialect.rigid_tap` ("m29" Fanuc, "g84" Haas, "" GRBL) ve `dwell_ms` (Fanuc);
+`hole_moves` G82 / G84; `plan()` ve `cam.gcode.write` G82 / G84 op'larını (`kind` + `to_toolpath`, `cam/cevrimler.py`'yi
+import etmeden) kabul eder; `write` bu op'lar varsa `format(plan())` ile yazar (eski yazıcı diğer işlerde aynen).
+Okuyucu: G82 (P zorunlu), G84 (M3, Fanuc'ta M29 S, Q yok), `M29 S`, `G4 P`. `check_machine` kılavuz F'yi açılımıyla denetler.
+SPEC 04b altın metinleri (Örnek A / B; Fanuc, Haas, GRBL) uydurma op'larla yerelde denendi; 04b testleri A0 ve
+`cam/cevrimler.py` gelince çalışır.
+
 ## Son oturum
 **2026-10-18**
 - SPEC taslağı yazıldı (`specs/30-tezgah-profili.md`).
