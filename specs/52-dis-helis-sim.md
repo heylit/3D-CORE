@@ -3,7 +3,7 @@
 > **Durum: ONAYLANDI** (kullanıcı, 2026-10-18 14:53 UTC "Dalga 6 CAM taslakları" onay sorusu; kullanıcının 11:14 UTC kuralı
 > gereği 2 dakika içinde itiraz gelmediği için açık soruların önerilen cevaplarıyla kabul). Metin kullanıcı onayı olmadan değişmez.
 > Bağımlılık (kod): **B0** (`PathMeta.strategy = "dis"`), SPEC 20 (`thread`, `iso_thread_depth`; `main`'de), SPEC 22 (torna
-> simülasyonu, `RadialMap`; `main`'de), SPEC 43 (tri-dexel; yalnız K8 çapraz kontrolü için), SPEC 04b
+> simülasyonu, `RadialMap`; `main`'de), SPEC 04b
 > (kılavuz `G84`, `Tool.pitch`; yalnız K5 için; `ToolKind.TAP` `main`'de).
 
 ## Amaç
@@ -62,7 +62,7 @@ Hatve `P`, temel üçgen yüksekliği `H = (√3/2)·P`:
   sürücü `simulate_thread`), `cam/sim/thread_measure.py` (ölçüm), `cam/thread_mill.py` (helisel diş frezeleme yolu:
   `G2/G3` + Z, `meta.strategy = "dis"`), `tests/cam/test_thread_*.py`, `durum/52-dis-helis-sim.md`.
 - Kullanılır (değişmez): `cam/model.py` (B0 ile), `cam/lathe_ops.py` (`thread`, `iso_thread_depth`), `cam/sim/radial.py`,
-  `cam/sim/lathe.py`, `cam/model.py` `Frame`, 04b kılavuz op'u, `cam/sim/tridexel.py` (43; yalnız çapraz test).
+  `cam/sim/lathe.py`, `cam/model.py` `Frame`, 04b kılavuz op'u.
 - Dokunulmayacak: tüm `*/model.py`, 22 / 43'ün mevcut dosyaları (simülatörleri değişmez; diş ayrı sürücüde), ortak dosyalar.
 
 ## Arayüz
@@ -90,12 +90,13 @@ Testlerde uydurma geometri; beklenen değerin kaynağı test yorumunda (ISO 68-1
   `r_c` boşluk alanının ağırlık merkezi yarıçapı) `O(Δθ² + Δz)` toleransta eşit — `test_thread_lathe.py`
 - [ ] K5 Kılavuz (`G84`, 04b): M8×1.25 iç diş, ISO iç profil formu: `d₂ = 8 − 0.649519·1.25` (± `Δz`), küçük çap `8 − 1.082532·1.25` (± `Δz`);
   yerel çerçeve eğik delikte (41 `Frame`) sonuç aynı — `tests/cam/test_thread_tap.py`
-- [ ] K6 Diş frezeleme: M16×1.5 iç diş, `D = 10`; simüle yüzey yoğun örneklemeli (açısal 0.05°) zarf referansıyla ≤ 1e-6; ölçülen `d₂`
-  ISO değerine `0.01·P` içinde; tırmanma / geleneksel yönde aynı yüzey — `tests/cam/test_thread_mill.py`
+- [ ] K6 Diş frezeleme (Ek 2): M16×1.5 iç diş, `D = 10`; simüle yüzey yoğun örneklemeli (açısal 0.05°) zarf referansıyla ≤ 1e-6; ölçülen `d₂`
+  ISO değerine `0.03·P` içinde; tırmanma / geleneksel yönde aynı yüzey — `tests/cam/test_thread_mill.py`
 - [ ] K7 Yol üretimi: `thread_mill` yolunda her tur `ΔZ = P` 1e-12, helis yarıçapı `ρ_h` formülü 1e-12, giriş yayı delik duvarına teğet —
   `test_thread_mill.py`
-- [ ] K8 Çapraz kontrol: diş olmayan bir senkron kesim (`P` → çok büyük, düz kanal) `PolarMap` hacmi 43 tri-dexel hacmine `O(Δ)` toleransta
-  eşit (43 `main`'e girince; girmemişse test `skip`, nedeni yazılı) — `tests/cam/test_thread_cross.py`
+- [ ] K8 Çapraz kontrol (Ek 1): büyük `P`'li düz senkron kesimde (diş olmayan profil, kesit her θ'da stok z aralığının
+  içinde) `PolarMap`'ten kalkan hacim kapalı form Pappus hacmine `V = Δφ·A·r̄` (A kalkan kesit alanı, r̄ ağırlık merkezi
+  yarıçapı, Δφ taranan açı [rad]; tam turda `2π·A·r̄`) ızgara çözünürlüğüne uygun toleransta eşit — `tests/cam/test_thread_cross.py`
 - [ ] K9 Hatalar: diş olmayan yol, `P ≤ 0`, `starts < 1`, haritayı aşan yol, `ThreadMillForm` geçersiz değerleri, `max_cells` aşımı →
   `CamError` — `tests/cam/test_thread_errors.py`
 - [ ] Tüm testler yeşil, `ruff check .` ve `ruff format --check .` temiz, 0 "uygulanmamış"; 10 s'den uzun testler `slow`
@@ -114,3 +115,9 @@ Testlerde uydurma geometri; beklenen değerin kaynağı test yorumunda (ISO 68-1
    ihtiyacına göre sonra.
 3. Taslaktaki boş varsayılanlar (koordinatör kararı, küçük teknik ayrıntı): `ThreadMillForm.flute_length = 20.0` mm,
    `thread_mill(rpm=3000.0, feed=300.0)` (`feed` mm/dk).
+4. **Ek 1 — K8 düzeltmesi** (kullanıcı yazılı onayı, 2026-10-18 16:27 UTC): taslaktaki K8 aynı kesimi 43 tri-dexel ile
+   karşılaştırıyordu; ama tri-dexel (`simulate5`) yalnız freze takımı ve kutu stok kabul eder, torna / kılavuz profiliyle aynı
+   geometri iki simülatörde kesilemez. Yeni K8, aynı hacmi bağımsız kapalı form (Pappus) ile denetler; 43 bağımlılığı kalkar.
+5. **Ek 2 — K6 düzeltmesi** (kullanıcı yazılı onayı, 2026-10-18 16:27 UTC): bağımsız zarf referansında takımın helis sapması
+   `d₂`'yi geometrik olarak `+0.023·P` kaydırıyor (`D = 8`'de de `+0.0134·P`), `0.01·P` toleransı tutamaz; `D = 10` kalır,
+   tolerans `0.03·P`. Test, takım burnunu `nose_r = H/8` seçer (K7 `ρ_h` formülü bu yarıçapla ISO tepe noktasına oturur).

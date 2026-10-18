@@ -20,3 +20,6 @@ Dal: `claude/project-thread-012y8t` · Oturum: bulut (kod: session_01774ib8WCsNw
 
 ## Açık sorular
 _(yok)_
+- Ek 1 / Ek 2 (kullanıcı yazılı onayı 16:27 UTC): K8 tri-dexel yerine Pappus kapalı form hacmi; K6 `D = 10`, tolerans
+  `0.03·P`. K5 testi `G84` yolunu elle kurar (04b'ye bağlı değil); `TapOp.to_toolpath` kullanan test 04b birleşene kadar
+  "uygulanmamış" görünür.
