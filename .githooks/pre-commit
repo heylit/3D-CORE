@@ -5,6 +5,7 @@
 
 echo "[pre-commit] ruff..."
 "$PY" -m ruff check . || { echo "X Lint hatası. Düzeltmek için: ruff check . --fix"; exit 1; }
+"$PY" -m ruff format --check . || { echo "X Biçim hatası, commit iptal. Düzeltmek için: ruff format ."; exit 1; }
 
 echo "[pre-commit] hızlı testler..."
 "$PY" -m pytest -q -m "not slow" || {

@@ -21,8 +21,8 @@ from enum import StrEnum
 
 import numpy as np
 
-ARC_TOL = 1e-6     # mm: yayın başlangıç ve bitiş yarıçapı arasındaki izin verilen fark
-R_MIN = 1e-9       # mm: bundan küçük yarıçap yay sayılmaz
+ARC_TOL = 1e-6  # mm: yayın başlangıç ve bitiş yarıçapı arasındaki izin verilen fark
+R_MIN = 1e-9  # mm: bundan küçük yarıçap yay sayılmaz
 
 
 class CamError(ValueError):
@@ -57,9 +57,9 @@ class Tool:
     id: int
     name: str
     kind: ToolKind
-    D: float                  # mm, takım çapı
-    flute_length: float       # mm, kesici boy
-    corner_r: float = 0.0     # mm, köşe radyüsü (küresel uçta D/2)
+    D: float  # mm, takım çapı
+    flute_length: float  # mm, kesici boy
+    corner_r: float = 0.0  # mm, köşe radyüsü (küresel uçta D/2)
 
     def __post_init__(self) -> None:
         self.kind = ToolKind(self.kind)
@@ -103,7 +103,7 @@ class Stock:
 class Move:
     type: MoveType
     end: tuple[float, float, float]
-    feed: float | None = None                  # mm/dk; G1/G2/G3 için zorunlu
+    feed: float | None = None  # mm/dk; G1/G2/G3 için zorunlu
     center: tuple[float, float] | None = None  # yay merkezi, mutlak XY
 
     def __post_init__(self) -> None:
@@ -125,9 +125,9 @@ def _arc_sweep(p0: np.ndarray, p1: np.ndarray, c: np.ndarray, cw: bool) -> tuple
     dtheta = math.atan2(v1[1], v1[0]) - math.atan2(v0[1], v0[0])
     if cw:
         dtheta = -dtheta
-    dtheta %= 2 * math.pi           # saat yönü tersi için [0, 2π)
+    dtheta %= 2 * math.pi  # saat yönü tersi için [0, 2π)
     if dtheta < 1e-12:
-        dtheta = 2 * math.pi        # aynı nokta: tam daire
+        dtheta = 2 * math.pi  # aynı nokta: tam daire
     return r, dtheta
 
 

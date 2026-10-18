@@ -31,7 +31,7 @@ _COMMENT = re.compile(r"\([^()]*\)")
 
 LETTERS = set("GMXYZIJRQFSTNOH")
 G_MOTION = {0: "G0", 1: "G1", 2: "G2", 3: "G3", 80: "G80", 81: "G81", 83: "G83"}
-G_NOOP = {17, 21, 40, 49, 54, 94}           # baş satırda gelen, yola etkisi olmayan kodlar
+G_NOOP = {17, 21, 40, 49, 54, 94}  # baş satırda gelen, yola etkisi olmayan kodlar
 G_REFUSED = {
     20: "G20 (inç) desteklenmiyor; birim dönüşümü yapılmaz",
     18: "G18 düzlemi desteklenmiyor (sadece G17)",
@@ -39,7 +39,7 @@ G_REFUSED = {
     41: "G41 takım yarıçap telafisi desteklenmiyor",
     42: "G42 takım yarıçap telafisi desteklenmiyor",
 }
-M_OK = {0, 1, 2, 3, 5, 6, 7, 8, 9, 30}       # M7/M8/M9 kabul edilir, yola yansımaz
+M_OK = {0, 1, 2, 3, 5, 6, 7, 8, 9, 30}  # M7/M8/M9 kabul edilir, yola yansımaz
 ARC_TYPES = {"G2": MoveType.ARC_CW, "G3": MoveType.ARC_CCW}
 LINEAR_TYPES = {"G0": MoveType.RAPID, "G1": MoveType.LINEAR}
 
@@ -105,7 +105,7 @@ class _Reader:
             if self.state.distance == "G91":
                 raise CamError(f"G91 (artımsal) altında {motion} çevrimi desteklenmiyor")
             if not self.state.in_cycle:
-                self.state.cycle_z0 = None       # yeni çevrim: z0 ilk delikte alınır
+                self.state.cycle_z0 = None  # yeni çevrim: z0 ilk delikte alınır
         elif motion is not None:
             self.state.end_cycle()
         if motion is not None:
@@ -123,7 +123,7 @@ class _Reader:
             elif g in (90, 91):
                 self.state.distance = f"G{g}"
             elif g == 43:
-                pass                                 # length_offset() denetler
+                pass  # length_offset() denetler
             elif g in (98, 99):
                 self.state.retract = f"G{g}"
             elif g in G_REFUSED:
@@ -208,7 +208,7 @@ class _Reader:
         if self.path is None:
             if t is not MoveType.RAPID:
                 raise CamError(f"{t.value}: takım (T) ve devir (S) tanımlanmadan kesme hareketi")
-            self.state.pos = end            # yol öncesi konumlama
+            self.state.pos = end  # yol öncesi konumlama
             return
         feed = None
         if t is not MoveType.RAPID:
@@ -254,10 +254,10 @@ class _Reader:
         if abs(R) < L / 2 - self.arc_tol:
             raise CamError(f"|R| = {abs(R)} kiriş yarısından küçük (L/2 = {L / 2})")
         h = math.sqrt(max(R * R - (L / 2) ** 2, 0.0))
-        n = (-dy / L, dx / L)                       # kirişin solu (+Z'den bakınca)
-        side = 1.0 if t is MoveType.ARC_CCW else -1.0   # G3 solda, G2 sağda (R > 0)
+        n = (-dy / L, dx / L)  # kirişin solu (+Z'den bakınca)
+        side = 1.0 if t is MoveType.ARC_CCW else -1.0  # G3 solda, G2 sağda (R > 0)
         if R < 0:
-            side = -side                             # > 180° yay: taraf tersine
+            side = -side  # > 180° yay: taraf tersine
         m = ((p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2)
         return (m[0] + side * h * n[0], m[1] + side * h * n[1])
 
@@ -272,8 +272,8 @@ class _Reader:
         dx, dy = p1[0] - p0[0], p1[1] - p0[1]
         L = math.hypot(dx, dy)
         if L == 0:
-            return c                                 # tam daire: düzeltme yok
-        u = (-dy / L, dx / L)                        # orta dikme yönü
+            return c  # tam daire: düzeltme yok
+        u = (-dy / L, dx / L)  # orta dikme yönü
         m = ((p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2)
         s = (c[0] - m[0]) * u[0] + (c[1] - m[1]) * u[1]
         return (m[0] + s * u[0], m[1] + s * u[1])
@@ -298,14 +298,13 @@ class _Reader:
         if st.feed is None or st.feed <= 0:
             raise CamError(f"{st.motion}: ilerleme (F) yok")
         if st.cycle_z0 is None:
-            st.cycle_z0 = st.pos[2]                  # G98 dönüş düzlemi: çevrimin ilk satırındaki Z
+            st.cycle_z0 = st.pos[2]  # G98 dönüş düzlemi: çevrimin ilk satırındaki Z
         z, r, z0 = st.cycle_z, st.cycle_r, st.cycle_z0
         if not (z < r <= z0 and r <= st.pos[2]):
             raise CamError(f"{st.motion}: z < r ≤ z0 olmalı (z={z}, r={r}, z0={z0}, Z={st.pos[2]})")
         z_ret = z0 if st.retract == "G98" else r
         x, y = w.get("X", st.pos[0]), w.get("Y", st.pos[1])
-        moves = hole_moves(st.motion, st.pos, x, y, z, r, z_ret, st.feed, st.cycle_q,
-                           self.d.peck_clearance)
+        moves = hole_moves(st.motion, st.pos, x, y, z, r, z_ret, st.feed, st.cycle_q, self.d.peck_clearance)
         self.path.moves += moves
         st.pos = (x, y, z_ret)
 

@@ -106,7 +106,7 @@ class Ref:
 @dataclass
 class Component:
     name: str
-    part: str                     # parça referansı (dosya yolu veya kimlik)
+    part: str  # parça referansı (dosya yolu veya kimlik)
     T: np.ndarray = field(default_factory=lambda: np.eye(4))
     fixed: bool = False
 
@@ -131,7 +131,7 @@ class Mate:
     kind: MateKind
     a: Ref
     b: Ref
-    value: float = 0.0            # DISTANCE: mm, ANGLE: derece
+    value: float = 0.0  # DISTANCE: mm, ANGLE: derece
     flip: bool = False
 
     def __post_init__(self) -> None:
@@ -191,14 +191,17 @@ class Assembly:
 
     def to_dict(self) -> dict:
         def ref(r: Ref) -> dict:
-            return {"component": r.component, "kind": r.kind.value,
-                    "origin": list(r.origin), "direction": list(r.direction)}
+            return {
+                "component": r.component,
+                "kind": r.kind.value,
+                "origin": list(r.origin),
+                "direction": list(r.direction),
+            }
 
         return {
             "name": self.name,
             "components": [
-                {"name": c.name, "part": c.part, "T": c.T.tolist(), "fixed": c.fixed}
-                for c in self.components
+                {"name": c.name, "part": c.part, "T": c.T.tolist(), "fixed": c.fixed} for c in self.components
             ],
             "mates": [
                 {"kind": m.kind.value, "a": ref(m.a), "b": ref(m.b), "value": m.value, "flip": m.flip}
@@ -209,8 +212,12 @@ class Assembly:
     @classmethod
     def from_dict(cls, d: dict) -> Assembly:
         def ref(r: dict) -> Ref:
-            return Ref(component=r["component"], kind=r["kind"],
-                       origin=tuple(r["origin"]), direction=tuple(r["direction"]))
+            return Ref(
+                component=r["component"],
+                kind=r["kind"],
+                origin=tuple(r["origin"]),
+                direction=tuple(r["direction"]),
+            )
 
         return cls(
             name=d["name"],
@@ -220,7 +227,10 @@ class Assembly:
             ],
             mates=[
                 Mate(
-                    kind=m["kind"], a=ref(m["a"]), b=ref(m["b"]), value=m.get("value", 0.0),
+                    kind=m["kind"],
+                    a=ref(m["a"]),
+                    b=ref(m["b"]),
+                    value=m.get("value", 0.0),
                     flip=m.get("flip", False),
                 )
                 for m in d.get("mates", [])
