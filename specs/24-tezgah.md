@@ -1,6 +1,8 @@
 # SPEC 24 — Tezgah: web arayüzü (köprü, kabuk, freze akışı)
 
-> **Durum: TASLAK, kullanıcı onayı bekliyor.** Onaylanmadan kod ya da test yazılmaz.
+> **Durum: ONAYLANDI** (kullanıcı, 2026-10-18 08:27 UTC, "Önerilerle onayla": bağımlılıklar kabul, CI'da yalnızca
+> Python testleri, ön yüz testleri yerelde, `dist/` repoya girmez). Uygulama Dalga 3'te başlar; o zamana kadar kod,
+> test ve `pyproject.toml` PR'ı açılmaz.
 > Prototip: https://claude.ai/artifact/2YA8RRJYuFSpRJyEFMEX8u (konsept; bu SPEC'in kabul ölçütü değildir).
 > Karar (kullanıcı, 2026-10-18 07:59 UTC, "Karma"): SPEC 15 pyvista geliştirici görüntüleyicisi olarak kalır;
 > prototipteki arayüz ayrı bir SPEC olarak web ile yapılır. Bu SPEC o ayrı SPEC'tir.
@@ -84,7 +86,7 @@ herkese açık fonksiyonları). `core/` FEM'e bu SPEC'te dokunulmaz.
 Geçersiz parametre (ör. takım çapı ≤ 0, cep takımdan dar) çekirdekte `ModelError` / `CamError` fırlatır;
 sunucu bunu **422** ve hata metniyle döner, ön yüz müfettişte gösterir. Sessiz düzeltme yok (altın kural 5).
 
-## Yeni bağımlılıklar (kullanıcı onayı gerekir; `pyproject.toml` ayrı PR)
+## Yeni bağımlılıklar (onaylandı; `pyproject.toml` ayrı PR, Dalga 3'te)
 | Bağımlılık | Nerede | Neden |
 |---|---|---|
 | `fastapi`, `uvicorn` | yeni isteğe bağlı grup `[web]` | REST + statik servis |
@@ -100,8 +102,7 @@ Python çekirdeği (`.[dev]`, `.[cad]`) bu bağımlılıklar olmadan kurulmaya v
 - **Bağımlılık:** 24 → 02, 03, 04, 05, 08. (15'e bağlı değil; pyvista görüntüleyicisi ayrı yürür.)
 - **Dalga:** 3 (05 talaş simülasyonu Dalga 2'de `main`'e girince başlar). Köprünün 03/04'e dayanan kısmı
   (K1–K3) isterseniz Dalga 2'de 05'ten bağımsız başlayabilir; sim katmanları (K6) 05'i bekler.
-- **Devamı (bu SPEC değil):** `25-tezgah-torna-montaj`: torna akışı (→ 20, 21, 22) ve montaj sırası,
-  serbestlik göstergesi, girişim düzeltmesi (→ 07, 09). Dalga 5.
+- **Devamı:** aşağıdaki SPEC 25 önerisi.
 - `docs/yol-haritasi.md` bu PR'da değişmez; onaydan sonra yol haritası sahibi thread ekler.
 
 ## Kabul kriterleri
@@ -139,16 +140,21 @@ Python çekirdeği (`.[dev]`, `.[cad]`) bu bağımlılıklar olmadan kurulmaya v
 - CLAUDE.md "Test bağımsızlığı" aynen geçerli: önce `dogrulayici` oturumu bu SPEC'ten testleri yazar
   (Python ve TS), sonra ayrı bir `yazici` oturumu kodu yazar.
 - Python testleri mevcut `pytest` akışında; `[web]` yoksa atlanır.
-- Ön yüz testleri `npm test` (vitest) ve `npm run e2e` (Playwright). Yerelde pre-push hook'una eklenmesi
-  ve CI'da çalışıp çalışmayacağı aşağıdaki açık sorudadır.
+- Ön yüz testleri `npm test` (vitest) ve `npm run e2e` (Playwright) **yalnızca yerelde**, pre-push hook'unda
+  çalışır (Node kurulu değilse hook bunları atlayıp uyarı yazar). CI'da (`.github/workflows/test.yml`) yalnızca
+  Python testleri çalışır; Node adımı eklenmez (Actions dakikası).
 - Görsel tasarım (renk, yerleşim) kabul ölçütü değildir; prototip yön gösterir. Ölçütler sayılar ve davranıştır.
 
-## Açık sorular (kullanıcıya)
-1. Yeni bağımlılıklar (`fastapi`, `uvicorn`, `httpx`, Node araç zinciri) kabul mü?
-2. Ön yüz testleri CI'da çalışsın mı? Çalışırsa `.github/workflows/test.yml`'e bir Node adımı eklenir
-   (dakika maliyeti artar). Öneri: CI'da yalnızca Python testleri, ön yüz testleri yerelde pre-push'ta.
-3. Derlenmiş `dist/` repoya girmesin, kurulumda üretilsin (öneri) mi; yoksa kullanıcı Node kurmadan
-   açabilsin diye derlenmiş hali repoya mı girsin?
+## Kararlar (kullanıcı, 2026-10-18 08:27 UTC)
+1. Yeni bağımlılıklar kabul: `fastapi` + `uvicorn` `[web]` grubunda, `httpx` `[dev]`'de, Node araç zinciri
+   (`three`, `vite`, `typescript`, `vitest`, `@playwright/test`) `tezgah/arayuz/package.json`'da.
+2. CI'da yalnızca Python testleri; vitest ve Playwright yerelde pre-push'ta.
+3. `tezgah/arayuz/dist/` `.gitignore`'a eklenir, repoya girmez; `pip install -e ".[web]"` sonrası
+   `npm ci && npm run build` ile (ya da `tezgah` ilk açılışta `dist/` yoksa açık bir hata mesajıyla) üretilir.
+
+## Öneri: SPEC 25 (bu SPEC'in parçası değil)
+`25-tezgah-torna-montaj`: torna akışı (→ 20, 21, 22) ve montaj sırası, serbestlik göstergesi, girişim
+düzeltmesi (→ 07, 09). Dalga 5. Ayrı SPEC olarak yazılıp ayrıca onaylanır.
 
 ## Kapsam dışı
 - Torna akışı ve montaj ekranı (SPEC 25 önerisi).
