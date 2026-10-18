@@ -2,12 +2,18 @@
 CalculiX (ccx) çapraz kontrol yardımcıları: `core.model.Model` -> .inp, ccx çalıştır, .dat oku.
 
 Kendi çözücümüzden bağımsız bir FEM çözücüsüyle aynı modeli çözüp sonuçları karşılaştırmak için.
-Sadece testlerde kullanılır; SPEC 13 (`fileio/` CalculiX dışa aktarımı) gelince o yazıcı da burada
-aynı sonuçlarla denenebilir.
+Sadece testlerde kullanılır ve `fileio.calculix`'ten hiçbir şey import etmez: SPEC 13'ün ürün
+yazıcısı (`fileio.calculix.to_inp`) `solve_ccx(..., inp=...)` ile aynı ccx
+çalıştırıcısı ve okuyucuyla denenir.
 
 Eşleme (1B çubuk, `bar1d`): düğüm (x, 0, 0), eleman T3D2 (2 düğümlü 3B kafes), kesit
 `*SOLID SECTION` alanı A, malzeme `*ELASTIC` E, ν. 1B modelde y ve z serbestlikleri bütün
 düğümlerde tutulur, böylece ccx'teki problem bizimkiyle aynı olur.
+Eşleme (3B katı, `tet4`, SPEC 13): eleman C3D4 (tek integrasyon noktalı doğrusal tetrahedron), kesit
+`*SOLID SECTION` (alan satırı yok). C3D4 düğüm sırası pozitif hacimli olmalı:
+(x2 − x1) × (x3 − x1) · (x4 − x1) > 0; negatifse 2. ve 3. düğüm yer değiştirir.
+Sayılar `format(x, ".12e")` ile yazılır: ccx bir sayı alanının en çok 20 karakterini okur
+(`repr(-7.850462293417722e-16)` 22 karakterdir ve reddedilir).
 Birimler: N, mm, MPa (CalculiX birimsizdir, olduğu gibi aktarılır).
 Kaynak: CalculiX CrunchiX User's Manual 2.21 (*NODE, *ELEMENT, *SOLID SECTION, *BOUNDARY, *CLOAD,
 *NODE PRINT, *EL PRINT).
@@ -21,6 +27,8 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
+
 from core.model import DOF_NAMES, Model, ModelError
 
 CCX = shutil.which("ccx") or shutil.which("ccx_2.21") or shutil.which("ccx2.21")
@@ -31,15 +39,23 @@ class CcxResult:
     u: dict[int, tuple[float, float, float]]  # düğüm id -> (ux, uy, uz) [mm]
     rf: dict[int, tuple[float, float, float]]  # düğüm id -> tepki (fx, fy, fz) [N]
     sxx: dict[int, float]  # eleman id -> eksenel gerilme [MPa]
+    s: dict[int, tuple[float, ...]]  # eleman id -> (sxx, syy, szz, sxy, sxz, syz) [MPa], ilk int. noktası
+
+
+def num(x: float) -> str:
+    """ccx sayı alanı: 13 anlamlı basamak, en çok 20 karakter."""
+    return format(float(x), ".12e")
 
 
 def to_inp(model: Model) -> str:
-    """Modeli CalculiX girdi dosyası metnine çevirir (şimdilik sadece 1B `bar1d`)."""
+    """Modeli CalculiX girdi dosyası metnine çevirir: 1B `bar1d` → T3D2, 3B `tet4` → C3D4."""
     model.validate()
+    if model.dim == 3 and model.elements and all(e.type == "tet4" for e in model.elements):
+        return _to_inp_tet4(model)
     if model.dim != 1 or any(e.type != "bar1d" for e in model.elements):
-        raise ModelError("CalculiX yazıcısı şimdilik sadece 1B 'bar1d' modelini destekliyor")
+        raise ModelError("CalculiX yardımcısı sadece 1B 'bar1d' ve 3B 'tet4' modelini destekliyor")
     out = ["*HEADING", f"3D-CORE capraz kontrol: {model.name}", "*NODE, NSET=NALL"]
-    out += [f"{n.id}, {n.x!r}, 0.0, 0.0" for n in model.nodes]
+    out += [f"{n.id}, {num(n.x)}, 0.0, 0.0" for n in model.nodes]
 
     # Her (malzeme, kesit) çifti bir eleman kümesi
     groups: dict[tuple[str, str], list] = {}
@@ -52,17 +68,58 @@ def to_inp(model: Model) -> str:
     out.append("*ELSET, ELSET=EALL")
     out += [f"G{k}" for k in range(1, len(groups) + 1)]
     for m in model.materials:
-        out += [f"*MATERIAL, NAME={mat_names[m.name]}", "*ELASTIC", f"{m.E!r}, {m.nu!r}"]
+        out += [f"*MATERIAL, NAME={mat_names[m.name]}", "*ELASTIC", f"{num(m.E)}, {num(m.nu)}"]
     for k, (mat, sec) in enumerate(groups, start=1):
-        out += [f"*SOLID SECTION, ELSET=G{k}, MATERIAL={mat_names[mat]}", f"{model.section(sec).A!r}"]
+        out += [f"*SOLID SECTION, ELSET=G{k}, MATERIAL={mat_names[mat]}", num(model.section(sec).A)]
 
     out += ["*STEP", "*STATIC", "*BOUNDARY", "NALL, 2, 3"]  # 1B: uy = uz = 0
     for bc in model.bcs:
         k = DOF_NAMES[bc.dof] + 1
-        out.append(f"{bc.node}, {k}, {k}, {bc.value!r}")
-    if model.loads:
-        out.append("*CLOAD")
-        out += [f"{ld.node}, {DOF_NAMES[ld.dof] + 1}, {ld.value!r}" for ld in model.loads]
+        out.append(f"{bc.node}, {k}, {k}, {num(bc.value)}")
+    out += _cload(model)
+    out += ["*NODE PRINT, NSET=NALL", "U, RF", "*EL PRINT, ELSET=EALL", "S", "*END STEP"]
+    return "\n".join(out) + "\n"
+
+
+def _cload(model: Model) -> list[str]:
+    if not model.loads:
+        return []
+    return ["*CLOAD"] + [f"{ld.node}, {DOF_NAMES[ld.dof] + 1}, {num(ld.value)}" for ld in model.loads]
+
+
+def c3d4_order(model: Model, nodes: list[int]) -> list[int]:
+    """C3D4 için pozitif hacimli düğüm sırası (negatifse 2. ve 3. düğüm yer değiştirir)."""
+    X = [model.node(n).xyz for n in nodes]
+    det = float(np.dot(np.cross(X[1] - X[0], X[2] - X[0]), X[3] - X[0]))
+    if det == 0.0:
+        raise ModelError(f"Sıfır hacimli tetrahedron: {nodes}")
+    return list(nodes) if det > 0 else [nodes[0], nodes[2], nodes[1], nodes[3]]
+
+
+def _to_inp_tet4(model: Model) -> str:
+    """3B `tet4` modeli → C3D4. Her malzeme bir eleman kümesi."""
+    out = ["*HEADING", f"3D-CORE capraz kontrol: {model.name}", "*NODE, NSET=NALL"]
+    out += [f"{n.id}, {num(n.x)}, {num(n.y)}, {num(n.z)}" for n in model.nodes]
+    groups: dict[str, list] = {}
+    for e in model.elements:
+        groups.setdefault(e.material, []).append(e)
+    mat_names = {m.name: f"M{i}" for i, m in enumerate(model.materials, start=1)}
+    for k, elems in enumerate(groups.values(), start=1):
+        out.append(f"*ELEMENT, TYPE=C3D4, ELSET=G{k}")
+        out += [f"{e.id}, " + ", ".join(str(n) for n in c3d4_order(model, e.nodes)) for e in elems]
+    out.append("*ELSET, ELSET=EALL")
+    out += [f"G{k}" for k in range(1, len(groups) + 1)]
+    for m in model.materials:
+        out += [f"*MATERIAL, NAME={mat_names[m.name]}", "*ELASTIC", f"{num(m.E)}, {num(m.nu)}"]
+    for k, mat in enumerate(groups, start=1):
+        out += [f"*SOLID SECTION, ELSET=G{k}, MATERIAL={mat_names[mat]}"]
+    out += ["*STEP", "*STATIC"]
+    if model.bcs:
+        out.append("*BOUNDARY")
+        for bc in model.bcs:
+            k = DOF_NAMES[bc.dof] + 1
+            out.append(f"{bc.node}, {k}, {k}, {num(bc.value)}")
+    out += _cload(model)
     out += ["*NODE PRINT, NSET=NALL", "U, RF", "*EL PRINT, ELSET=EALL", "S", "*END STEP"]
     return "\n".join(out) + "\n"
 
@@ -75,6 +132,7 @@ def parse_dat(text: str) -> CcxResult:
     u: dict[int, tuple[float, float, float]] = {}
     rf: dict[int, tuple[float, float, float]] = {}
     sxx: dict[int, float] = {}
+    s: dict[int, tuple[float, ...]] = {}
     block = None
     for line in text.splitlines():
         low = line.strip().lower()
@@ -94,20 +152,23 @@ def parse_dat(text: str) -> CcxResult:
         if block is None or not head[0].isdigit():
             continue
         if block is sxx:
-            sxx.setdefault(int(head[0]), float(nums[0]))  # her integrasyon noktası aynı (T3D2)
+            # T3D2 ve C3D4'te her integrasyon noktası aynı; ilki alınır
+            sxx.setdefault(int(head[0]), float(nums[0]))
+            s.setdefault(int(head[0]), tuple(float(v) for v in nums[:6]))
         else:
             block[int(head[0])] = tuple(float(v) for v in nums[:3])
     if not u:
         raise RuntimeError("ccx .dat dosyasında yer değiştirme bloğu yok")
-    return CcxResult(u, rf, sxx)
+    return CcxResult(u, rf, sxx, s)
 
 
-def solve_ccx(model: Model, workdir: Path) -> CcxResult:
-    """Modeli ccx ile çözer. ccx kurulu değilse çağıran test atlanmış olmalı."""
+def solve_ccx(model: Model, workdir: Path, inp: str | None = None) -> CcxResult:
+    """Modeli ccx ile çözer. `inp` verilirse (ör. `fileio.calculix.to_inp` çıktısı) bu yardımcının
+    yazıcısı yerine o metin çözülür. ccx kurulu değilse çağıran test atlanmış olmalı."""
     if CCX is None:
         raise RuntimeError("ccx bulunamadı")
     workdir = Path(workdir)
-    (workdir / "model.inp").write_text(to_inp(model))
+    (workdir / "model.inp").write_text(to_inp(model) if inp is None else inp)
     p = subprocess.run(
         [CCX, "-i", "model"],
         cwd=workdir,

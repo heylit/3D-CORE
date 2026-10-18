@@ -5,7 +5,7 @@
 > (kurallar: `BASLANGIC.md` bölüm 7). Sıra ve paralellik: `docs/yol-haritasi.md` → "Paralel çalışma: dalgalar".
 
 ## Açık dalga
-**Dalga 2 sürüyor.** Tamamlanan: 06, 07, 11, 15, 16, 20, 23. Diğerleri bulut thread'lerinde (aşağıdaki tablo). Dalga 1 tamamlandı (01, 02, 03, 04, 08).
+**Dalga 2 tamamlandı** (05, 06, 07, 11, 14, 15, 16, 20, 23). **Dalga 3 sürüyor:** 13 ve 24 tamamlandı; diğerleri aşağıdaki tabloda. Dalga 5 SPEC metinleri yazılıyor. Dalga 1 tamamlandı (01, 02, 03, 04, 08).
 
 ## SPEC tablosu
 | SPEC | Dalga | Durum | Kimde (dal / oturum) | Ayrıntı |
@@ -21,14 +21,22 @@
 | 15-goruntuleyici | 2 | tamamlandı (SPEC + testler PR #18, `149d292`; kod PR #25, `1ce40fb`) | — | `durum/15-goruntuleyici.md` |
 | 16-teknik-resim | 2 | tamamlandı (PR #22, `778d29b`) | — | `durum/16-teknik-resim.md` |
 | 07-montaj-agaci | 2 | tamamlandı (PR #20, `9c60f14`) | — | `durum/07-montaj-agaci.md` |
-| 14-cam-kurulum | 2 | sürüyor (PR #27) | `claude/spec-14-cam-kurulum-05r8z1` | — |
+| 14-cam-kurulum | 2 | tamamlandı (PR #27, `d647fd8`) | — | `durum/14-cam-kurulum.md` |
 | 06-cam-3d | 2 | tamamlandı (PR #31, `b19271d`) | — | `durum/06-cam-3d.md` |
 | 23-parca-ek | 2 | tamamlandı (PR #28, `0bf3649`) | — | `durum/23-parca-ek.md` |
 | 20-torna-yol | 2 | tamamlandı (PR #34, `25548e0`) | — | `durum/20-torna-yol.md` |
-| 05-cam-sim | 2 | SPEC taslağı | — | — |
-| 24-tezgah | 3 | SPEC onaylı (PR #19, `97935da`); K3/K5/K6 SPEC 05'ten sonra yeniden onaylanacak | — | — |
-| 09-girisim, 10-montaj-cam, 12-gmsh, 13-calculix, 17-kroki, 21-torna-gcode | 3 | bekliyor | — | — |
-| 18-ozellik-agaci, 19-adaptif-kaba, 22-torna-sim | 4 | bekliyor | — | — |
+| 05-cam-sim | 2 | tamamlandı (PR #54, `4084c2d`) | — | `durum/05-cam-sim.md` |
+| 24-tezgah | 3 | tamamlandı (PR #40, `0c6ee2b`) | — | `durum/24-tezgah.md` |
+| 17-kroki | 3 | SPEC onaylı; `sketch/model.py` arayüzü birleşti (PR #55, `fb99eb6`) | — | — |
+| 13-calculix | 3 | tamamlandı (PR #62, `5ad8c41`); delikli plaka ve L braket testleri SPEC 12 girince çalışacak | — | `durum/13-calculix.md` |
+| 09-girisim, 12-gmsh | 3 | SPEC onaylı (2026-10-18 10:38); 09 için `Part` arayüz ekleri birleşti (PR #53) | — | — |
+| 21-torna-gcode | 3 | bekliyor | — | — |
+| 10-montaj-cam | 3 → 5 | Dalga 5'e alındı | — | — |
+| 22-torna-sim | 4 | SPEC onaylı (2026-10-18 10:38) | — | — |
+| 18-ozellik-agaci, 19-adaptif-kaba | 4 → 5 | Dalga 5'e alındı | — | — |
+| 03b-cep-kalan-malzeme, 06b-cam-3d-ek, 25-tezgah-torna-montaj, 26-tezgah-modelleme, 27-ozellik-tanima, 28-torna-profili, 30-tezgah-profili, 31-sinumerik-heidenhain, 41-kinematik-3arti2, 42-bes-eksen-yol, 43-tri-dexel, 44-tezgah-carpisma | — | SPEC onaylı (2026-10-18 10:38); dalgası henüz atanmadı. | — | — |
+| 29-islem-plani | — | SPEC metni onaylı ve birleşti (PR #58, `94989a3`); kod bekliyor | — | `durum/29-islem-plani.md` |
+| Dalga 5: 4 arayüz PR'ı + 03c, 04b, 10, 18, 19, 32, 33, 34, 35, 36, 37, 38, 39, 40, 45, 46, 47 | 5 | kapsam onaylı (2026-10-18 10:51); SPEC metinleri yazılıyor | — | — |
 
 ## Tamamlananlar
 | SPEC | Konu | Tarih | Test sayısı |
@@ -63,6 +71,16 @@
 | — | CI: test bağımsızlığı kapısı (PR #30, `45a73dc`) | 2026-10-18 | — |
 | 00-arayuzler | `Tool.center_cutting` alanı (PR #36, `4d52e80`) | 2026-10-18 | — |
 | — | CI: kapı testi, hook içinde asıl reponun index'ini bozmuyor (PR #38, `75ba846`) | 2026-10-18 | — |
+| — | CI: LinuxCNC rs274 çapraz kontrolü Debian kapsayıcısında çalışıyor, web ekstrası kuruluyor (PR #47, `5383d2d`) | 2026-10-18 | — |
+| 00-arayuzler | `LatheHolder`, `LatheTool.edge_len` / `holder` (SPEC 22 arayüzü) (PR #52, `47082f6`) | 2026-10-18 | 64 |
+| 03-cam-2d, 04-gcode | CAM güvenliği: SPEC 03 Ek A (cep yan paso sınırı, merkezden kesme), SPEC 04 Ek C (güvenli Z, `stock_top`) (PR #33, `6eb07ec`) | 2026-10-18 | — |
+| 14-cam-kurulum | Takım kütüphanesi ve iş kurulumu (PR #27) | 2026-10-18 | 220 |
+| 00-arayuzler | `Part.moved/common/cut/fuse/distance` (SPEC 09), `AxialSection` + `Part.axial_section` (SPEC 28) (PR #53, `7545395`) | 2026-10-18 | — |
+| 24-tezgah | Tezgah web arayüzü: Python köprüsü, sunucu, three.js (PR #40) | 2026-10-18 | 87 (Python) + TypeScript |
+| 13-calculix | von Mises, asal ve düğüm gerilmeleri, CalculiX .inp yazıcı (PR #62) | 2026-10-18 | 79 |
+| 05-cam-sim | Talaş simülasyonu: z-map, dexel, süre, çarpışma, oyma (PR #54) | 2026-10-18 | 175 |
+| 17-kroki | `sketch/model.py` eskiz veri modeli arayüzü (PR #55, `fb99eb6`) | 2026-10-18 | 138 |
+| — | CI: gmsh (mesh ekstrası) ve sistem kütüphaneleri kuruluyor (PR #57, `49a739f`) | 2026-10-18 | — |
 | 20-torna-yol | Torna takım yolları: alın, çap, kaba, finiş, kanal, diş, uç radyusu telafisi (PR #34) | 2026-10-18 | 220 |
 
 ## Kurulum kontrol listesi (bir kez, kullanıcı)
