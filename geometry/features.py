@@ -2,7 +2,8 @@
 SPEC 02 — Kodla basit parça: blok, silindir, delik, cep, pah.
 
 Koordinat kuralı: blok min köşesi orijinde; "üst yüz" = zmax düzlemi; delik ve cep üstten −Z yönünde.
-Hiçbir işlem girdi parçayı değiştirmez, her zaman yeni Part döner. Birimler: mm.
+Hiçbir işlem girdi parçayı değiştirmez, her zaman yeni Part döner; delik kayıtları (Part.holes) yeni
+parçaya taşınır, `hole` kendi kaydını ekler (SPEC 23). Birimler: mm.
 """
 
 from __future__ import annotations
@@ -10,8 +11,9 @@ from __future__ import annotations
 import math
 
 import build123d as bd
+import numpy as np
 
-from geometry.part import GeometryError, Part
+from geometry.part import GeometryError, Hole, Part
 
 DV_MIN = 1e-9  # mm³: bundan az malzeme kaldıran işlem "boşa" sayılır (SPEC 02)
 PAY = 1.0  # mm: kesici gövdenin üst yüzün üstüne taşma payı (teğet yüz kalmasın diye)
@@ -30,19 +32,23 @@ def _z_araligi(part: Part) -> tuple[float, float]:
     return float(lo[2]), float(hi[2])
 
 
-def _yeni_part(shape, name: str) -> Part:
+def _yeni_part(shape, name: str, holes: tuple[Hole, ...] = ()) -> Part:
     """OCCT sonucunu tek katıya indirip Part yapar; hatayı GeometryError'a sarar."""
     if isinstance(shape, bd.Compound | bd.ShapeList):
         solids = list(shape.solids())
         if len(solids) == 1:
             shape = solids[0]
-    return Part(shape, name=name)
+    return Part(shape, name=name, holes=holes)
 
 
-def _kes(part: Part, kesici, islem: str) -> Part:
-    """part − kesici; kaldırılan hacim ΔV ≤ DV_MIN ise GeometryError."""
+def _kes(part: Part, kesici, islem: str, yeni: Hole | None = None) -> Part:
+    """part − kesici; kaldırılan hacim ΔV ≤ DV_MIN ise GeometryError.
+
+    Girdinin delik kayıtları korunur; yeni verilirse sona eklenir.
+    """
+    holes = part.holes + ((yeni,) if yeni is not None else ())
     try:
-        sonuc = _yeni_part(part.shape - kesici, part.name)
+        sonuc = _yeni_part(part.shape - kesici, part.name, holes)
     except GeometryError:
         raise
     except Exception as e:  # OCCT istisnası
@@ -85,7 +91,15 @@ def hole(part: Part, x: float, y: float, d: float, depth: float | None = None) -
     boy = zmax + PAY - z0
     align = (bd.Align.CENTER, bd.Align.CENTER, bd.Align.MIN)
     kesici = bd.Pos(x, y, z0) * bd.Cylinder(d / 2, boy, align=align)
-    return _kes(part, kesici, "delik")
+    through = depth is None or depth == h
+    kayit = Hole(
+        origin=np.array([x, y, zmax]),
+        axis=np.array([0.0, 0.0, -1.0]),
+        d=d,
+        depth=h if through else depth,
+        through=through,
+    )
+    return _kes(part, kesici, "delik", kayit)
 
 
 def _cep_kesiti(w: float, l: float, r: float) -> bd.Face:  # noqa: E741
@@ -151,7 +165,7 @@ def chamfer_top(part: Part, d: float) -> Part:
     if len(solids) != 1:
         raise GeometryError(f"pah tek katıda uygulanır ({len(solids)} katı)")
     try:
-        sonuc = _yeni_part(solids[0].chamfer(d, None, kenarlar), part.name)
+        sonuc = _yeni_part(solids[0].chamfer(d, None, kenarlar), part.name, part.holes)
     except GeometryError:
         raise
     except Exception as e:
