@@ -76,6 +76,19 @@ def test_birinci_aci_yerlesimi():
         assert hi[1] == pytest.approx(on_hi[1], abs=1e-9)
 
 
+@pytest.mark.parametrize("k", [0.5, 2.0])
+def test_bosluk_olcekten_bagimsiz(k):
+    """Boşluk kağıt üzerinde g'dir (ölçek k'dan bağımsız; model biriminde g/k)."""
+    pv = _adla(layout(list(_gorunusler()), scale=k, gap=G))
+    on_lo, on_hi = _pafta_kutusu(pv["on"])
+    ust_lo, ust_hi = _pafta_kutusu(pv["ust"])
+    sol_lo, _ = _pafta_kutusu(pv["sol"])
+    _, sag_hi = _pafta_kutusu(pv["sag"])
+    assert on_lo[1] - ust_hi[1] == pytest.approx(G, abs=1e-9)
+    assert sol_lo[0] - on_hi[0] == pytest.approx(G, abs=1e-9)
+    assert on_lo[0] - sag_hi[0] == pytest.approx(G, abs=1e-9)
+
+
 @pytest.mark.parametrize("k", [1.0, 0.5, 2.0])
 def test_on_ve_ust_ayni_x(k):
     """Ön ve üst aynı u = x'i aynı pafta X'inde gösterir: k·x + öteleme_on = k·x + öteleme_ust."""

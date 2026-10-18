@@ -144,6 +144,15 @@ def test_gidis_donus_metinler(dxf_dosyasi):
         assert eslesen, f"DXF'den dönmeyen metin: {b}"
 
 
+def test_cap_isareti_gidis_donus(dxf_dosyasi):
+    """R12 ASCII'de Ø, %%c olarak kodlanır; geri okumada yine "Ø" olur."""
+    write_dxf([Text2D(P(1.0, 2.0), "Ø10", 3.5, 0.0, "OLCU")], dxf_dosyasi)
+    metin = dxf_dosyasi.read_bytes().decode("ascii")
+    assert "%%c10" in metin.lower()
+    geri = [e for e in read_dxf(dxf_dosyasi) if isinstance(e, Text2D)]
+    assert [e.text for e in geri] == ["Ø10"]
+
+
 def test_baslik_ve_tablolar(dxf_dosyasi):
     write_dxf(VARLIKLAR, dxf_dosyasi)
     satirlar = [s.strip() for s in dxf_dosyasi.read_text(encoding="ascii", errors="replace").splitlines()]
