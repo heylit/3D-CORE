@@ -79,7 +79,8 @@ def principal_stresses(sigma) -> np.ndarray:
 def nodal_stress_tensors(model: Model, u: np.ndarray) -> dict[int, np.ndarray]:
     """düğüm id -> σ (6,) [MPa], düğümü içeren katı elemanların hacim ağırlıklı ortalaması (SPEC 13).
 
-    σ_düğüm(i) = Σ_e∋i V_e σ_e / Σ_e∋i V_e. Katı elemana ait olmayan düğüm sözlükte yer almaz.
+    σ_düğüm(i) = Σ_e∋i V_e σ_e(i) / Σ_e∋i V_e. Katı elemana ait olmayan düğüm sözlükte yer almaz.
+    σ_e(i): stress_nodes sağlayan elemanda (tet10, SPEC 67a) o düğümdeki değer, diğerlerinde eleman sabiti.
     """
     toplam: dict[int, np.ndarray] = {}
     hacim: dict[int, float] = {}
@@ -88,8 +89,11 @@ def nodal_stress_tensors(model: Model, u: np.ndarray) -> dict[int, np.ndarray]:
         if not hasattr(eleman, "stress"):
             continue
         V = eleman.volume(e, model)
-        Vsigma = V * eleman.stress(e, model, u)
-        for nid in e.nodes:
-            toplam[nid] = toplam.get(nid, 0.0) + Vsigma
+        if hasattr(eleman, "stress_nodes"):
+            sigma = eleman.stress_nodes(e, model, u)
+        else:
+            sigma = np.broadcast_to(eleman.stress(e, model, u), (len(e.nodes), 6))
+        for nid, s in zip(e.nodes, sigma, strict=True):
+            toplam[nid] = toplam.get(nid, 0.0) + V * s
             hacim[nid] = hacim.get(nid, 0.0) + V
     return {nid: toplam[nid] / hacim[nid] for nid in toplam}
