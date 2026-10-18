@@ -3,13 +3,14 @@
 Dal: `claude/spec-40-torna-ek-iemrjz` · Oturum: bulut
 
 ## Sıradaki adım
-CI (pytest + kapı) yeşilse PR #75'i birleştirmek; sonra E3/E4 ve SPEC 22 birleşince atlanan K6, K9, K10'u çalıştırmak.
+PR #75 birleşti (eefa134). K6 G-code gidiş-dönüş testleri (2) SPEC 21 E3 (#88) birleşince yeşil olmalı; o zamana kadar `NotImplementedError` (CI'da kırmızı).
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
 |---|---|---|---|
 | 2026-10-18 | — | — | Sadece SPEC taslağı; kod ve test yok. |
 | 2026-10-18 | 160 (SPEC 40) | 0 | 12 atlanan: K6 (E3/E4 bekliyor), K9–K10 (SPEC 22 `RadialMap`/`simulate_lathe` henüz kodlanmadı). |
+| 2026-10-18 | 170 (SPEC 40) | 2 | SPEC 22 (#41) birleşti: K9–K10 ve K6 E4 yeşil. Atlama yerine `NotImplementedError` (test commit `db269fe`, cherry-pick); kalan 2: K6 E3 (#88). |
 
 ## Son oturum
 **2026-10-18**
@@ -20,7 +21,7 @@ CI (pytest + kapı) yeşilse PR #75'i birleştirmek; sonra E3/E4 ve SPEC 22 birl
 
 - Testler ayrı oturumda (dal `claude/project-thread-mq266y`, commit `fa7a73b`) yazıldı, cherry-pick edildi (`448217d`); kod ayrı commit'te, testler ilk çalıştırmada yeşil.
 - T4 notu: "`ccw` yay → `cw`" yalnız kapalı profilde geçerli (yeniden yönlendirilmez). Açık profil ters çevrilip ön→arka sıralanınca yansıma ve ters gezi birbirini götürür, yay yine `ccw`'dir; testler açık profilde yalnız noktaları ve geometriyi denetler.
-- `flip_rmap` K9–K10'la henüz sınanmadı (SPEC 22 kodu yok); sütun eşlemesi `j = f − i`, `f = (z_ref − z0' − z0 − dz)/dz`.
+- `flip_rmap` K9–K10'la sınandı (SPEC 22 birleştikten sonra, değişiklik gerekmedi); sütun eşlemesi `j = f − i`, `f = (z_ref − z0' − z0 − dz)/dz`.
 
 ## Açık sorular
 Kararlar (önerilerle aynı; kullanıcı 11:13'te onayladı):
