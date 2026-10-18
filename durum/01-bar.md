@@ -12,6 +12,14 @@ PR incelemesi ve birleştirme. Sonra SPEC 02 (kafes) bu iskeleti kullanır.
 | 2026-10-18 | 12 | 29 | Veri modeli testleri geçiyor, SPEC 01 testleri bilerek kırmızı (TDD). Yerelde Python 3.14.7 ile doğrulandı. |
 
 ## Son oturum
+**2026-10-18 — Mekanizma kontrolü düzeltildi (inceleme Y3)**
+- Koşul sayısı (`cond`, sadece <= 2000 DOF) kaldırıldı. Yerine boyuttan bağımsız pivot testi:
+  ters Cuthill-McKee sırası + satır değişimsiz `splu` (simetrik eliminasyon), her pivot
+  `d_i <= 1e-13 · K_ii` ise `ModelError`. Tek ayrışım hem testi hem çözümü yapar.
+- Önceki hata: 1500 düğümde yumuşak elemanlı geçerli model reddediliyordu; 2000 DOF üstünde
+  gerçek mekanizmalar (kopuk parça, mesnetsiz yüksüz çubuk) sessizce "çözülüyordu".
+- Yeni testler: `tests/unit/test_solver_tekillik.py` (10 / 1500 / 3000 düğüm).
+
 **2026-10-18 — SPEC 01 uygulandı**
 - `bar1d` (length, ke, dofs, axial_force), `assemble_K` (COO -> CSR toplama), `assemble_F`, `solve`, `post` yazıldı.
 - Mekanizma kontrolü: K_ff boyutu <= 2000 ise `cond > 1e12`, ayrıca `MatrixRankWarning`/`RuntimeError`/sonlu olmayan sonuç -> `ModelError`.
