@@ -3,7 +3,7 @@
 Dal: `claude/spec-14-cam-kurulum-05r8z1` · Oturum: bulut
 
 ## Sıradaki adım
-SPEC metni kullanıcı onayında. Onaydan sonra `NotImplementedError` gövdeli iskelet, ayrı oturumda testler, sonra kod.
+SPEC onaylandı (kullanıcı, 2026-10-18: 08:54 kart, 09:27 yazılı; yazıcı eki dahil). İskelet push edildi; testler ayrı oturumda yazılıyor, sonra kod.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
@@ -16,4 +16,4 @@ SPEC metni kullanıcı onayında. Onaydan sonra `NotImplementedError` gövdeli i
   çıktı, `G55` ve `G43.1` satırları dışında birebir aynı.
 
 ## Açık sorular
-- SPEC 04 dosyalarına (`cam/gcode/writer.py`, `reader.py`) geriye uyumlu ek: onay bekliyor.
+- Ayrı bir thread `writer.py`'de güvenli Z düzeltmesi yapıyor; main'e girince dala alınacak.
