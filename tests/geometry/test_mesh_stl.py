@@ -14,9 +14,11 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from geometry.features import block, cylinder, hole
-from geometry.mesh import mesh_volume, read_stl, tessellate
-from geometry.part import GeometryError, Part
+pytest.importorskip("build123d", reason='build123d kurulu değil (pip install -e ".[cad]")')
+
+from geometry.features import block, cylinder, hole  # noqa: E402
+from geometry.mesh import mesh_volume, read_stl, tessellate  # noqa: E402
+from geometry.part import GeometryError, Part  # noqa: E402
 
 pytestmark = pytest.mark.occt
 

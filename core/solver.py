@@ -6,33 +6,54 @@ Teori: specs/01-bar.md
 
 from __future__ import annotations
 
-import warnings
-
 import numpy as np
+import scipy.sparse as sp
 import scipy.sparse.linalg as spla
+from scipy.sparse.csgraph import reverse_cuthill_mckee
 
 from core import post
 from core.assembly import assemble_F, assemble_K
 from core.model import Model, ModelError, Result
 
-# Bu boyuta kadar K_ff yoğun matrise çevrilip koşul sayısı kontrol edilir.
-YOGUN_SINIR = 2000
-KOSUL_SINIRI = 1e12
+# Simetrik eliminasyonda pivot / köşegen oranı bunun altındaysa K_ff tekildir.
+# Mekanizmada bu oran yuvarlama düzeyindedir (~1e-16); geçerli modelde rijitlik
+# oranları kadar küçülebilir (ör. 1e-6 MPa'lık eleman çelik içinde: ~5e-12).
+PIVOT_SINIRI = 1e-13
 
 
 def _cozumle(K_ff, b: np.ndarray) -> np.ndarray:
-    """K_ff u_f = b. Tekil / kötü koşullu sistemde ModelError."""
+    """
+    K_ff u_f = b, simetrik pozitif tanımlı K_ff için.
+
+    Tekillik testi (model boyundan bağımsız): K_ff = L D Lᵀ ayrışımında her pivot
+    d_i kendi köşegeni K_ii ile karşılaştırılır. Rijit cisim modu (mekanizma)
+    varsa bir pivot sıfıra düşer: d_i <= PIVOT_SINIRI · K_ii -> ModelError.
+    Satır değişimi yapılmaz (diag_pivot_thresh=0), böylece U'nun köşegeni D olur;
+    dolgu az olsun diye önce ters Cuthill-McKee ile yeniden numaralanır.
+    """
     n = K_ff.shape[0]
     if n == 0:
         return np.zeros(0)
-    if n <= YOGUN_SINIR and np.linalg.cond(K_ff.toarray()) > KOSUL_SINIRI:
-        raise ModelError("K_ff tekil veya kötü koşullu: mesnet eksik olabilir (mekanizma)")
+    K_ff = sp.csr_matrix(K_ff)
+    p = reverse_cuthill_mckee(K_ff, symmetric_mode=True)
+    B = K_ff[p][:, p].tocsc()
+    K_ii = B.diagonal()
+    if np.any(K_ii <= 0.0):
+        raise ModelError("K_ff tekil: rijitliği olmayan serbest DOF var (mekanizma)")
     try:
-        with warnings.catch_warnings():
-            warnings.simplefilter("error", spla.MatrixRankWarning)
-            u_f = np.atleast_1d(spla.spsolve(K_ff.tocsc(), b))
-    except (spla.MatrixRankWarning, RuntimeError) as hata:
+        lu = spla.splu(
+            B,
+            permc_spec="NATURAL",
+            diag_pivot_thresh=0.0,
+            options={"SymmetricMode": True},
+        )
+    except RuntimeError as hata:
         raise ModelError(f"K_ff tekil: mesnet eksik olabilir (mekanizma): {hata}") from None
+    d = lu.U.diagonal()
+    if not np.array_equal(lu.perm_r, np.arange(n)) or np.any(d <= PIVOT_SINIRI * K_ii):
+        raise ModelError("K_ff tekil: mesnet eksik olabilir (mekanizma)")
+    u_f = np.empty(n)
+    u_f[p] = lu.solve(np.asarray(b, dtype=float)[p])
     if not np.all(np.isfinite(u_f)):
         raise ModelError("Çözüm sonlu değil: K_ff tekil (mekanizma)")
     return u_f
