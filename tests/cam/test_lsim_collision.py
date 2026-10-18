@@ -10,7 +10,9 @@ Kaynaklar (SPEC 22):
 - tutucu_carpma: tutucu H süpürmesi (y yarı kalınlığı b ile üst uç √(x² + b²)) malzemeyle çakışırsa.
 - ayna_carpma: kesici, gövde veya tutucu süpürmesi bağlama elemanının [d/2, D/2] aralığıyla çakışırsa;
   bağlama elemanı malzeme değildir, kaldırılmaz.
-- Denetim alt adımdan önceki malzemeyle yapılır (bilinen sınır: gövde en çok bir alt adım erken dokunabilir).
+- Gövde / tutucu / ayna denetimi alt adımın kesici süpürmesi çıkarıldıktan sonraki malzemeyle
+  yapılır (11:28 onaylı ek).
+- Gövde uzantısı B takımın yarı düzlemine kırpılır: a ← max(a, 0), to_radial'dan önce (11:28 onaylı ek).
 - Takım T = 3: C = P − q_T, q_T = r·(−1, −1) (z, x) → C = P + (r, r).
 """
 
@@ -185,6 +187,24 @@ def test_K13_bor_bari_ince_degmiyor():
     sonuc = _bor_bari(3.0)
     assert _tur(sonuc, "tutucu_carpma") == []
     assert sonuc.removed_volume == 0.0
+
+
+def test_K13_ic_tornalamada_kenar_asimi_yok():
+    """BORE (l = 6) boru d = 20'de a_p = 2 boyuna paso: P_x = 12 → C_x = 11.6, burun üstü x = 12.
+    İç çerçevede gövde uzantısı −x'e uzanıp ekseni geçer; kırpılmasa |x| ≥ 12 tarafında malzemeye değerdi
+    (lsimref ile alt adımlı denetim: kırpmasız en uzun çakışma 8, kırpmalı 0). Kırpmayla kayıt yok."""
+    boru = CylinderStock(D=40.0, zmin=-50.0, zmax=0.0, d=20.0)
+    yol = lpath(
+        bore_tool(r=0.4, edge=6.0), (9.0, 5.0), [G0(12.0, 2.0), G1(12.0, -20.0), G1(9.0, -20.0), G0(9.0, 5.0)]
+    )
+    sonuc = simulate_lathe([yol], boru, cell=0.5)
+    assert _tur(sonuc, "kenar_asimi") == []
+    assert sonuc.collisions == []
+    for i in range(sonuc.rmap.nz):
+        z = sonuc.rmap.z0 + (i + 0.5) * sonuc.rmap.dz
+        if -19.5 <= z <= 0.0:
+            iv = list(sonuc.rmap.intervals(i))
+            assert len(iv) == 1 and iv[0][0] == pytest.approx(12.0, abs=1e-9), f"z = {z}"
 
 
 # ------------------------------------------------------------------ K14 ayna
