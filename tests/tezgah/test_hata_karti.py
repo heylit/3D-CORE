@@ -145,13 +145,13 @@ def test_log_rotates_at_limit(tmp_path):
     gunluk = tmp_path / ".gunluk" / "hatalar.log"
     gunluk.parent.mkdir(parents=True)
     eski = gunluk.with_name("hatalar.log.1")
-    eski.write_text("çok eski\n", encoding="utf-8")
+    eski.write_bytes("çok eski\n".encode())  # Windows: write_text \n → \r\n yapar, boyut kayar
     dolu = ("x" * 1023 + "\n") * (hata.GUNLUK_SINIRI // 1024)  # tam sınır
-    gunluk.write_text(dolu, encoding="utf-8")
+    gunluk.write_bytes(dolu.encode())
     assert gunluk.stat().st_size == hata.GUNLUK_SINIRI
 
     hata.gunluge_yaz(_firlat(RuntimeError("yeni")), "/api/proje/degistir", gunluk)
-    assert eski.read_text(encoding="utf-8") == dolu  # eskisinin üstüne döndü
+    assert eski.read_bytes() == dolu.encode()  # eskisinin üstüne döndü
     s = _satirlar(gunluk)
     assert len(s) == 1 and s[0]["mesaj"] == "yeni"
     assert gunluk.stat().st_size <= hata.GUNLUK_SINIRI
