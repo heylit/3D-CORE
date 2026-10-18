@@ -25,7 +25,7 @@ import math
 from cam.gcode.cycles import DrillOp
 from cam.gcode.dialect import GRBL, Dialect
 from cam.gcode.modal import ModalState, fmt, snap
-from cam.model import ARCS, CamError, FeedMode, LatheTool, Move, MoveType, Plane, Setup, Toolpath
+from cam.model import ARCS, Z_AXIS, CamError, FeedMode, LatheTool, Move, MoveType, Plane, Setup, Toolpath
 from cam.setups import check_setup, clearance_height
 
 AXES = ("X", "Y", "Z")
@@ -216,16 +216,22 @@ class _Writer:
 
 
 def _yazilabilir(tp: Toolpath) -> None:
-    """Geçici koruma (SPEC 00 Ek 2): bu yazıcı yalnız G17 / G94 / sabit devirli freze yolu yazar.
-    Torna yolları (G18, G95, G96) SPEC 21'in yazıcısına kadar sessizce yanlış yazılmasın diye reddedilir."""
+    """Koruma (SPEC 00 Ek 2, SPEC 21'de kalıcı): bu yazıcı yalnız G17 / G94 / sabit devirli freze yolu yazar.
+    Torna yolları `cam.gcode.lathe.write_lathe` ile yazılır; freze başlığındaki G90 / G94 Fanuc tornada
+    çevrim kodudur, bu yüzden torna yolu burada reddedilir."""
     if isinstance(tp.tool, LatheTool):
-        raise CamError(f"Takım yolu '{tp.name}': torna takımı bu yazıcıda desteklenmiyor (SPEC 21)")
+        raise CamError(f"Takım yolu '{tp.name}': torna yolu burada yazılmaz; write_lathe kullanın (SPEC 21)")
     if tp.plane is not Plane.XY:
         raise CamError(f"Takım yolu '{tp.name}': {tp.plane.value} düzlemi desteklenmiyor, yalnız G17")
     if tp.feed_mode is not FeedMode.PER_MIN:
         raise CamError(f"Takım yolu '{tp.name}': {tp.feed_mode.value} desteklenmiyor, yalnız G94 (mm/dk)")
     if tp.css is not None:
         raise CamError(f"Takım yolu '{tp.name}': G96 sabit kesme hızı desteklenmiyor (SPEC 21)")
+    # Çok eksen (SPEC 41–42): iş düzlemi ve eğik takım ekseni bu yazıcıda yok; WCS'deymiş gibi yazılmasın.
+    if tp.frame is not None:
+        raise CamError(f"Takım yolu '{tp.name}': iş düzlemi (frame) bu yazıcıda desteklenmiyor (SPEC 41)")
+    if any(m.axis is not None and m.axis != Z_AXIS for m in tp.moves):
+        raise CamError(f"Takım yolu '{tp.name}': eğik takım ekseni bu yazıcıda desteklenmiyor (SPEC 42)")
 
 
 def _z_kesme(ops: list[Toolpath | DrillOp]) -> float:
