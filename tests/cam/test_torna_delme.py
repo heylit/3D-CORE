@@ -45,16 +45,16 @@ _HAS_CONE = hasattr(ToolKind, "CONE")
 
 
 def _tool(kind=ToolKind.DRILL, D: float = 10.0, phi: float | None = None, flute: float = 60.0) -> Tool:
-    """Matkap / konik takım; uç açısı arayüzü (PR #60) yoksa test atlanır."""
+    """Matkap / konik takım; uç açısı arayüzü (PR #60) yoksa uygulanmamış sayılır."""
     if phi is not None and not _HAS_TIP_ANGLE:
-        pytest.skip("Tool.tip_angle henüz yok (Ek 2 dalga 2 arayüzü, PR #60)")
+        raise NotImplementedError("Tool.tip_angle yok (Ek 2 dalga 2 arayüzü, PR #60)")
     kw = {} if phi is None else {"tip_angle": phi}
     return Tool(id=1, name=f"{kind}-{D}", kind=kind, D=D, flute_length=flute, **kw)
 
 
 def _cone(D: float = 12.0, phi: float = 90.0, flute: float = 20.0) -> Tool:
     if not _HAS_CONE:
-        pytest.skip("ToolKind.CONE henüz yok (Ek 2 dalga 2 arayüzü, PR #60)")
+        raise NotImplementedError("ToolKind.CONE yok (Ek 2 dalga 2 arayüzü, PR #60)")
     return _tool(ToolKind.CONE, D, phi, flute)
 
 
@@ -454,22 +454,24 @@ def _probe_drill_path(tool: Tool) -> Toolpath:
 
 
 def _need_e3(tool: Tool):
-    lathe = pytest.importorskip("cam.gcode.lathe")
+    import cam.gcode.lathe as lathe
+
     try:
         lathe.write_lathe([_probe_drill_path(tool)], "M3", TC)
-    except (CamError, AttributeError, TypeError):
-        pytest.skip("E3 (write_lathe eksenel delme yolu) henüz birleşmedi")
+    except (CamError, AttributeError, TypeError) as e:
+        raise NotImplementedError("E3 (write_lathe eksenel delme yolu) henüz birleşmedi") from e
     return lathe
 
 
 def _need_e4(tool: Tool):
-    sim = pytest.importorskip("cam.sim")
+    import cam.sim as sim
+
     if not hasattr(sim, "simulate_lathe") or not hasattr(sim, "cutter_shape"):
-        pytest.skip("SPEC 22 torna simülasyonu henüz birleşmedi (PR #41)")
+        raise NotImplementedError("SPEC 22 torna simülasyonu yok (PR #41)")
     try:
         sim.cutter_shape(tool, "dis")
-    except (CamError, AttributeError, TypeError):
-        pytest.skip("E4 (cutter_shape eksenel takım) henüz birleşmedi")
+    except (CamError, AttributeError, TypeError) as e:
+        raise NotImplementedError("E4 (cutter_shape eksenel takım) henüz birleşmedi") from e
     return sim
 
 
