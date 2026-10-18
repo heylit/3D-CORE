@@ -198,9 +198,7 @@ def hazir() -> str | None:
 
     Her çağrıda yeniden denetlenir (önbellek yok): kurulum sonradan değişebilir.
     """
-    try:
-        import gmsh  # noqa: F401
-    except ImportError:
+    if importlib.util.find_spec("gmsh") is None:
         return "gmsh kurulu değil: pip install -e .[mesh]"
     if importlib.util.find_spec("build123d") is None:
         return "OCCT (build123d) kurulu değil: pip install -e .[cad]"
