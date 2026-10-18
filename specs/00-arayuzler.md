@@ -171,6 +171,10 @@ Sadece veri tipleri ve doğrulamaları; hesap (devir / ilerleme, telafi, çarpı
   → `CamError`. Yay yarıçapı denetimi, `length()` ve `bbox()` yayın düzleminde yapılır.
 - `to_dict` / `from_dict`: `plane`, `feed_mode`, `css` alanları; yoksa varsayılan (eski JSON çalışır).
 
+**G-code yazıcısı koruması (`cam/gcode/writer.py`, geçici)**
+- Yazıcı (SPEC 04) şimdilik yalnız G17 / G94 / sabit devirli freze yollarını yazar; `plane != XY`, `feed_mode != PER_MIN`,
+  `css is not None` veya takım `LatheTool` ise `CamError` (sessizce G17 yayı yazmasın). SPEC 21 torna yazıcısıyla bu korumayı kaldırır.
+
 ### Ortak kurulum
 - `pyproject.toml`: paket listesine `cam*`, `assy*`; pytest işareti `occt: build123d / OpenCascade gerektirir`.
 - Kök `conftest.py`:
@@ -198,6 +202,7 @@ Sadece veri tipleri ve doğrulamaları; hesap (devir / ilerleme, telafi, çarpı
 - [ ] K13 (Ek 2) `CylinderStock` hacmi `π/4·(D² − d²)·L` rel 1e-12; `Wcs` `to_machine` / `to_work`; `Setup` JSON gidiş-dönüş — `tests/cam/test_model_dalga2.py`
 - [ ] K14 (Ek 2) `G18` yayları: çeyrek yay boyu `πr/2`, helis (Y'de ilerleme), yön kuralı (G3 = Z'den X'e) `bbox` ile; torna yolunda `y != 0` ve `XY` düzlemi hata — `tests/cam/test_model_dalga2.py`
 - [ ] K15 (Ek 2) Eski JSON (yeni alanlar yok) okunuyor; Dalga 1 testleri (`tests/cam/`) değişmeden geçiyor
+- [ ] K16 (Ek 2) G-code yazıcısı (04) henüz desteklemediği yolları reddediyor: `plane != XY`, `feed_mode != PER_MIN`, `css` verilmiş veya takım `LatheTool` → `CamError` (SPEC 21 bu korumayı kaldırır) — `tests/cam/test_gcode_dalga2_koruma.py`
 
 ## Kapsam dışı
 - Takım yolu üretimi (03), G-code yazma/okuma (04), kısıt çözme (08), STEP montaj (07), parça modelleme işlemleri (02)
