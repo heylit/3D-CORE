@@ -144,6 +144,8 @@ class Step:
   vektör; `step` veya `eps` sonlu ve `> 0` değil; `tol_v` veya `pay` sonlu ve `≥ 0` değil; sökülemez montaj.
 
 ## Kabul kriterleri
+
+> Onay: kullanıcı, 2026-10-18 11:13 UTC (Dalga 5 toplu yazılı onay, önerilen varsayılanlarla).
 - [ ] K1 Yön listesi: normlama; yinelenenin atılması (ör. `(0,0,2)` ile `+Z`); `mate_directions`: Z'de 90°
   dönmüş bileşendeki `CONCENTRIC` ekseni dünyada `±` sırasıyla, düzlem–düzlem `COINCIDENT` normali, nokta–nokta
   kısıtı yön vermiyor, ortak yönler bir kez — `tests/assy/test_sira.py`
