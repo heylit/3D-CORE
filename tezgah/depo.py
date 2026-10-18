@@ -9,6 +9,8 @@ proje dosyasına girmez; `sifirla()` onları siler.
 from __future__ import annotations
 
 import threading
+from collections.abc import Callable
+from dataclasses import dataclass
 
 from cam.model import CamError
 from tezgah import kopru
@@ -19,10 +21,44 @@ _ornek: dict[str, kopru.IsTanimi] = {}  # parametresi değişmiş ya da istenmi�
 _dinamik: dict[str, kopru.IsTanimi] = {}
 
 
+@dataclass(frozen=True)
+class Kaydedici:
+    """Başka bir ekranın iş türü için `is_kaydet` yönlendirmesi (ör. SPEC 25: TornaIsi → torna).
+
+    kaydet: (ad, tanim) → işi o ekranın deposuna ekler; geçersiz tanım → CamError, depo değişmez.
+    adlar : o ekranın /api/isler'de listelenecek işleri (örnekler + dinamikler), sıralı.
+    """
+
+    kaydet: Callable[[str, object], None]
+    adlar: Callable[[], list[str]] | None = None
+
+
+_kaydediciler: dict[type, Kaydedici] = {}
+
+
+def kaydedici_ekle(
+    tur: type, kaydet: Callable[[str, object], None], adlar: Callable[[], list[str]] | None = None
+) -> None:
+    """`tur` örneklerini `is_kaydet`'te `kaydet`'e yönlendirir (ekran modülü importta bir kez çağırır).
+
+    `tezgah.kopru.IsTanimi` freze'nindir ve yönlendirilemez; aynı tür ikinci kez → CamError.
+    """
+    if issubclass(tur, kopru.IsTanimi):
+        raise CamError("IsTanimi freze deposunundur; yönlendirilemez")
+    with _kilit:
+        if tur in _kaydediciler and _kaydediciler[tur].kaydet is not kaydet:
+            raise CamError(f"{tur.__name__} için iş kaydedici zaten var")
+        _kaydediciler[tur] = Kaydedici(kaydet, adlar)
+
+
 def adlar() -> list[str]:
     """Örnek işler (sabit sıra), ardından dinamik işler (ekleniş sırası)."""
     with _kilit:
-        return list(ORNEK_ISLER) + [a for a in _dinamik if a not in ORNEK_ISLER]
+        L = list(ORNEK_ISLER) + [a for a in _dinamik if a not in ORNEK_ISLER]
+        diger = [k.adlar for k in _kaydediciler.values() if k.adlar is not None]
+    for f in diger:  # diğer ekranların işleri (ör. torna), freze işlerinden sonra
+        L += [a for a in f() if a not in L]
+    return L
 
 
 def var_mi(ad: str) -> bool:
@@ -58,8 +94,16 @@ def parametre(ad: str, islem: int, anahtar: str, deger: float) -> tuple[kopru.Is
 
 
 def kaydet(ad: str, tanim: object) -> None:
-    """Dinamik iş ekler (aynı ad varsa yerine geçer). Geçersiz tanım → CamError, depo değişmez."""
+    """Dinamik iş ekler (aynı ad varsa yerine geçer). Geçersiz tanım → CamError, depo değişmez.
+
+    IsTanimi dışındaki türler `kaydedici_ekle` ile kayıtlı ekrana gider (ör. TornaIsi → torna).
+    """
     if not isinstance(tanim, kopru.IsTanimi):
+        with _kilit:
+            k = next((k for t, k in _kaydediciler.items() if isinstance(tanim, t)), None)
+        if k is not None:
+            k.kaydet(ad, tanim)
+            return
         raise CamError(f"'{ad}' için iş tanımı bekleniyordu, {type(tanim).__name__} verildi")
     if not ad:
         raise CamError("İş adı boş olamaz")
