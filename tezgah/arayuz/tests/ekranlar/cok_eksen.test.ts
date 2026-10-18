@@ -228,7 +228,9 @@ describe("zamandanIndeks / olayZamani", () => {
     expect(zamandanIndeks(4, zaman)).toBe(4);
   });
 
-  const olay = (k: number, t: number): Olay => ({
+  // Olay k: SPEC 05 adım indeksi; adım k, k−1 noktasından k noktasına gider. t hareket içi parametre (0–1),
+  // `zaman` [s] sunucudan: zaman[k−1] + t·(zaman[k] − zaman[k−1]).
+  const olay = (k: number, t: number, saniye?: number): Olay & { zaman: number } => ({
     kind: "eksen_siniri",
     k,
     t,
@@ -236,19 +238,23 @@ describe("zamandanIndeks / olayZamani", () => {
     b: "",
     distance: 0,
     detail: "A > max",
+    zaman: saniye ?? zaman[k - 1] + t * (zaman[k] - zaman[k - 1]),
   });
 
-  it("olayın şerit zamanı kendi t'si", () => {
-    expect(olayZamani(olay(0, 0.4), zaman)).toBe(0.4);
-    expect(olayZamani(olay(2, 1), zaman)).toBe(1);
-    expect(olayZamani(olay(2, 3), zaman)).toBe(3);
-    expect(olayZamani({ ...olay(3, 3.7), kind: "tezgah_carpma", a: "kafa", b: "fikstur" }, zaman)).toBe(3.7);
+  it("olayın şerit zamanı sunucunun `zaman` alanı", () => {
+    expect(olayZamani(olay(1, 0.4), zaman)).toBeCloseTo(0.4, 12);
+    expect(olayZamani(olay(2, 0.5), zaman)).toBe(1);
+    expect(olayZamani(olay(3, 1), zaman)).toBe(3);
+    expect(olayZamani(olay(4, 0.7), zaman)).toBeCloseTo(3.7, 12);
+    const carpma = { ...olay(4, 0.25), kind: "tezgah_carpma" as const, a: "kafa", b: "fikstur" };
+    expect(olayZamani(carpma, zaman)).toBeCloseTo(3.25, 12);
   });
 
-  it("t, zaman[k]..zaman[k+1] dışında → hata (tutarsız sunucu verisi)", () => {
-    expect(() => olayZamani(olay(0, 2), zaman)).toThrow();
-    expect(() => olayZamani(olay(3, 2.9), zaman)).toThrow();
-    expect(() => olayZamani(olay(4, 4), zaman)).toThrow();
+  it("zaman, zaman[k−1]..zaman[k] dışında ya da k aralık dışı → hata (tutarsız sunucu verisi)", () => {
+    expect(() => olayZamani(olay(1, 0.5, 2), zaman)).toThrow();
+    expect(() => olayZamani(olay(4, 0.5, 2.9), zaman)).toThrow();
+    expect(() => olayZamani(olay(0, 0, 0), zaman)).toThrow();
+    expect(() => olayZamani(olay(5, 0, 4), zaman)).toThrow();
   });
 });
 
