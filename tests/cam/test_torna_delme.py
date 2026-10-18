@@ -498,8 +498,8 @@ class TestK6CaprazKontrol:
             seq = rd.moves[k : k + n]
             if all(
                 a.type is b.type
-                and abs(a.end[0] - b.end[0]) <= 0.25e-3
-                and abs(a.end[2] - b.end[2]) <= 0.25e-3
+                and abs(a.end[0] - b.end[0]) <= 0.25e-3  # x: çap programlama
+                and abs(a.end[2] - b.end[2]) <= 0.5e-3  # z: yarım basamak (SPEC 21 toleransı)
                 and (a.feed is None) == (b.feed is None)
                 and (a.feed is None or abs(a.feed - b.feed) <= 0.5e-3)
                 for a, b in zip(seq, tp.moves, strict=True)
