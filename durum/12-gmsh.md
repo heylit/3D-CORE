@@ -3,13 +3,17 @@
 Dal: `claude/project-thread-eioc8y` · Oturum: bulut thread "FEM ağ ve gerilme analizi (12–13)"
 
 ## Sıradaki adım
-SPEC metninin kullanıcı onayı; sonra `NotImplementedError` iskeleti, ayrı oturumda testler, sonra kod.
+Ayrı oturumda testler (bu dalın üstünde), sonra burada cherry-pick ve kod.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
 |---|---|---|---|
 
 ## Son oturum
+**2026-10-18 — onay ve iskelet**
+- SPEC 12 ve 13 metinleri kullanıcı onaylı (10:38 UTC, proje sohbetinde yazılı).
+- `mesh/gmsh_ag.py`, `mesh/secim.py`, `mesh/yukler.py`: `NotImplementedError` iskeletleri; `mesh/__init__.py` dışa açılan adlar.
+
 **2026-10-18 — SPEC taslağı**
 - `specs/12-gmsh.md` yazıldı: Part → STEP → gmsh OCC → tet4 `Model`; geometrik seçim (`on_plane`, `on_cylinder`),
   `fix`, `add_traction`, `add_pressure`; K1–K12. Yeni veri modeli yok, çıktı `core.model.Model`.
@@ -21,4 +25,4 @@ SPEC metninin kullanıcı onayı; sonra `NotImplementedError` iskeleti, ayrı ot
 - gmsh pip tekerleği Linux'ta `libglu1-mesa libxcursor1 libxinerama1 libxft2` ister; CI ve bulut kurulumu için ayrı PR gerekli.
 
 ## Açık sorular
-- CI'da gmsh kurulumu (`.github/workflows/test.yml`, `scripts/bulut_kurulum.sh`): CI sahibi thread'e önerildi.
+_(yok)_ — CI'da gmsh kurulumu PR #57 ile `main`'de.

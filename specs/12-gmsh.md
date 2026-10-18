@@ -1,5 +1,7 @@
 # SPEC 12 — Parçadan tetrahedron ağı (gmsh) ve sınır yükleri (Dalga 3)
 
+> Durum: **onaylandı** (Mustafa, 2026-10-18 10:38 UTC, proje sohbetinde yazılı onay).
+
 ## Amaç
 Bir katı parçayı (`geometry.part.Part`) gmsh ile dört düğümlü tetrahedron ağına çevirip doğrudan çözülebilir
 bir `core.model.Model` (SPEC 11 `tet4`) üretmek; ağın sınır yüzeyinden düzlem / silindir seçerek mesnet,
