@@ -3,13 +3,14 @@
 Dal: `claude/spec-39-kalan3d-yrv7su` · Oturum: bulut
 
 ## Sıradaki adım
-06b `Cutter` kodu birleşince onu merge edip kalan 3 testi (torik ve konik) yeşile çekmek, sonra PR'ı birleştirmek.
+06b main'de; PR #67'yi CI (pytest + kapi) yeşilse birleştirmek. Sonra SPEC 39 tamam.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
 |---|---|---|---|
 | 2026-10-18 | — | — | Sadece SPEC taslağı; kod ve test yok. |
 | 2026-10-18 | 83 SPEC 39 (slow ve OCCT dahil) | 3 uygulanmamış | Kalan 3 test 06b `Cutter`'ı bekliyor (torik K8, konik K3 ve K8). |
+| 2026-10-18 | 86 SPEC 39 (slow ve OCCT dahil) | 0 | 06b (#45) main'den alındı; tüm SPEC 39 testleri yeşil. |
 
 ## Son oturum
 **2026-10-18 — kod**
