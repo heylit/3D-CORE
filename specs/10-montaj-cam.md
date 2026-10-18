@@ -1,6 +1,7 @@
 # SPEC 10 — Montaj-CAM bağlantısı ve bağlama (fikstür) kütüphanesi (Dalga 5, H9)
 
-> **Durum: TASLAK** (2026-10-18). Kullanıcı onayı bekliyor; onaydan önce kod yazılmaz.
+> **Durum: ONAYLANDI** (kullanıcı, 2026-10-18 11:13 UTC, Dalga 5 toplu yazılı onay, önerilerle; A0 `Fixture.params` dahil).
+> Metin kullanıcı onayı olmadan değişmez.
 
 ## Amaç
 Parametrik **mengene**, **torna aynası** ve **pabuç** (bağlama pabucu) kütüphanesi; montajdaki bir parçayı
