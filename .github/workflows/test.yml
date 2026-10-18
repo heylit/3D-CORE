@@ -28,6 +28,6 @@ jobs:
         with:
           python-version: "3.12"   # tek sürüm = tek iş
           cache: pip
-      - run: pip install -e ".[dev]"
+      - run: pip install -e ".[dev,cad]"
       - run: ruff check .
       - run: pytest

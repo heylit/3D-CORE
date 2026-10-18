@@ -42,7 +42,7 @@ Write-Host "`n== 2/2 Testler (pytest, slow dahil) ==" -ForegroundColor Cyan
 & $py -m pytest -o addopts="" -q --junitxml=reports/junit.xml --html=reports/rapor.html --self-contained-html
 $testKod = $LASTEXITCODE
 
-$toplam = 0; $hata = 0; $atlanan = 0
+$toplam = 0; $hata = 0; $atlanan = 0  # atlanan = occt yok + uygulanmamış (NotImplementedError)
 if (Test-Path reports/junit.xml) {
     [xml]$j = Get-Content reports/junit.xml
     foreach ($s in $j.SelectNodes("//testsuite")) {

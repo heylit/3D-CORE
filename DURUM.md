@@ -10,7 +10,7 @@
 ## SPEC tablosu
 | SPEC | Dalga | Durum | Kimde (dal / oturum) | Ayrıntı |
 |---|---|---|---|---|
-| 00-arayuzler | 0 | sırada | — | `durum/00-arayuzler.md` (açılınca) |
+| 00-arayuzler | 0 | kod + testler yazıldı, PR bekliyor | `claude/project-thread-dall9z` (bulut) | `durum/00-arayuzler.md` |
 | 01-bar | 1 | SPEC + testler hazır, kod yok | — | `durum/01-bar.md` |
 | 02-parca | 1 | SPEC yazılacak | — | — |
 | 03-cam-2d | 1 | SPEC yazılacak | — | — |

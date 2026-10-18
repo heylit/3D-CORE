@@ -110,7 +110,7 @@ Testi yazan ile kodu yazan ayrı olmalı ki kod kendine not vermesin.
 
 Bir SPEC ancak şunların **hepsi** sağlandığında biter:
 - [ ] SPEC'teki her kabul kriterinin en az bir testi var ve hepsi yeşil
-- [ ] `pytest` → 0 failed, `ruff check .` → temiz
+- [ ] `pytest` → 0 failed ve bu SPEC'in testlerinde 0 "uygulanmamış", `ruff check .` → temiz
 - [ ] Her beklenen değerin kaynağı (formül / kitap / el hesabı) test yorumunda yazılı
 - [ ] Yeni fonksiyonların Türkçe docstring'i var, formüldeki sembollerle aynı adlar kullanılmış
 - [ ] `durum/NN-*.md` güncellendi

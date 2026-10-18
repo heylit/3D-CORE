@@ -1,7 +1,7 @@
 [project]
 name = "3d-core"
 version = "0.1.0"
-description = "Sıfırdan FEM/CAD çekirdeği - öğrenme ve ürün prototipi"
+description = "3D CAM ve montaj sistemi; OCCT tabanlı katı altyapı ve kendi FEM çözücüsü"
 requires-python = ">=3.11"
 dependencies = [
     "numpy>=1.26",
@@ -19,7 +19,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["core*", "geometry*", "mesh*", "fileio*", "viz*"]
+include = ["core*", "geometry*", "cam*", "assy*", "mesh*", "fileio*", "viz*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -27,6 +27,7 @@ pythonpath = ["."]
 addopts = "-q"
 markers = [
     "slow: uzun süren testler (pre-commit'te atlanır, pre-push ve ci.ps1'de çalışır)",
+    "occt: build123d / OpenCascade gerektirir (kurulu değilse atlanır)",
 ]
 
 [tool.ruff]
