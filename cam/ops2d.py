@@ -64,6 +64,12 @@ def _check_tool(tool: Tool) -> float:
     return tool.D / 2
 
 
+def _check_plunge(tool: Tool) -> None:
+    """Ek A2: düz dalan işlemler merkezden kesmeyen takımı reddeder (rampa / helis 03b'de)."""
+    if not tool.center_cutting:
+        raise CamError(f"Takım '{tool.name}' merkezden kesmiyor; düz dalma yapılamaz (Ek A2)")
+
+
 def _stepover(cut: Cut, tool: Tool) -> float:
     s = cut.stepover
     if s is None:
@@ -169,6 +175,7 @@ def contour(profile: Profile, tool: Tool, cut: Cut, side: str, climb: bool = Tru
     Tırmanma: dış kontur CW, iç kontur CCW; climb=False tersi.
     """
     r = _check_tool(tool)
+    _check_plunge(tool)
     if side not in ("dis", "ic", "uzerinde"):
         raise CamError(f"contour: side 'dis', 'ic' veya 'uzerinde' olmalı ({side!r})")
     if side == "uzerinde":
@@ -201,6 +208,7 @@ def contour(profile: Profile, tool: Tool, cut: Cut, side: str, climb: bool = Tru
 
 
 INRADIUS_TOL = 1e-9  # iç yarıçap ikiye bölme hassasiyeti (D'ye göre)
+MIN_EXTRA = 10 * LINK_TOL  # mm: yaprak ek halkasının en küçük ofseti
 
 
 @dataclass
@@ -228,8 +236,10 @@ def _build_tree(region: Region, r: float, s: float, D: float) -> _Node:
     if not node.children:
         # yaprak: ortada r'den geniş kesilmemiş alan kalmasın
         t_star = _inradius(region, s, INRADIUS_TOL * D)
-        t_extra = t_star - r + LINK_TOL  # ikiye bölmenin erken "boş" demesine karşı pay
-        if t_extra > TOL:
+        if t_star - r > TOL:
+            # LINK_TOL: ikiye bölmenin erken "boş" demesine karşı pay. En az MIN_EXTRA: ofset budaması
+            # KEEP_TOL ölçeğindeki d'de kararsız (t* ≈ r olan dar dikdörtgende halka kapanmıyordu).
+            t_extra = max(t_star - r + LINK_TOL, MIN_EXTRA)
             node.children = [_Node(c) for c in offset(region, t_extra)]
     return node
 
@@ -277,6 +287,9 @@ def pocket(region: Region, tool: Tool, cut: Cut, climb: bool = True) -> Toolpath
     """Kontur-paralel cep: halkalar d_k = r + k·s, içten dışa; halkalar arası mümkünse inmeden geçiş."""
     r = _check_tool(tool)
     s = _stepover(cut, tool)
+    _check_plunge(tool)
+    if s > r + TOL:
+        raise CamError(f"pocket: cepte yan paso en fazla D/2 olabilir (s={s}, r = D/2 = {r}; Ek A1)")
     first = offset(region, r)
     if not first:
         raise CamError("pocket: takım cebe sığmıyor")
