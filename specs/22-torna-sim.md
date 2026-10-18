@@ -1,6 +1,7 @@
 # SPEC 22 — Torna talaş simülasyonu, süre, ayna ve tutucu çarpışması
 
-> **Durum: TASLAK** (kullanıcı onayı bekliyor). Kod, SPEC 05 (`cam.sim`) `main`'e girdikten sonra yazılır.
+> **Durum: ONAYLANDI** (kullanıcı, 2026-10-18: 09:45 UTC kart "Önerilerle onayla": `LatheTool` arayüz eki ayrı PR,
+> profil çıkarma ayrı SPEC; 10:38 UTC yazılı onay). Metin kullanıcı onayı olmadan değişmez.
 
 ## Amaç
 Bir torna programını (SPEC 20 `Toolpath` listesi, `G18`, `G95`, `G96`) `CylinderStock` ham malzeme üzerinde
