@@ -6,8 +6,8 @@ import pytest
 
 from core.model import BC, Element, Load, Material, Model, Node, Section
 
-STEEL_E = 210_000.0   # MPa
-AL_E = 70_000.0       # MPa
+STEEL_E = 210_000.0  # MPa
+AL_E = 70_000.0  # MPa
 
 
 def make_bar(

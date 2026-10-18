@@ -20,7 +20,7 @@ from cam.model import CamError, MoveType, Tool, ToolKind
 
 G0, G1, G2, G3 = MoveType.RAPID, MoveType.LINEAR, MoveType.ARC_CW, MoveType.ARC_CCW
 
-HEAD = ["G21 G90 G17 G94", "T1", "S1000 M3"]     # satır 1..3
+HEAD = ["G21 G90 G17 G94", "T1", "S1000 M3"]  # satır 1..3
 
 
 def freze6() -> Tool:
@@ -39,7 +39,7 @@ def read1(text: str, **kw):
     """Tek yol beklenen programı okur, yolun doğrulandığını da denetler."""
     paths = read(text, TOOLS, **kw)
     assert len(paths) == 1
-    paths[0].validate()          # SPEC: çıkan her yol validate()'ten geçer
+    paths[0].validate()  # SPEC: çıkan her yol validate()'ten geçer
     return paths[0]
 
 
@@ -168,7 +168,7 @@ def test_full_circle_ij_not_corrected():
     assert m.type is G2
     assert m.end == pytest.approx((0.0, 0.0, 0.0), abs=1e-12)
     assert m.center == pytest.approx((5.0, 0.0), abs=1e-12)
-    assert tp.length() == pytest.approx(2 * math.pi * 5.0, rel=1e-12)   # tam daire boyu 2πr
+    assert tp.length() == pytest.approx(2 * math.pi * 5.0, rel=1e-12)  # tam daire boyu 2πr
 
 
 # ---------------------------------------------------------------- K8: okuyucu hataları
@@ -228,8 +228,7 @@ def test_error_line_number_counts_every_text_line():
     1 %, 2 O0001, 3 (yorum), 4 boş, 5 N10 G21.., 6 N20 T1 M6, 7 N30 S1000 M3, 8 N40 G0.., 9 N50 G20.
     """
     text = (
-        "%\nO0001\n(yorum)\n\nN10 G21 G90 G17 G94\nN20 T1 M6\nN30 S1000 M3\n"
-        "N40 G0 X0. Y0. Z5.\nN50 G20\n%\n"
+        "%\nO0001\n(yorum)\n\nN10 G21 G90 G17 G94\nN20 T1 M6\nN30 S1000 M3\nN40 G0 X0. Y0. Z5.\nN50 G20\n%\n"
     )
     with pytest.raises(CamError, match=r"satır 9\b"):
         read(text, TOOLS)

@@ -30,7 +30,5 @@ jobs:
           cache: pip
       - run: pip install -e ".[dev,cad]"
       - run: ruff check .
-      - name: ruff format --check (şimdilik bilgi amaçlı; toplu biçim PR'ından sonra zorunlu olacak)
-        run: ruff format --check .
-        continue-on-error: true
+      - run: ruff format --check .
       - run: pytest --uygulanmamis-hata   # NotImplementedError PR'da kırmızı (conftest.py)

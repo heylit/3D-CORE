@@ -19,6 +19,7 @@ REL = 1e-9
 
 # --- B1: Uçtan çekilen çubuk  δ = F L / (E A) ---------------------------------
 
+
 @pytest.mark.parametrize("n_elem", [1, 2, 5, 10, 50])
 def test_B1_tip_displacement(n_elem):
     L, E, A, F = 1000.0, STEEL_E, 100.0, 10_000.0
@@ -48,6 +49,7 @@ def test_B1_reaction_and_stress():
 
 # --- B2: Kademeli çubuk (seri yaylar) -----------------------------------------
 
+
 def test_B2_stepped_bar():
     """Çelik + alüminyum, farklı kesitler: δ = F (L1/(E1 A1) + L2/(E2 A2))."""
     L1, L2, A1, A2, F = 400.0, 600.0, 200.0, 50.0, 5_000.0
@@ -73,6 +75,7 @@ def test_B2_stepped_bar():
 
 # --- B3: İki ucu ankastre, aradan yüklü çubuk (hiperstatik) -------------------
 
+
 @pytest.mark.parametrize("a_frac", [0.25, 0.5, 0.7])
 def test_B3_fixed_fixed_point_load(a_frac):
     """P yükü x=a'da:  u(a) = P a (L-a) / (E A L),  R_sol = -P (L-a)/L,  R_sağ = -P a/L."""
@@ -90,6 +93,7 @@ def test_B3_fixed_fixed_point_load(a_frac):
 
 # --- B4: Kendi ağırlığı / yayılı yük (tutarlı düğüm yükleri) ------------------
 
+
 def test_B4_uniform_distributed_load():
     """q [N/mm] yayılı yük, sol ankastre: u(x) = q (L x - x²/2) / (E A).
     Her eleman q*Le/2 kadar yükü iki düğümüne paylaştırır."""
@@ -98,7 +102,7 @@ def test_B4_uniform_distributed_load():
     Le = L / n
     for e in m.elements:
         for nid in e.nodes:
-            m.loads.append(Load(nid, "ux", q * Le / 2))   # aynı DOF'a gelen yükler toplanmalı
+            m.loads.append(Load(nid, "ux", q * Le / 2))  # aynı DOF'a gelen yükler toplanmalı
     r = solve(m)
     for nd in m.nodes:
         x = nd.x
@@ -107,6 +111,7 @@ def test_B4_uniform_distributed_load():
 
 
 # --- B5: Zorlanmış yer değiştirme ---------------------------------------------
+
 
 def test_B5_prescribed_displacement():
     """Sol ankastre, sağ uç d kadar çekiliyor: R_sağ = E A d / L."""
@@ -120,6 +125,7 @@ def test_B5_prescribed_displacement():
 
 
 # --- Genel kontroller ----------------------------------------------------------
+
 
 def test_global_equilibrium():
     """Tepkiler + dış yükler = 0."""
@@ -136,8 +142,8 @@ def test_K_global_properties():
     K = assemble_K(m).toarray()
     assert K.shape == (6, 6)
     np.testing.assert_allclose(K, K.T, atol=1e-9)
-    np.testing.assert_allclose(K @ np.ones(6), 0.0, atol=1e-6)        # mesnetsiz: rijit mod
-    assert np.sum(np.abs(np.linalg.eigvalsh(K)) < 1e-6) == 1          # tam bir sıfır özdeğer
+    np.testing.assert_allclose(K @ np.ones(6), 0.0, atol=1e-6)  # mesnetsiz: rijit mod
+    assert np.sum(np.abs(np.linalg.eigvalsh(K)) < 1e-6) == 1  # tam bir sıfır özdeğer
 
 
 def test_F_accumulates_loads_on_same_dof():
