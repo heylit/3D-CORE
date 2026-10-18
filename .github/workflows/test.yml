@@ -1,13 +1,16 @@
-# GitHub Actions - DAKİKA TASARRUFLU
-# Ana kontrol yerelde (pre-commit, pre-push, ci.ps1). Burası sadece son bağımsız kapı.
-# Çalıştığı durumlar:  main'e açılan PR  +  Actions sekmesinden elle "Run workflow"
-# main'e doğrudan push CI TETİKLEMEZ (zaten pre-push hook'undan geçmiştir).
+# GitHub Actions - repo public: bulut runner dakikası ücretsiz
+# Ana kontrol yerelde (pre-commit, pre-push, ci.ps1); burası bağımsız kapı.
+# Çalıştığı durumlar:  main'e açılan PR  +  main'e push (birleştirme dahil)  +  elle "Run workflow"
+# pytest (Linux, 3.12) zorunlu kontroldür; pytest-windows (Windows, 3.14) kullanıcının makinesine
+# benzeyen ortamda aynı testleri koşar (satır sonu, kayan nokta farkları gibi hataları yakalar).
 
 name: testler
 
 on:
   pull_request:
     branches: [main]
+  push:
+    branches: [main]         # birleştirme main'i bozarsa hemen görünsün
   workflow_dispatch:         # elle çalıştırma
 
 concurrency:                 # aynı PR'a yeni push gelirse eski çalışmayı iptal et
@@ -16,7 +19,7 @@ concurrency:                 # aynı PR'a yeni push gelirse eski çalışmayı i
 
 jobs:
   pytest:
-    runs-on: ubuntu-latest   # Windows 2x, macOS 10x dakika sayar
+    runs-on: ubuntu-latest
     timeout-minutes: 25      # takılan test runner'ı kilitlemesin (tüm suite ~8,5 dk, SPEC 19 @slow ~8 dk)
     env:
       VTK_DEFAULT_OPENGL_WINDOW: vtkOSOpenGLRenderWindow   # ekran yok: VTK doğrudan OSMesa ile çizer
@@ -56,20 +59,55 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends calculix-ccx
           command -v ccx
+      - name: LinuxCNC rs274 kur  # Ubuntu 24.04'te LinuxCNC paketi yok: Debian imajında, PATH'e sarmalayıcı
+        if: steps.degisen.outputs.belge != '1'
+        run: |
+          docker build -q -t rs274 - > /dev/null <<'DOCKERFILE'
+          FROM debian:trixie
+          RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends linuxcnc-uspace > /dev/null
+          DOCKERFILE
+          mkdir -p "$RUNNER_TEMP/bin"
+          # testler rs274'e /tmp altındaki dosya yollarını verir: /tmp ve çalışma dizini aynı yolla bağlanır
+          printf '%s\n' '#!/bin/sh' 'exec docker run --rm -i -v /tmp:/tmp -v "$PWD:$PWD" -w "$PWD" rs274 rs274 "$@"' > "$RUNNER_TEMP/bin/rs274"
+          chmod +x "$RUNNER_TEMP/bin/rs274"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
       - if: steps.degisen.outputs.belge != '1'
         run: ruff check .
       - if: steps.degisen.outputs.belge != '1'
         run: ruff format --check .
       - if: steps.degisen.outputs.belge != '1'
-        run: pytest -rs --uygulanmamis-hata   # -rs: atlanan testler ve nedenleri logda; NotImplementedError PR'da kırmızı (conftest.py)
-      - name: LinuxCNC rs274 çapraz kontrolü  # Ubuntu 24.04'te LinuxCNC paketi yok: Debian kapsayıcısında
-        if: steps.degisen.outputs.belge != '1'
+        run: pytest -n auto -rs --uygulanmamis-hata   # -n auto: çekirdek başına işçi (xdist); -rs: atlananlar logda; NotImplementedError PR'da kırmızı (conftest.py)
+        # rs274 testleri (gcode/post crosscheck, uçtan uca H5) yukarıdaki sarmalayıcıyla burada koşar
+
+  pytest-windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      PYTHONUTF8: "1"
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Sadece belge mi değişti
+        id: degisen
+        if: github.event_name == 'pull_request'
         run: |
-          docker run --rm -v "$PWD:/w" -w /w debian:trixie bash -euo pipefail -c '
-            apt-get update -qq
-            apt-get install -y -qq --no-install-recommends \
-              linuxcnc-uspace python3-numpy python3-scipy python3-pytest > /dev/null
-            command -v rs274
-            python3 -m pytest -rs -p no:cacheprovider --uygulanmamis-hata \
-              tests/reference/test_gcode_crosscheck.py -k rs274
-          '
+          if git diff --quiet ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} \
+               -- . ':(exclude)*.md' ':(exclude)docs/**' ':(exclude)specs/**'; then
+            echo "Yalnız belge değişti (**.md, docs/, specs/), testler atlanıyor."
+            echo "belge=1" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-python@v5
+        if: steps.degisen.outputs.belge != '1'
+        with:
+          python-version: "3.14"   # kullanıcının makinesindeki sürüm (uv)
+          cache: pip
+      - uses: pyvista/setup-headless-display-action@v4   # Windows'ta ekransız VTK için Mesa
+        if: steps.degisen.outputs.belge != '1'
+      - if: steps.degisen.outputs.belge != '1'
+        run: pip install -e ".[dev,cad,viz,web,mesh]"
+      - if: steps.degisen.outputs.belge != '1'
+        run: pytest -n auto -rs --uygulanmamis-hata   # ccx ve rs274 Windows'ta yok: o testler atlanır, Linux işi koşar

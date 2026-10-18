@@ -1,0 +1,14 @@
+{
+  "name": "ORNEK-FANUC-TORNA",
+  "controller": "fanuc",
+  "kind": "lathe",
+  "x": {"min": 0.0, "max": 400.0},
+  "z": {"min": -600.0, "max": 0.0},
+  "rpm_min": 0.0,
+  "rpm_max": 4000.0,
+  "feed_max": 5000.0,
+  "tool_slots": 12,
+  "program_no_range": [1, 9999],
+  "decimals": 3,
+  "verified": false
+}
