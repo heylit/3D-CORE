@@ -3,6 +3,7 @@ SPEC 22 — Torna takımının kesiti: kesici bölge K = Q ⊕ D(r), gövde uzan
 
 Dış çerçevede (T = 3 yönü) C'ye göre kenar yönleri e(α) = (−cos α, sin α), (z, x) sırasında;
 ana kenar e₁ = e(κr), arka kenar e₂ = e(κr + εr). İç çerçevede şekil x → −x aynalanır.
+Eksenel takım (matkap, x = 0): uç konisi L_uç = (D/2)/tan(φ/2) + flute_length boyunda [−D/2, D/2] dikdörtgen.
 Doğrusal süpürme: conv(Q(P0) ∪ Q(P1)) ⊕ D(r); z = z_i doğrusuyla kesişim tek aralık [a, b] (x cinsinden).
 """
 
@@ -12,7 +13,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from cam.model import LatheTool
+from cam.model import LatheTool, Tool
 
 
 @dataclass
@@ -26,8 +27,12 @@ class LatheShape:
     half_width: float  # tutucunun y yönünde yarı kalınlığı
 
 
-def cutter_shape(tool: LatheTool, side: str) -> LatheShape:
-    """side "dis" veya "ic"; edge_len None, uyumsuz tür/taraf, tutucu K'ye giriyor → CamError."""
+def cutter_shape(tool: LatheTool | Tool, side: str | None) -> LatheShape:
+    """LatheTool: side "dis" veya "ic"; edge_len None, uyumsuz tür/taraf, tutucu K'ye giriyor → CamError.
+
+    Eksenel takım (Tool, DRILL/CONE; SPEC 40 E4): uca göre koni + kesici boy beşgeni, r = 0,
+    gövde = sap; side yok sayılır.
+    """
     raise NotImplementedError
 
 
