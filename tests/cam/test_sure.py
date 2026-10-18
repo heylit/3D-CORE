@@ -444,7 +444,9 @@ def rect_pocket_path() -> Toolpath:
     z_s, z = 10.0, -2.0
     mv = [Move(G0, (5.0, 5.0, z_s)), Move(G0, (5.0, 5.0, 1.0)), Move(G1, (5.0, 5.0, z), feed=200.0)]
     for x0, y0, x1, y1 in ((5.0, 5.0, 55.0, 35.0), (10.0, 10.0, 50.0, 30.0)):
-        mv.append(Move(G1, (x0, y0, z), feed=900.0))
+        if mv[-1].end[:2] != (x0, y0):  # halkalar arası geçiş de eksene paralel (K3: çapraz doğru eşit değil)
+            mv.append(Move(G1, (x0, mv[-1].end[1], z), feed=900.0))
+            mv.append(Move(G1, (x0, y0, z), feed=900.0))
         mv += [Move(G1, (x1, y0, z), feed=900.0), Move(G1, (x1, y1, z), feed=900.0)]
         mv += [Move(G1, (x0, y1, z), feed=900.0), Move(G1, (x0, y0, z), feed=900.0)]
     mv.append(Move(G0, (10.0, 10.0, z_s)))
