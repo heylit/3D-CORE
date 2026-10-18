@@ -9,10 +9,6 @@ Duvara doğru yana eğimde eksen doğrusu blok üstünden geçer ve eksen boyunc
 üstüne oturtur (c ≠ c₀, sap açıkta). Eski kural bunu çarpışmasız sayıyordu; yeni kuralda reddedilir ve
 yalnız duvardan uzağa eğim kalır: sap (ρ = 5, H = 10) için τ* = 11.53° (w = 3.5) ve 10.80° (w = 3.6),
 Δτ = 2° adımla seçilen eğim 12°.
-
-Yerel commit kancası kırmızı testi kabul etmediği ve --no-verify yasak olduğu için testler ek kodlanana
-kadar `xfail(strict=True)` işaretlidir: bugünkü kodda beklenen hata olarak düşer, ek kodlanınca XPASS
-katı kural gereği kırmızı olur ve işaret test oturumunca kaldırılır.
 """
 
 from __future__ import annotations
@@ -30,7 +26,6 @@ from cam.ops3d import Raster
 TOL = 1e-9
 R = 3.0
 FEED = 1000.0
-EK = pytest.mark.xfail(strict=True, reason="SPEC 42 duvar eki (|c − c₀| > tol çarpışma) henüz kodlanmadı")
 
 
 def _blok_agi() -> TriMesh:
@@ -96,7 +91,6 @@ def _duvar_payi(tau_deg: float, w: float, H: float = 10.0, rho: float = 5.0) -> 
     return dx * c + s * (H + dx * s) / c - rho
 
 
-@EK
 def test_duvara_dogru_egim_blok_ustune_oturmuyor():
     adim = 2.0
     for w in (3.5, 3.6):  # elle: τ* ∈ (10°, 12°) → 6. adım
@@ -117,7 +111,6 @@ def test_duvara_dogru_egim_blok_ustune_oturmuyor():
         assert abs(a[1]) < TOL
 
 
-@EK
 def test_duvara_dogru_egim_kacinilamaz_hata():
     # uzağa 10°'ye kadar sap çarpar, duvara doğru eğimler c ≠ c₀ → çözüm yok
     with pytest.raises(CamError):
@@ -131,7 +124,6 @@ def test_duvara_dogru_egim_kacinilamaz_hata():
         )
 
 
-@EK
 def test_sabit_eksen_duvara_dogru_sessiz_gecmiyor():
     # Sabit eksen duvara doğru 10° (+X): eksen doğrusu z = 40'ta x ≈ 3'te, takım bloğun üstüne oturur.
     # Ya CamError, ya da her nokta c = c₀ (tabanda) olmalı; c ≠ c₀ ile sessiz yol kabul edilmez.
@@ -145,7 +137,6 @@ def test_sabit_eksen_duvara_dogru_sessiz_gecmiyor():
     np.testing.assert_allclose((U + R * A)[:, 2], R, atol=TOL)
 
 
-@EK
 def test_ek_a_sabit_eksen_duvara_10_derece_avoid_yokken_hata():
     # Ek A kabulü: duvar dibinde duvara 10° eğik sabit eksen, Avoid yok → c ≠ c₀ → CamError
     t = math.radians(10.0)
