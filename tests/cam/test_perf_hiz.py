@@ -48,5 +48,6 @@ def test_K4_B1_hiz():
 
 
 @pytest.mark.slow
+@pytest.mark.xfail(strict=True, reason="SPEC 53 karar 2: numba kararı bekleniyor")
 def test_K4_B2_hiz():
     _olc("B2", benchref.b2())
