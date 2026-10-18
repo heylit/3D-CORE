@@ -16,6 +16,7 @@ Uydurma iş: SPEC 38 Ek A iki bağlamalı iş (`tests/atolye/ek_a.py`); ücretle
 
 from __future__ import annotations
 
+import inspect
 import json
 import math
 import subprocess
@@ -113,7 +114,15 @@ def is_foyu() -> JobSheet:
     )
 
 
+def ops_destekli(f) -> None:
+    """K1b `ops` parametresi arayüzde yoksa test "uygulanmamış" sayılır (CI'da kırmızı)."""
+    if "ops" not in inspect.signature(f).parameters:
+        raise NotImplementedError(f"SPEC 58 Ek 1: {f.__name__}(..., ops=...) parametresi yok")
+
+
 def calistir(n: int, job: JobSheet | None = None, **kw) -> Maliyet:
+    if "ops" in kw:
+        ops_destekli(maliyet)
     args = dict(sureler=SURELER, dis_islem=DIS)
     args.update(kw)
     u = args.pop("u", None) or ucretler()
@@ -216,6 +225,102 @@ def test_sure_profil_sayisi_baglama_sayisina_esit(sayi):
 def test_sure_sureler_sayisi_baglama_sayisina_esit():
     with pytest.raises(ModelError):
         calistir(1, sureler=[(60.0, 1800.0)])
+
+
+# ---------------------------------------------------------------- K1b süre (SPEC 72)
+# Arayüz (koordinatör kararı, 2026-10-18): maliyet(..., *, ops: Sequence[Sequence[Operation]] | None = None),
+# kademeler de ops'u geçirir. TimeProfile'ı olan bağlamada t_isleme + t_yukle = cycle_time(ops_b, prof,
+# setup_time=t_yukle).total; profil var ama ops yok → ModelError; len(ops) ≠ bağlama sayısı → ModelError.
+
+
+def ek_a_ops() -> list[list]:
+    """is_foyu() ile aynı bağlama başına işlem listesi."""
+    return [[ek_a.tp1(), ek_a.tp2(), ek_a.drill4()], [ek_a.face2()]]
+
+
+def zaman_profili(ad: str):
+    """Uydurma SPEC 72 tezgâh profili (cam.sim.cevrim + cam.sim.sure yoksa skip)."""
+    cevrim = pytest.importorskip("cam.sim.cevrim")
+    sure = pytest.importorskip("cam.sim.sure")
+    dyn = sure.Dynamics(v_max=(6000.0, 6000.0, 3000.0), a_max=(800.0, 800.0, 500.0), j_max=None)
+    return cevrim.TimeProfile(ad, dyn, tool_change=10.0, pallet=5.0, program_fixed=2.0, k=1.1)
+
+
+def ct(b: int, prof) -> float:
+    """Ek 1: ct_b.total = cycle_time(ops_b, prof_b, setup_time = t_yukle(b)).total."""
+    cevrim = pytest.importorskip("cam.sim.cevrim")
+    return cevrim.cycle_time(list(ek_a_ops()[b]), prof, setup_time=SURELER[b][0]).total
+
+
+@pytest.mark.parametrize("n", [1, 10])
+def test_sure_72(n):
+    # K1b: 72 varken iki bağlamalı işte Σ_b (t_isleme + t_yukle) = Σ_b ct_b.total (göreli 1e-12)
+    pa, pb = zaman_profili("VMC-A"), zaman_profili("VMC-B")
+    m = calistir(n, ops=ek_a_ops(), zaman_profilleri={"VMC-A": pa, "VMC-B": pb})
+    c = [ct(0, pa), ct(1, pb)]
+    assert m.t_parca_s == pytest.approx(sum(c) + (1800 + 900) / n, rel=REL)
+    # tezgah ve işçilik kalemleri aynı süreyi kullanır (çift sayım yok)
+    kalem = {k.ad: k for k in m.kalemler}
+    tezgah = (c[0] * U_M["VMC-A"] + c[1] * U_M["VMC-B"]) / 3600
+    assert kalem["tezgah"].tutar_eur == pytest.approx(tezgah, rel=REL)
+    assert kalem["iscilik"].tutar_eur == pytest.approx(sum(c) * U_I * K_OP / 3600, rel=REL)
+    # t_hazirlik 58'de kalır
+    hazirlik = (1800 * (U_M["VMC-A"] + U_I) + 900 * (U_M["VMC-B"] + U_I)) / 3600 / n
+    assert kalem["hazirlik"].tutar_eur == pytest.approx(hazirlik, rel=REL)
+    assert "süre: SPEC 72 CycleTime" in kalem["tezgah"].aciklama
+    assert "SPEC 05 (iş föyü)" not in kalem["tezgah"].aciklama
+    assert not any("72 zaman profili yok" in w for w in m.uyarilar)
+
+
+def test_sure_72_karisik():
+    # K1b: TimeProfile verilmeyen tezgâhta §1 değeri ve uyarı metni birebir
+    pa = zaman_profili("VMC-A")
+    job = is_foyu()
+    m = calistir(1, job, ops=ek_a_ops(), zaman_profilleri={"VMC-A": pa})
+    T1 = job.setups[1].time
+    assert m.t_parca_s == pytest.approx(ct(0, pa) + T1 + 45 + 2700, rel=REL)
+    assert "Süre SPEC 05 modelinden (72 zaman profili yok: VMC-B)" in m.uyarilar
+    assert not any("72 zaman profili yok: VMC-A" in w for w in m.uyarilar)
+    tezgah = next(k for k in m.kalemler if k.ad == "tezgah")
+    # karışık kaynak: ikisi de " + " ile
+    assert "SPEC 72 CycleTime" in tezgah.aciklama
+    assert "SPEC 05 (iş föyü)" in tezgah.aciklama
+
+
+def test_sure_72_profil_var_ops_yok():
+    pa = zaman_profili("VMC-A")
+    with pytest.raises(ModelError):
+        calistir(1, zaman_profilleri={"VMC-A": pa})
+
+
+def test_sure_72_kademe_ops_gecirir():
+    pa, pb = zaman_profili("VMC-A"), zaman_profili("VMC-B")
+    zp = {"VMC-A": pa, "VMC-B": pb}
+    ops_destekli(kademeler)
+    satirlar = kademeler(
+        is_foyu(),
+        PROFILLER,
+        STOK,
+        c45(),
+        ucretler(),
+        sureler=SURELER,
+        dis_islem=DIS,
+        zaman_profilleri=zp,
+        ops=ek_a_ops(),
+    )
+    for m in satirlar:
+        assert m == calistir(m.n, ops=ek_a_ops(), zaman_profilleri=zp)
+
+
+def test_sure_ops_profilsiz_degismez():
+    # profil yokken ops verilmesi §1'i değiştirmez (Ek 1: davranış ekten öncekiyle aynı)
+    assert calistir(10, ops=ek_a_ops()) == calistir(10)
+
+
+@pytest.mark.parametrize("ops", [[[ek_a.tp1()]], [[ek_a.tp1()], [ek_a.face2()], [ek_a.face2()]]])
+def test_sure_ops_sayisi_baglama_sayisina_esit(ops):
+    with pytest.raises(ModelError):
+        calistir(1, ops=ops)
 
 
 # ---------------------------------------------------------------- K2 kalemler
