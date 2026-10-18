@@ -1,5 +1,7 @@
 # SPEC 06b — 3D yüzey işleme eki: torik ve konik takım, waterline (sabit Z kontur)
 
+> **Onaylandı** (kullanıcı, 2026-10-18 10:38 UTC; konik takımla birlikte).
+
 ## Amaç
 SPEC 06'nın drop-cutter'ını tek bir **dışbükey takım profili** üzerine kurup **köşe radyüslü (torik)** ve
 **konik** takımı eklemek; bunun üstüne dik duvarlar için **waterline** (sabit Z seviyesinde kontur) ince

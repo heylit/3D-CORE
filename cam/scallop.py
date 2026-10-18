@@ -64,3 +64,13 @@ def scallop_curved(R: float, rho: float, alpha: float, convex: bool) -> float:
     if convex:
         return c * math.cos(alpha / 2) - q - rho
     return rho - c * math.cos(alpha / 2) - q
+
+
+def scallop_torus(R: float, r_c: float, s: float) -> float:
+    """SPEC 06b — torik uç, yatay düzlem: s ≤ 2(R − r_c) → 0; değilse r_c − √(r_c² − (s/2 − R + r_c)²)."""
+    raise NotImplementedError("SPEC 06b: scallop_torus")
+
+
+def scallop_cone(R: float, theta: float, s: float) -> float:
+    """SPEC 06b — konik uç, yatay düzlem: h = (s/2)·cot θ; theta yarı açı [derece]."""
+    raise NotImplementedError("SPEC 06b: scallop_cone")
