@@ -16,7 +16,7 @@
 | 03-cam-2d | 1 | tamamlandı (PR #5, `b22c7ad`); testler "bağımsız değil" işaretli, sıradaki 03b | — | — |
 | 04-gcode | 1 | tamamlandı (PR #4, `32d2676`) | — | `durum/04-gcode.md` |
 | 08-kisitlar | 1 | tamamlandı (PR #3, `46e7889`); ölçekli artıklar birleşti (PR #15, `b30f5a4`); ters başlangıç kaçışı birleşti (PR #16, `26fced4`) | — | `durum/08-kisitlar.md` |
-| 00-arayuzler ek 2 | 2 | tamamlandı: Dalga 2 CAM arayüzü (PR #24, `9027a42`); `Hole` + havşa alanları (PR #23, `1fcf021`) | — | `durum/00-arayuzler.md` |
+| 00-arayuzler ek 2 | 2 | tamamlandı: Dalga 2 CAM arayüzü (PR #24, `9027a42`); `Hole` + havşa alanları (PR #23, `1fcf021`); `Node` (PR #26, `cfde521`) | — | `durum/00-arayuzler.md` |
 | 11-tet4 | 2 | tamamlandı (PR #21, `98b6623`) | — | `durum/11-tet4.md` |
 | 15-goruntuleyici | 2 | tamamlandı (SPEC + testler PR #18, `149d292`; kod PR #25, `1ce40fb`) | — | `durum/15-goruntuleyici.md` |
 | 16-teknik-resim | 2 | tamamlandı (PR #22, `778d29b`) | — | `durum/16-teknik-resim.md` |
@@ -51,6 +51,7 @@
 | 24-tezgah | Tezgah web arayüzü SPEC'i onaylandı (PR #19) | 2026-10-18 | — |
 | 00-arayuzler | `Hole` kaydı, `Part.holes`, havşa alanları (PR #23) | 2026-10-18 | — |
 | 00-arayuzler | Ek 2: Dalga 2 CAM arayüzü, G-code yazıcı koruması (PR #24) | 2026-10-18 | — |
+| 00-arayuzler | `assy.model.Node` montaj ağacı düğümü, SPEC 07 için (PR #26, `cfde521`) | 2026-10-18 | — |
 | 11-tet4 | 3B tetrahedron eleman, gerilme tensörü (PR #21) | 2026-10-18 | 58 |
 | 15-goruntuleyici | pyvista geliştirici görüntüleyici (PR #18, #25) | 2026-10-18 | 41 |
 | 16-teknik-resim | Teknik resim, DXF R12 / SVG (PR #22) | 2026-10-18 | 129 |
