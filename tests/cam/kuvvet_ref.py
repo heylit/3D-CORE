@@ -14,8 +14,6 @@ from __future__ import annotations
 
 import math
 
-import pytest
-
 from cam.kuvvet import KienzleMaterial
 from cam.model import CylinderStock, FeedMode, LatheTool, Move, MoveType, Plane, Stock, Tool, Toolpath
 
@@ -142,11 +140,12 @@ ZT0, ZT1, ZT2 = 2.0, -5.0, -45.0  # stok dışı, giriş sonu, kararlı paso son
 
 
 def torna_sim():
-    """SPEC 22 simülasyonu bu dalda yoksa testi atla (LatheSimResult henüz yalnız TYPE_CHECKING altında)."""
+    """SPEC 22 simülasyonu. Bu dalda yoksa NotImplementedError: test atlanmaz, "uygulanmamış" sayılır
+    (yerelde xfail, CI'da --uygulanmamis-hata ile kırmızı)."""
     try:
         from cam.sim import simulate_lathe
-    except ImportError:
-        pytest.skip("SPEC 22 (cam.sim.simulate_lathe) bu dalda yok")
+    except ImportError as e:
+        raise NotImplementedError("SPEC 22 (cam.sim.simulate_lathe) bu dalda yok") from e
     return simulate_lathe
 
 

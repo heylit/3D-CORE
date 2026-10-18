@@ -273,12 +273,13 @@ def test_k7_kanal_simulasyondan():
 
 def test_k7_yan_ae5_kayit_yok():
     mat = malzeme()
-    # K5 ae = 5 pasosu (P = 0.671899) P_max = 1.0'ı aşmaz; programda yalnız kanal kayıt verir
+    # K5 ae = 5 pasosu (P = 0.671899) P_max = 1.0'ı aşmaz; yalnız kanal ve onun devamı (x 60 → 80, aynı tam
+    # kanal: ap = 3, ae = 10, P = 1.343797) kayıt verir
     tp, ix = yan_programi()
     res = simulate([tp], STOCK, cell=CELL)
     loads = milling_loads([tp], res, mat)
     ov = check_spindle(loads, SpindleLimits(P_max=1.0, eta=1.0))
-    assert {(o.op, o.move) for o in ov} == {(0, ix["kanal"])}
+    assert {(o.op, o.move) for o in ov} == {(0, ix["kanal"]), (0, ix["kanal"] + 1)}
 
 
 def test_k7_from_profile():
@@ -289,7 +290,9 @@ def test_k7_from_profile():
     if MP is None or not {"spindle_power_kw", "spindle_torque_nm"} <= {
         f.name for f in dataclasses.fields(MP)
     }:
-        pytest.skip("A0 arayüz eki (MachineProfile.spindle_power_kw / spindle_torque_nm) bu dalda yok")
+        raise NotImplementedError(
+            "A0 arayüz eki (MachineProfile.spindle_power_kw / spindle_torque_nm) bu dalda yok"
+        )
     p = MP(name="DENEME", controller="fanuc", rpm_max=12000.0, feed_max=10000.0, spindle_power_kw=15.0,
            spindle_torque_nm=95.0)  # fmt: skip
     lim = SpindleLimits.from_profile(p)
