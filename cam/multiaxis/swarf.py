@@ -40,7 +40,10 @@ def swarf(
     rpm: float,
     clearance: float = 5.0,
 ) -> Toolpath:
-    """Yanak yolu; her Move.axis = g(u), meta (yanak, 5). Hata tol_swarf'ı aşarsa CamError."""
+    """Yanak yolu; her Move.axis = g(u), meta (yanak, 5). Hata tol_swarf'ı aşarsa CamError.
+
+    n = side·norm(∂S/∂u × ∂S/∂v) (u örnek sırası, v C0 → C1); takım +n yanında; yüzey bilineer.
+    """
     raise NotImplementedError("SPEC 50: swarf")
 
 

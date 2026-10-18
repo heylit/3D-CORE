@@ -112,26 +112,29 @@ Testlerde uydurma geometri; beklenen değerin kaynağı test yorumunda.
 2. `tol_swarf` varsayılanı 0.01 mm; kullanıcı atölye toleransına göre değiştirir.
 
 ## Ek A — Arayüz ayrıntıları (iskelet; metnin açık bıraktığı tanımlar)
-Aşağıdakiler yukarıdaki arayüzü değiştirmez, yalnız testin ihtiyaç duyduğu tanımları sabitler.
-- `RoughCut` (`cam.multiaxis.rough5`): `ap`, `ae`, `allowance = 0.0`, `feed`, `plunge_feed`, `rpm`, `ds = 1.0`,
-  `tol = 0.01`, `ds_min = 0.1`, `safe = 5.0`, `clearance = 1.0`, `direction = "x"`, `max_tilt = 90.0` [mm, mm/dk, dev/dk, °].
-  Her `F_i` için 06 kabanın girdileri: stok = `local_stock(stock, F_i)` (41; ilk stok kutusu, kalan malzeme
-  tri-dexel'den hava atlamayla hesaba girer), raster dikdörtgeni = bu yerel stoğun XY'si, `stepover = ae`, `z_safe = zmax_yerel + safe`,
-  `z_bottom = max(zmin_yerel_stok, zmin_yerel_ağ)`, `a_p = ap`. Böylece K1'de `F = +Z` (başlangıç 0) ve `v_min = 0`
-  iken yol `ops3d.rough(mesh, stock, tool, Raster(...), ap, z_bottom, allowance)` ile aynıdır.
-- `rough5(..., machine=None, setup=None)`: `machine` (44 `MachineModel`) verilirse `setup` zorunlu; her yönelimin yolu
-  44 `check` ile denetlenir, olay varsa `CamError`. `cell` tri-dexel hücre boyu. Hava atlamada `L` hareket boyu.
+Aşağıdakiler testin ihtiyaç duyduğu tanımları sabitler (koordinatör kararı, test thread'inin notları üzerine).
+- `RoughCut` (`cam.multiaxis.rough5`): `a_p`, `stepover`, `feed`, `plunge_feed`, `rpm`, `allowance = 0.0`,
+  `clearance = 1.0` [mm, mm/dk, dev/dk]. `rough5`'e ayrıca `max_tilt = 30.0` [°] parametresi eklenir (yönelim ekseninin
+  +Z ile en büyük açısı; aşan `F_i` → `CamError`). Her `F_i` için 06 kabanın girdileri yerel stoktan türetilir:
+  stok = `local_stock(stock, F_i)` (41; ilk stok kutusu, kalan malzeme tri-dexel'den hava atlamayla hesaba girer),
+  raster dikdörtgeni = bu yerel stoğun XY'si, `ds = ds_min = stepover`, `tol = 0.01`, `z_safe = zmax_yerel + 5`,
+  `direction = "x"`, `z_bottom = max(zmin_yerel_stok, zmin_yerel_ağ)`. Böylece K1'de `F = +Z` (başlangıç 0) ve
+  `v_min = 0` iken yol `ops3d.rough(mesh, stock, tool, Raster(...), a_p, z_bottom, allowance)` ile aynıdır.
+- `rough5(..., machine=None, setup=None, max_tilt=30.0)`: `machine` (44 `MachineModel`) verilirse `setup` zorunlu; her
+  yönelimin yolu 44 `check` ile denetlenir, olay varsa `CamError`. `cell` tri-dexel hücre boyu. Hava atlamada `L`
+  hareket boyu.
 - `swarf(surface, tool, side=+1, allowance=0.0, allowance_z=0.0, tol_swarf=0.01, n_check=21, *, feed, rpm,
-  clearance=5.0)`: `u_i = i/(n − 1)`; ilerleme yönü `t_i` = `C_m = (C₀ + C₁)/2` dizisinin merkezi farkı (uçlarda tek
-  yanlı); `n_m = side·norm(t_i × g_i)`; uç `p_i = C₀,ᵢ + (R + allowance)·n_m + allowance_z·g_i`. Yol: `start = p_0 +
-  clearance·g_0`, `G1` (`feed`) `p_0 … p_{n−1}`, son olarak `G0` `p_{n−1} + clearance·g_{n−1}`; her `Move.axis = g_i`.
-- `swarf_error(surface, tool, u, side=+1, n_check=101)`: `u ∈ [0, 1]`, raylar parça parça doğrusal ara değerlenir.
-  Hata = yüzey noktalarının (`S(u_j, v_k)`, tüm ray noktaları × `n_check` eşit `v`) takım silindirine (`p`'den `g`
-  boyunca `[0, flute_length]`, yarıçap `R`) en büyük girmesi `max(0, R − d⊥)`; girme yoksa 0.
-- `smooth_axes`: yalnız ekseni dolu `G1` hareketleri; ağırlık eşit, pencere `k` çevresinde simetrik ve uçlarda
-  daralır (yarı genişlik `min(⌊w/2⌋, k, n − 1 − k)`), birimlenir. Küresel uçta küre merkezi korunur
-  (`p = c − R·a_yeni`); torikte 42 `drop_along` ile yeniden konumlanır. `angle₂ = |∠(a_k, a_{k+1}) − ∠(a_{k−1}, a_k)|`.
-  `J_yeni > J_eski` ise yol değişmeden döner. `w` tek ve ≥ 1 olmalı, değilse `CamError`.
+  clearance=5.0)`: `u` örnek sırası (`u_i = i/(n − 1)`), `v` `C₀ → C₁`. Gerçek yüzey örnekler arasında bilineerdir.
+  `n = side·norm(∂S/∂u × ∂S/∂v)`; takım `+n` yanındadır. `n_m` = `v = ½`'deki `n` (`∂S/∂u` = `C_m = (C₀ + C₁)/2`
+  dizisinin merkezi farkı, uçlarda tek yanlı). Uç `p_i = C₀,ᵢ + (R + allowance)·n_m + allowance_z·g_i`. Yol: `start =
+  p_0 + clearance·g_0`, `G1` (`feed`) `p_0 … p_{n−1}`, son olarak `G0` `p_{n−1} + clearance·g_{n−1}`; her `Move.axis = g_i`.
+- `swarf_error(surface, tool, u, side=+1, n_check=101)`: `u ∈ [0, 1]`. Hata = bilineer yüzey noktalarının (her ray
+  aralığı ve `v` `n_check` eşit örnekle) takım silindirine (`p`'den `g` boyunca `[0, flute_length]`, yarıçap `R`) en
+  büyük girmesi `max(0, R − d⊥)`; girme yoksa 0.
+- `smooth_axes`: pencere yalnız ardışık (kesintisiz) bir `G1` kesme dizisinin içinde uygulanır; ağırlık eşit,
+  pencere dizinin uçlarında kırpılır; sonuç birimlenir. Küresel uçta küre merkezi korunur (`p = c − R·a_yeni`);
+  torikte 42 `drop_along` ile yeniden konumlanır. `angle₂ = |∠(a_k, a_{k+1}) − ∠(a_{k−1}, a_k)|`. `J_yeni > J_eski`
+  ise yol değişmeden döner. `w` tek ve ≥ 1 olmalı, değilse `CamError`.
 
 ## Açık sorular (kapandı, bkz. Kararlar)
 1. 5 eksen kabada yönelim listesi kullanıcıdan mı gelsin, yoksa parçanın düzlemsel yüz normallerinden otomatik mi önerilsin?

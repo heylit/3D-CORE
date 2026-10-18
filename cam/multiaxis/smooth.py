@@ -21,5 +21,8 @@ def smooth_axes(
     avoid: Avoid | None = None,
     kin: Kinematics | None = None,
 ) -> tuple[Toolpath, float, float]:
-    """Düzgünleştirilmiş yol, J_eski, J_yeni."""
+    """Düzgünleştirilmiş yol, J_eski, J_yeni.
+
+    Pencere yalnız kesintisiz G1 kesme dizisinin içinde; dizi uçlarında kırpılır, ağırlık eşit.
+    """
     raise NotImplementedError("SPEC 50: smooth_axes")
