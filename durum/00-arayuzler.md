@@ -9,6 +9,7 @@ CAM SPEC'leri (03, 04) "CAM algoritmaları ve matematiği" araştırması bitinc
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
 |---|---|---|---|
+| 2026-10-18 | 117 (+29 uygulanmamış, SPEC 01) | 0 | cam 38, assy 30, geometry 8 yeni test; testler SPEC'ten ayrı ajanla yazıldı |
 
 ## Son oturum
 **2026-10-18**
