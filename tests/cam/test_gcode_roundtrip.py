@@ -151,6 +151,20 @@ def with_retract(tp: Toolpath, safe_z: float) -> Toolpath:
     return Toolpath(tp.name, tp.tool, tp.start, [*tp.moves, Move(G0, (x, y, safe_z))], tp.rpm)
 
 
+def safe_z_of(tp: Toolpath) -> float:
+    """Ek C1: güvenli Z kesme seviyesinin (yoldaki en yüksek Z) kesin üstünde olmalı → en yüksek Z + 10."""
+    return float(round(max(p[2] for p in tp.points()) + 10.0, 3))
+
+
+def as_written(tp: Toolpath, safe_z: float) -> Toolpath:
+    """SPEC 04 Ek B: güvenli Z op başından yüksekse yazıcı XY'yi güvenli Z'de konumlar, sonra ayrı satırda
+    op başına iner (`G0 Z<z0>`); okununca yol güvenli Z'den başlar ve ilk hareketi bu iniştir.
+    Program sonundaki geri çekme `with_retract` ile eklenir."""
+    x0, y0, z0 = tp.start
+    moves = [Move(G0, (x0, y0, z0)), *tp.moves] if round(z0, 3) < round(safe_z, 3) else list(tp.moves)
+    return with_retract(Toolpath(tp.name, tp.tool, (x0, y0, safe_z), moves, tp.rpm), safe_z)
+
+
 # ---------------------------------------------------------------- K4: gidiş-dönüş
 
 
@@ -159,24 +173,26 @@ def test_random_roundtrip(dialect):
     """K4: 200 hareketlik rastgele yol (G0/G1/G2/G3, helis, tam daire) yazılıp okununca aynı."""
     tp, _ = random_path()
     tools = {1: tp.tool}
-    got = read(write([tp], dialect), tools, dialect)
+    z_s = safe_z_of(tp)
+    got = read(write([tp], dialect, safe_z=z_s), tools, dialect)
     assert len(got) == 1
     g = got[0]
     g.validate()  # SPEC: çıkan her yol Toolpath.validate()'ten geçer
     assert g.tool == tp.tool
     assert g.rpm == 12_000  # devir tam
     assert g.name == "T1-1"  # Ek A: yol adı T<n>-<k>
-    assert_paths_close(g, with_retract(tp, tp.start[2]))
+    assert_paths_close(g, as_written(tp, z_s))
 
 
 @pytest.mark.parametrize("seed", [1, 2, 3])
 def test_random_roundtrip_other_seeds(seed):
     """K4 ek: başka sabit tohumlarla da (GRBL) gidiş-dönüş tolerans içinde."""
     tp, _ = random_path(seed)
-    got = read(write([tp], GRBL), {1: tp.tool}, GRBL)
+    z_s = safe_z_of(tp)
+    got = read(write([tp], GRBL, safe_z=z_s), {1: tp.tool}, GRBL)
     assert len(got) == 1
     got[0].validate()
-    assert_paths_close(got[0], with_retract(tp, tp.start[2]))
+    assert_paths_close(got[0], as_written(tp, z_s))
 
 
 @pytest.mark.parametrize("dialect", [GRBL, FANUC], ids=["GRBL", "FANUC"])
