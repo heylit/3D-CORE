@@ -61,6 +61,8 @@
 | 07-montaj-agaci | Montaj ağacı (PR #20) | 2026-10-18 | 88 |
 | 06-cam-3d | 3B takım yolu (PR #31) | 2026-10-18 | 157 |
 | — | CI: test bağımsızlığı kapısı (PR #30, `45a73dc`) | 2026-10-18 | — |
+| 00-arayuzler | `Tool.center_cutting` alanı (PR #36, `4d52e80`) | 2026-10-18 | — |
+| — | CI: kapı testi, hook içinde asıl reponun index'ini bozmuyor (PR #38, `75ba846`) | 2026-10-18 | — |
 | 20-torna-yol | Torna takım yolları: alın, çap, kaba, finiş, kanal, diş, uç radyusu telafisi (PR #34) | 2026-10-18 | 220 |
 
 ## Kurulum kontrol listesi (bir kez, kullanıcı)

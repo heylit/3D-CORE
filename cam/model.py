@@ -186,6 +186,7 @@ class Tool:
     stickout: float | None = None  # mm, tutucu ağzından takım ucuna boy
     holder: ToolHolder | None = None
     cutting: dict[str, CuttingData] = field(default_factory=dict)  # malzeme → kesme verisi (fz)
+    center_cutting: bool = True  # merkezden keser mi (False → düz dalma yok, SPEC 03 / 04)
 
     def __post_init__(self) -> None:
         self.kind = ToolKind(self.kind)
@@ -211,6 +212,10 @@ class Tool:
             _sonlu(nerede, stickout=self.stickout)
             if self.stickout < self.flute_length:
                 raise CamError(f"{nerede}: taşma boyu kesici boydan kısa olamaz ({self.stickout})")
+        if not isinstance(self.center_cutting, bool):
+            raise CamError(f"{nerede}: center_cutting bool olmalı ({self.center_cutting!r})")
+        if self.kind is ToolKind.DRILL and not self.center_cutting:
+            raise CamError(f"{nerede}: matkap merkezden keser; center_cutting=False olamaz")
         for malzeme, c in self.cutting.items():
             if c.fz is None:
                 raise CamError(f"{nerede}: '{malzeme}' kesme verisinde fz (mm/diş) olmalı")
@@ -240,6 +245,7 @@ class Tool:
             "stickout": self.stickout,
             "holder": None if self.holder is None else self.holder.to_dict(),
             "cutting": {k: v.to_dict() for k, v in self.cutting.items()},
+            "center_cutting": self.center_cutting,
         }
 
     @classmethod
@@ -248,13 +254,55 @@ class Tool:
             "Takım",
             d,
             {"id", "name", "kind", "D", "flute_length"},
-            {"corner_r", "flutes", "shank_d", "stickout", "holder", "cutting"},
+            {"corner_r", "flutes", "shank_d", "stickout", "holder", "cutting", "center_cutting"},
         )
         d = dict(d)
         if d.get("holder") is not None:
             d["holder"] = ToolHolder.from_dict(d["holder"])
         d["cutting"] = _cutting_from_dict(d.get("cutting") or {})
         return cls(**d)
+
+
+@dataclass
+class LatheHolder:
+    """Torna takım tutucusu: burun merkezine göre dış çerçevede (z, x) dışbükey çokgen,
+    y yönünde yarı kalınlık.
+
+    polygon: en az 3 nokta, saat yönü tersi, son nokta tekrarsız.
+    """
+
+    name: str
+    polygon: tuple[tuple[float, float], ...]
+    half_width: float  # mm, y yönünde yarı kalınlık
+
+    def __post_init__(self) -> None:
+        nerede = f"Torna tutucusu '{self.name}'"
+        self.polygon = tuple((float(z), float(x)) for z, x in self.polygon)
+        _sonlu(nerede, half_width=self.half_width)
+        if self.half_width <= 0:
+            raise CamError(f"{nerede}: yarı kalınlık pozitif olmalı ({self.half_width})")
+        if len(self.polygon) < 3:
+            raise CamError(f"{nerede}: çokgen en az 3 nokta olmalı")
+        P = np.array(self.polygon)
+        _sonlu(nerede, polygon=P)
+        # Ardışık kenarların vektörel çarpımı: saat yönü tersi dışbükey çokgende hepsi ≥ 0, alan > 0.
+        e = np.roll(P, -1, axis=0) - P
+        cross = e[:, 0] * np.roll(e, -1, axis=0)[:, 1] - e[:, 1] * np.roll(e, -1, axis=0)[:, 0]
+        alan = 0.5 * float(
+            np.sum(P[:, 0] * np.roll(P, -1, axis=0)[:, 1] - P[:, 1] * np.roll(P, -1, axis=0)[:, 0])
+        )
+        if alan <= 0:
+            raise CamError(f"{nerede}: çokgen saat yönü tersi ve alanı pozitif olmalı (alan={alan})")
+        if np.any(cross < 0):
+            raise CamError(f"{nerede}: çokgen dışbükey olmalı")
+
+    def to_dict(self) -> dict:
+        return {"name": self.name, "polygon": [list(p) for p in self.polygon], "half_width": self.half_width}
+
+    @classmethod
+    def from_dict(cls, d: dict) -> LatheHolder:
+        _alanlar("Torna tutucusu", d, {"name", "polygon", "half_width"}, set())
+        return cls(name=d["name"], polygon=tuple(tuple(p) for p in d["polygon"]), half_width=d["half_width"])
 
 
 @dataclass
@@ -275,6 +323,8 @@ class LatheTool:
     eps_r: float
     width: float = 0.0  # mm, kanal ucu genişliği
     cutting: dict[str, CuttingData] = field(default_factory=dict)  # malzeme → kesme verisi (fn)
+    edge_len: float | None = None  # mm, kesici kenar boyu (burun teğet noktasından); kanalda dalma kapasitesi
+    holder: LatheHolder | None = None
 
     def __post_init__(self) -> None:
         self.kind = LatheToolKind(self.kind)
@@ -300,6 +350,12 @@ class LatheTool:
         for malzeme, c in self.cutting.items():
             if c.fn is None:
                 raise CamError(f"{nerede}: '{malzeme}' kesme verisinde fn (mm/dev) olmalı")
+        if self.edge_len is not None:
+            _sonlu(nerede, edge_len=self.edge_len)
+            if self.edge_len <= 0:
+                raise CamError(f"{nerede}: kesici kenar boyu pozitif olmalı ({self.edge_len})")
+        if self.holder is not None and not isinstance(self.holder, LatheHolder):
+            raise CamError(f"{nerede}: tutucu LatheHolder olmalı ({type(self.holder).__name__})")
 
     def to_dict(self) -> dict:
         return {
@@ -312,14 +368,18 @@ class LatheTool:
             "eps_r": self.eps_r,
             "width": self.width,
             "cutting": {k: v.to_dict() for k, v in self.cutting.items()},
+            "edge_len": self.edge_len,
+            "holder": None if self.holder is None else self.holder.to_dict(),
         }
 
     @classmethod
     def from_dict(cls, d: dict) -> LatheTool:
         zorunlu = {"id", "name", "kind", "nose_r", "tip", "kappa_r", "eps_r"}
-        _alanlar("Torna takımı", d, zorunlu, {"width", "cutting"})
+        _alanlar("Torna takımı", d, zorunlu, {"width", "cutting", "edge_len", "holder"})
         d = dict(d)
         d["cutting"] = _cutting_from_dict(d.get("cutting") or {})
+        if d.get("holder") is not None:
+            d["holder"] = LatheHolder.from_dict(d["holder"])
         return cls(**d)
 
 
