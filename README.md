@@ -1,12 +1,11 @@
 # 3D-CORE
 
-Sıfırdan yazılan, adım adım doğrulanan bir FEM (sonlu elemanlar) çözücüsü. İleride CAD katmanı eklenecek.
+3D CAM ve 3D montaj sistemi. Katı modelleme altyapısı OpenCascade (build123d) üzerine; yanında kendi yazdığımız, adım adım doğrulanan FEM çözücüsü. Bulut ve yerel oturumlarla paralel geliştirilir.
 
 - **Başlangıç (önce bunu oku):** [`BASLANGIC.md`](BASLANGIC.md)
-- Canlı durum: [`DURUM.md`](DURUM.md)
 - Kurallar ve mimari: [`CLAUDE.md`](CLAUDE.md)
 - Yol haritası: [`docs/yol-haritasi.md`](docs/yol-haritasi.md)
-- Şu anki adım: [`specs/01-bar.md`](specs/01-bar.md)
+- Kim neyi yapıyor: [`DURUM.md`](DURUM.md), SPEC başına ayrıntı: [`durum/`](durum/)
 
 ## Kurulum (Windows, bir kez)
 
@@ -14,7 +13,7 @@ PowerShell'de proje klasöründe:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File _kurulum\yerlestir.ps1   # ajanları ve CI dosyasını yerine koyar
-py -3.12 -m venv .venv
+uv venv .venv          # ya da: py -3.12 -m venv .venv  (Python 3.11–3.14)
 .venv\Scripts\Activate.ps1
 pip install -e ".[dev]"
 pytest
