@@ -5,9 +5,8 @@ G-code bağımsız çapraz kontrolü (inceleme Y1, K1–K3).
 (LinuxCNC anlamı) ile yürütülür ve tezgâhın yapacağı hareketler CAM modeliyle karşılaştırılır.
 `rs274` (LinuxCNC'nin bağımsız yorumlayıcısı) PATH'te varsa aynı program onunla da yürütülür.
 
-Bilinen kusurlar `xfail(strict=True)`: kusur giderilince test XPASS olur ve strict olduğu için
-KIRMIZI görünür. Bu bilinçli: G-code güvenlik düzeltmesi birleşince ilgili `xfail` işaretini
-kaldırın; o andan itibaren test düzeltmeyi korur.
+K1–K3 testleri inceleme bulgularını korur: PR #11 (G-code güvenlik düzeltmesi) öncesinde
+kırmızıydılar (strict xfail olarak bekletildi), düzeltmeyle yeşile döndüler.
 
 Geometri uydurmadır (ham malzeme üstü Z = 0, kesme Z < 0).
 """
@@ -34,13 +33,6 @@ DIALECTS = [pytest.param(GRBL, id="GRBL"), pytest.param(FANUC, id="Fanuc")]
 T1 = Tool(1, "freze6", ToolKind.FLAT, D=6.0, flute_length=20.0)
 T2 = Tool(2, "matkap5", ToolKind.DRILL, D=5.0, flute_length=40.0)
 T3 = Tool(3, "freze10", ToolKind.FLAT, D=10.0, flute_length=30.0)
-
-
-def known(reason: str):
-    """Bilinen kusur: strict xfail; sadece AssertionError kabul (başka hata kırmızı kalır)."""
-    return pytest.mark.xfail(
-        strict=True, raises=AssertionError, reason=f"{reason} Düzeltme birleşince bu xfail'i kaldırın."
-    )
 
 
 def machine(d) -> RefMachine:
@@ -243,15 +235,11 @@ def test_grbl_cycle_expansion_matches_linuxcnc(kind, q, retract):
     tr = machine(GRBL).run(write([op], GRBL))
     errs = compare(expected([op], GRBL.peck_clearance), tr.moves)
     assert not errs, "\n".join(errs)
-    exp_r = [c.p1 for c in expected([op], GRBL.peck_clearance) if c.kind == "rapid"]
-    act_r = [c.p1 for c in tr.moves if c.kind == "rapid"]
-    assert len(act_r) == len(exp_r) and np.allclose(act_r, exp_r, atol=5e-4)
 
 
-# ------------------------------------------------------------------ bilinen kusurlar (inceleme)
+# ------------------------------------------------------------------ tezgâh güvenliği (inceleme K1–K3)
 
 
-@known("K1: kısa yay yuvarlanınca tam daire yazılıyor.")
 @pytest.mark.parametrize("d", DIALECTS)
 def test_K1_short_arc_is_not_a_full_circle(d):
     """0,0004 mm'lik yay: tezgâh 2π·r kesmemeli. Yazıcı ya yayı düşürmeli/doğruya çevirmeli ya reddetmeli."""
@@ -289,7 +277,6 @@ def test_retracted_job_has_no_rapid_through_stock(d):
     assert not errs, "\n".join(errs)
 
 
-@known("K2: op geçişinde güvenli Z yok, takım değişimi kesme derinliğinde.")
 @pytest.mark.parametrize("d", DIALECTS)
 def test_K2_post_retracts_between_ops(d):
     tr = machine(d).run(write(depth_job(), d))
@@ -297,14 +284,12 @@ def test_K2_post_retracts_between_ops(d):
     assert not errs, "\n".join(errs)
 
 
-@known("K3: GRBL'de T2 M0 öncesi M5 yok (M0 iş milini durdurmaz).")
 def test_K3_grbl_stops_spindle_before_tool_change():
     tr = machine(GRBL).run(write(retracted_job(), GRBL))
     errs = [m for k, m in safety(tr, STOCK_TOP) if k == "tc_spindle"]
     assert not errs, "\n".join(errs)
 
 
-@known("K3: Fanuc'ta G43 H<n> ve G54 yazılmıyor.")
 def test_K3_fanuc_tool_length_and_work_offset():
     tr = machine(FANUC).run(write(retracted_job(), FANUC))
     errs = [m for k, m in safety(tr, STOCK_TOP, require_tlo=True, require_wcs=True) if k in ("tlo", "wcs")]

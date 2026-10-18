@@ -12,13 +12,11 @@ yorum hatasını göremez; bu klasör o boşluğu kapatır.
 | `calculix.py`, `test_calculix.py` | Kendi FEM çözücümüz ↔ CalculiX (aynı model, `.inp` üzerinden): yer değiştirme, tepki, gerilme | `ccx` (yoksa atlanır) |
 | `test_assy_closed_form.py` | Montaj çözücüsü ↔ kapalı form: dört çubuk mekanizması (çember kesişimi), eğik eksende kovan | — |
 
-## Bilinen kusurlar: `xfail(strict=True)`
+## Tezgâh güvenliği (inceleme K1–K3)
 
-İnceleme raporundaki K1, K2, K3 burada strict `xfail` olarak duruyor (`@known(...)`). Kusur
-düzelince test XPASS olur ve strict olduğu için **kırmızıya döner**: bu bilinçli bir uyarıdır.
-G-code güvenlik düzeltmesini birleştiren kişi ilgili `@known` işaretini kaldırır; test o andan
-sonra düzeltmeyi korur. `raises=AssertionError` sayesinde başka bir hata (ör. yazıcının çökmesi)
-xfail'e saklanamaz.
+K1 (kısa yay → tam daire), K2 (op arası güvenli Z, takım değişimi derinlikte) ve K3 (GRBL'de
+M5, Fanuc'ta G43 H / G54) testleri PR #11'den önce kırmızıydı; o zamana kadar strict `xfail`
+olarak bekletildiler ve düzeltme birleşince yeşile döndüler. Artık düzeltmeyi koruyorlar.
 
 Güvenlik denetimleri genel kurallardır, düzeltmenin nasıl yapıldığına bağlı değildir:
 XY hızlı hareket ham malzeme üstünde (Z ≥ 0) olmalı, takım değişimi kesme derinliğinde olmamalı,
