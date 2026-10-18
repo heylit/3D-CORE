@@ -414,12 +414,7 @@ DURUMLAR: tuple[Durum, ...] = (
 # Bugünkü kodda (SPEC 54 kodu yazılmadan önce) gerçekten kırmızı olan, NotImplementedError'a varmayan
 # satırlar. Yerel kapı kırmızı testi kabul etmediği için xfail(strict=True) işaretlidir; SPEC 54 kodu
 # bunları düzeltince XPASS kırmızıya döner ve işaret ayrı bir test commit'iyle kaldırılır.
-BEKLIYOR: dict[str, frozenset[str]] = {
-    "core_error": frozenset({"7", "9", "14a", "14c"}),
-    "format": frozenset({"6", "7", "8", "9", "13", "14a", "14b", "14c"}),
-    "suggestion": frozenset({"7", "13"}),
-    "cause": frozenset({"13", "14b"}),
-}
+BEKLIYOR: dict[str, frozenset[str]] = {}  # SPEC 54 kodu (e3a4b2c) hepsini düzeltti
 
 
 def isaretler(d: Durum, test: str) -> list:
