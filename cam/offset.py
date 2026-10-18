@@ -192,19 +192,32 @@ def offset(region: Region, d: float) -> list[Region]:
     """Bölgenin d ofseti; d > 0 iç, d < 0 dış. Boş olabilir. Dar boğazda birden çok bölge döner."""
     if not isinstance(region, Region):
         raise CamError("offset: Region bekleniyor")
+    return offset_union([region], d)
+
+
+def offset_union(regions: list[Region], d: float) -> list[Region]:
+    """SPEC 03b — ayrık bölgelerin birleşimi ∪R_i'nin d ofseti; d < 0'da bileşenler birleşebilir.
+
+    Tüm halkaların ham ofsetleri birlikte budanır: dist(m, ∪∂R_i) ≥ |d| ve (m ∈ ∪R_i ⇔ d > 0).
+    """
+    if not all(isinstance(rg, Region) for rg in regions):
+        raise CamError("offset_union: Region listesi bekleniyor")
     d = float(d)
     if abs(d) < TOL:
         raise CamError("offset: d sıfır olamaz")
+    if not regions:
+        return []
     raw: list[Segment] = []
-    for loop in region.loops:
-        raw.extend(_raw_offset(loop, d))
+    for rg in regions:
+        for loop in rg.loops:
+            raw.extend(_raw_offset(loop, d))
     pieces = _split_all(raw)
     keep = []
     for s in pieces:
         m = _mid(s)
-        if distance_to_region(m, region) < abs(d) - KEEP_TOL:
+        if min(distance_to_region(m, rg) for rg in regions) < abs(d) - KEEP_TOL:
             continue
-        if region.contains(m) != (d > 0):
+        if any(rg.contains(m) for rg in regions) != (d > 0):
             continue
         keep.append(s)
     loops = []
@@ -219,8 +232,3 @@ def offset(region: Region, d: float) -> list[Region]:
 def offset_profile(profile: Profile, d: float) -> list[Region]:
     """Kapalı profilin sınırladığı bölgenin d ofseti (kısayol)."""
     return offset(Region(profile), d)
-
-
-def offset_union(regions: list[Region], d: float) -> list[Region]:
-    """SPEC 03b — ayrık bölgelerin birleşiminin d ofseti (d < 0'da bileşenler birleşebilir)."""
-    raise NotImplementedError("SPEC 03b: offset_union")
