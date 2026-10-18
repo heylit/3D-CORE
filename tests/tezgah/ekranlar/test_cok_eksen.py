@@ -51,15 +51,63 @@ def _kaynak(is_) -> list:
     return list(is_.ops) if is_.tur == "5eksen" else list(is_.ham)
 
 
+def _sinirsiz(kin):
+    """Aynı kinematik, döner eksen sınırları kaldırılmış (SPEC 44: sınır dışı noktada sınırsız çözüm)."""
+    from cam.model import Kinematics
+
+    rotary = tuple(dataclasses.replace(a, min=None, max=None) for a in kin.rotary)
+    return Kinematics(rotary=rotary, spindle=kin.spindle, gauge=kin.gauge)
+
+
+def _eklem_yolu(tp, kin, wcs, L, kaynak) -> np.ndarray:
+    """Eklem değerleri (n+1, 3 + k): `kaynak(tp, kin, wcs, L)` (SPEC 42 `joint_path` / SPEC 41 `to_machine`).
+
+    Bir nokta sınır içinde çözülemezse (CamError) SPEC 44 kuralı: her nokta önce `inverse(kin)`, olmazsa
+    `inverse(sınırsız kin)`, açılar önceki noktadan devam eder. Tüm noktalar sınır içindeyse sonuç `kaynak`
+    ile birebir aynıdır. Başlangıç noktasının ekseni ilk hareketin ekseni (SPEC 41 `to_machine`).
+    """
+    from cam.model import CamError
+    from cam.multiaxis.kinematics import inverse
+
+    try:
+        return np.asarray(kaynak(tp, kin, wcs, L), dtype=float)
+    except CamError:
+        pass
+    assert tp.frame is None, "sınır dışı yedek yalnız WCS yolları (5 eksen) için"
+    sinirsiz = _sinirsiz(kin)
+    Q, prev = [], None
+    for p, a in zip(tp.points(), _eksenler(tp), strict=True):
+        try:
+            q = inverse(kin, p, a, L, wcs, prev)
+        except CamError:
+            q = inverse(sinirsiz, p, a, L, wcs, prev)
+        prev = tuple(float(v) for v in q[3:])
+        Q.append(q)
+    return np.array(Q, dtype=float)
+
+
 def _q_beklenen(is_) -> list[np.ndarray]:
     kin, wcs, L = _kin(is_), is_.setup.wcs, is_.L
     if is_.tur == "5eksen":
         from cam.multiaxis.linearize import joint_path
 
-        return [np.asarray(joint_path(op, kin, wcs, L), dtype=float) for op in is_.ops]
+        return [_eklem_yolu(op, kin, wcs, L, joint_path) for op in is_.ops]
     from cam.multiaxis.indexed import to_machine
 
-    return [np.asarray(to_machine(h, kin, wcs, L), dtype=float) for h in is_.ham]
+    return [_eklem_yolu(h, kin, wcs, L, to_machine) for h in is_.ham]
+
+
+def _g93_beklenen(tp, q: np.ndarray) -> np.ndarray:
+    """SPEC 42 `inverse_time` yalnız ilerleme hareketlerinde: G0'lara feed = 1.0 verilmiş kopyada hesaplanır,
+    G0 değerleri 0 yapılır (`inverse_time` uzunluğu sıfır olmayan G0'da CamError verir). float32."""
+    from cam.multiaxis.linearize import inverse_time
+
+    hizli = np.array([m.type is MoveType.RAPID for m in tp.moves], dtype=bool)
+    hareketler = [dataclasses.replace(m, feed=1.0) if m.type is MoveType.RAPID else m for m in tp.moves]
+    kopya = dataclasses.replace(tp, moves=hareketler)
+    g93 = np.asarray(inverse_time(kopya, q), dtype=float).astype(np.float32)
+    g93[hizli] = 0
+    return g93
 
 
 def _eksenler(tp) -> np.ndarray:
@@ -117,7 +165,6 @@ def test_cok_json_sekli(ad):
 def test_eklemler(ad):
     is_ = ornek_is(ad)
     from cam.multiaxis.kinematics import forward
-    from cam.multiaxis.linearize import inverse_time
 
     d = _noktalar(is_)
     k = _k(is_)
@@ -138,8 +185,7 @@ def test_eklemler(ad):
         # G93: inverse_time ile float32 birebir; işlem başında ve hızlı harekette 0.
         hizli = np.array([m.type is MoveType.RAPID for m in tp.moves])
         np.testing.assert_array_equal(d["hizli"][k0 + 1 : k1 + 1], hizli.astype(np.uint8))
-        g93 = np.asarray(inverse_time(tp, q_op), dtype=float).astype(np.float32)
-        g93[hizli] = 0
+        g93 = _g93_beklenen(tp, q_op)
         assert d["g93"][k0] == 0
         np.testing.assert_array_equal(d["g93"][k0 + 1 : k1 + 1], g93)
 
@@ -151,7 +197,7 @@ def test_eklemler(ad):
     # Konum ve eksen, eklem değerlerinin ileri kinematiğiyle tutarlı (float32 yuvarlaması içinde).
     kin, wcs, L = _kin(is_), is_.setup.wcs, is_.L
     for i in ornekle(n):
-        tip, a = forward(kin, d["q"][i], L, wcs)
+        tip, a = forward(_sinirsiz(kin), d["q"][i], L, wcs)
         np.testing.assert_allclose(d["konum"][i], tip, atol=1e-4)
         np.testing.assert_allclose(d["a"][i], a, atol=1e-6)
 
@@ -317,7 +363,7 @@ def test_sapma():
     from cam.multiaxis.kinematics import forward
     from cam.multiaxis.linearize import deviation
 
-    kin, wcs, L = _kin(is_), is_.setup.wcs, is_.L
+    kin_s, wcs, L = _sinirsiz(_kin(is_)), is_.setup.wcs, is_.L
     veri = kopru.sapma_ikili(is_)
     e, tcp, ara = _sapma_oku(veri)
     assert ara == kopru.SAPMA_ARA
@@ -334,9 +380,9 @@ def test_sapma():
     u = (np.arange(ara) + 1) / (ara + 1)
     for i in ornekle(len(seg)):
         q0, q1, p0, p1, a0, a1 = seg[i]
-        e_p, e_a = deviation(kin, wcs, L, q0, q1, p0, p1, a0, a1, 0.5)
+        e_p, e_a = deviation(kin_s, wcs, L, q0, q1, p0, p1, a0, a1, 0.5)
         np.testing.assert_array_equal(e[i], np.array([e_p, e_a], dtype=np.float32))
-        uclar = np.array([forward(kin, q0 + ui * (q1 - q0), L, wcs)[0] for ui in u], dtype=np.float32)
+        uclar = np.array([forward(kin_s, q0 + ui * (q1 - q0), L, wcs)[0] for ui in u], dtype=np.float32)
         np.testing.assert_array_equal(tcp[i], uclar)
 
     # Doğrusallaştırılmış yol toleransta, kontrol tamam; özet ikilinin en büyükleriyle aynı.

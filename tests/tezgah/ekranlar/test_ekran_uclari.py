@@ -8,6 +8,7 @@ Her ekranın kısmı ayrı fonksiyonlardadır (47a Plan, 47b Çok eksen, 47c Ana
 from __future__ import annotations
 
 import importlib
+import sys
 
 import pytest
 
@@ -53,6 +54,19 @@ def _cekirdek_var() -> bool:
     return True
 
 
+def _kesif(ekranlar):
+    """A3 keşfi; keşfin bu testte import ettiği başka ekran modülleri sonra `sys.modules`'tan silinir
+    (A3 testlerinin sahte paket keşfi eski modül nesnelerini görmesin)."""
+    onceki = set(sys.modules)
+    try:
+        return ekranlar()
+    finally:
+        for k in list(sys.modules):
+            if k.startswith("tezgah.ekranlar.") and k not in onceki:
+                del sys.modules[k]
+        importlib.invalidate_caches()
+
+
 def test_kayit_cok_eksen():
     """K1 (çok eksen): A3 kaydı; çekirdek yokken `hazir` nedeni eksik modülleri sayar."""
     EKRAN = _cok_eksen_ekrani()
@@ -62,10 +76,11 @@ def test_kayit_cok_eksen():
     assert (EKRAN.ad, EKRAN.tus, EKRAN.sira) == ("cok_eksen", "5", 50)
     assert EKRAN.baslik == "Çok eksen"
     assert EKRAN.router is not None and callable(EKRAN.hazir) and callable(EKRAN.sifirla)
-    kayit = [e for e in ekranlar() if e.ad == "cok_eksen"]
+    liste = _kesif(ekranlar)
+    kayit = [e for e in liste if e.ad == "cok_eksen"]
     assert len(kayit) == 1 and kayit[0].tus == "5"
     # Yardımcı modüller ayrı ekran olarak listelenmez.
-    assert not [e.ad for e in ekranlar() if "cok_eksen" in e.ad and e.ad != "cok_eksen"]
+    assert not [e.ad for e in liste if "cok_eksen" in e.ad and e.ad != "cok_eksen"]
 
     neden = EKRAN.hazir()
     eksik = []
