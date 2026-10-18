@@ -3,7 +3,7 @@
 Dal: `claude/spec-06-cam-3d-09jwcj` · Oturum: bulut
 
 ## Sıradaki adım
-SPEC metni kullanıcı onayı bekliyor; onaydan sonra testler ayrı bir dogrulayici oturumunda yazılır, kod sonra.
+SPEC onaylandı (kullanıcı, 08:28 UTC kart). İskeletler push edildi; testler ayrı thread'de yazılıyor, test commit'i gelince cherry-pick + kod ayrı commit'te.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
@@ -16,4 +16,4 @@ SPEC metni kullanıcı onayı bekliyor; onaydan sonra testler ayrı bir dogrulay
 - Eğri yüzey scallop formülleri kaba kuvvet zarf hesabıyla sayısal kontrol edildi (4 durumda 1e-5 içinde).
 
 ## Açık sorular
-- SPEC onayı (koordinatör üzerinden proje sohbetinde).
+_(yok)_
