@@ -9,7 +9,7 @@ Kod yazıldı, 125/125 SPEC 57 testi yeşil; PR #132 CI'da. Açık iş: 3+2 dön
 | Tarih | Geçen | Kalan | Not |
 |---|---|---|---|
 | 2026-10-18 | 0 | – | iskelet, testler henüz yok |
-X
+| 2026-10-18 | 125 | 0 | kod; test commit'leri 3be6266, 365efbe, 1e4a2f5 |
 
 ## Son oturum
 **2026-10-18**
