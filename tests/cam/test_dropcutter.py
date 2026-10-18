@@ -19,6 +19,7 @@ import math
 import numpy as np
 import pytest
 
+from cam.cutter import Cutter
 from cam.dropcutter import NZ_TOL, TOL, TriMesh, drop, drop_one
 from cam.model import CamError, Tool, ToolKind
 from tests.cam.ref3d import (
@@ -102,21 +103,24 @@ def test_k1_trimesh_hatali(V, T):
         mesh_of(V, T)
 
 
-@pytest.mark.parametrize(
-    "tool",
-    [
-        pytest.param(Tool(id=3, name="matkap", kind=ToolKind.DRILL, D=6.0, flute_length=30.0), id="matkap"),
-        pytest.param(
-            Tool(id=4, name="torik", kind=ToolKind.FLAT, D=8.0, flute_length=30.0, corner_r=1.0), id="torik"
-        ),
-    ],
-)
-def test_k1_desteklenmeyen_takim(tool):
+def test_k1_desteklenmeyen_takim():
+    tool = Tool(id=3, name="matkap", kind=ToolKind.DRILL, D=6.0, flute_length=30.0)
     m = mesh_of(*plane_mesh())
     with pytest.raises(CamError):
         drop(m, tool, np.array([[0.0, 0.0]]))
     with pytest.raises(CamError):
         drop_one(m, tool, 0.0, 0.0)
+
+
+def test_k1_torik_kabul():
+    """SPEC 06b: köşe radyüslü düz takım artık desteklenir (önceden CamError); yatay düzlemde z₀."""
+    tool = Tool(id=4, name="torik", kind=ToolKind.FLAT, D=8.0, flute_length=30.0, corner_r=1.0)
+    kesici = Cutter.from_tool(tool)
+    m = mesh_of(*plane_mesh())
+    xy = np.array([[0.0, 0.0], [3.0, -4.0]])
+    np.testing.assert_allclose(drop(m, tool, xy), 5.0, atol=EPS, rtol=0)
+    np.testing.assert_allclose(drop(m, kesici, xy), 5.0, atol=EPS, rtol=0)
+    assert drop_one(m, tool, 0.0, 0.0) == pytest.approx(5.0, abs=EPS)
 
 
 # --- K2 ---------------------------------------------------------------------------------------------
