@@ -187,7 +187,12 @@ test.describe("Model ekranı uçtan uca @slow", () => {
   test.beforeEach(async ({ page, request }) => {
     hatalar = [];
     page.on("console", (m) => {
-      if (m.type() === "error") hatalar.push(m.text());
+      if (m.type() !== "error") return;
+      // Çelişen ölçü testi 422'yi bilerek bekler; Chromium bunu her zaman konsola yazar (sayfa bastıramaz).
+      // Yalnız /eskiz/coz'un 422 "Failed to load resource" iletisi süzülür; diğer her hata yakalanır.
+      const beklenen422 =
+        /Failed to load resource: .*status of 422/.test(m.text()) && m.location().url.includes(`${ON}/eskiz/coz`);
+      if (!beklenen422) hatalar.push(m.text());
     });
     page.on("pageerror", (e) => hatalar.push(String(e)));
     expect((await request.post("/api/sifirla")).status()).toBe(200);
