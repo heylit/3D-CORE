@@ -209,13 +209,19 @@ def _raw(p: Profile, rho: float) -> tuple[list[Segment], list[int | None], list[
     return out, src, dropped
 
 
-def _split(pieces: list[Segment], src: list[int | None]) -> tuple[list[Segment], list[int | None]]:
+def _split(
+    pieces: list[Segment], src: list[int | None], cutters: list[Segment]
+) -> tuple[list[Segment], list[int | None]]:
+    """Parçaları ikili kesişimlerden ve yalnız bölen `cutters` (yola girmez) ile kesişimlerden böler."""
     params: list[list[float]] = [[0.0, 1.0] for _ in pieces]
     for i in range(len(pieces)):
         for j in range(i + 1, len(pieces)):
             for ti, tj in intersect(pieces[i], pieces[j]):
                 params[i].append(ti)
                 params[j].append(tj)
+        L = pieces[i].length
+        for c in cutters:  # uçtaki (teğet) dokunuşlar parçayı kaydırmasın
+            params[i].extend(t for t, _ in intersect(pieces[i], c) if LINK_TOL < t * L < L - LINK_TOL)
     out: list[Segment] = []
     osrc: list[int | None] = []
     for s, ts, k in zip(pieces, params, src, strict=True):
@@ -240,7 +246,9 @@ def _nose_frame(p: Profile, rho: float, strict: bool) -> list[Segment]:
     raw, src, dropped = _raw(p, rho)
     if strict and dropped:
         raise CamError(f"İçbükey yay yarıçapı burun yarıçapından küçük: parça {dropped[0]} (ρ={rho})")
-    pieces, psrc = _split(raw, src)
+    # uç kapakları: profil uçları etrafındaki ρ daireleri; içine giren alt parçalar atılsın diye bölücü
+    caps = [Arc(q + np.array([rho, 0.0]), q + np.array([rho, 0.0]), q) for q in (p.start, p.end)]
+    pieces, psrc = _split(raw, src, caps)
     keep = [(s, k) for s, k in zip(pieces, psrc, strict=True) if _dist(s.point(0.5), p) >= rho - KEEP_TOL]
     start = raw[0].p0
     idx = [i for i, (s, _) in enumerate(keep) if np.hypot(*(s.p0 - start)) <= LINK_TOL]

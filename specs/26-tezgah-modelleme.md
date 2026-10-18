@@ -211,6 +211,20 @@ yalnızca yerelde pre-push'ta. OCCT gerektiren testler `@pytest.mark.occt`.
 - **Devamı:** SPEC 18 (özellik ağacı) bu SPEC'in doğrusal geçmişini kararlı yüz referanslı, revolve / pah /
   fillet içeren bir özellik ağacına çevirir.
 
+## Ek A — Uçlar ekran kaydında (A3)
+> Karar (kullanıcı, 2026-10-18 11:36; 11:14 kuralı "beni bekleyen bir şey varsa 2 dk'dan fazla geçerse öneriyi
+> kabul et" ile önerilen seçenek): SPEC 26 uçları A3 ekran kaydına (`specs/24a-ekran-kaydi.md`) uyar.
+
+- Uçlar `tezgah/ekranlar/model.py` içindeki `EKRAN = Ekran(ad="model", baslik="Model", tus="7", bolum="model", …)`
+  router'ındadır; kabuk `/api/ekran/model` önekiyle bağlar. `tezgah/sunucu.py` değişmez.
+- Eşleme birebir: `GET`/`PUT /api/ekran/model/` (Model; `PUT` → `{sema, rapor}`), `POST /api/ekran/model/eskiz/coz`,
+  `POST /api/ekran/model/eskiz/surukle`, `GET /api/ekran/model/ag?k=`, `GET /api/ekran/model/yuz/{index}`,
+  `POST /api/ekran/model/tezgaha-gonder`. Gövdeler ve 422 kuralı yukarıdaki tablodaki gibidir; ekran hazır
+  değilse 503 (A3).
+- "model" bölümünün sahibi bu ekrandır: `disa_aktar()` Model JSON'u, `ice_aktar()` atomik yükleme (A3 K5).
+- Ön yüz `tezgah/arayuz/src/ekranlar/model.ts` (A3 `EkranModulu`); "Mimari ve dosyalar"daki `modelleme.ts`
+  bunun yerine geçer. Saf fonksiyonlar `src/eskiz.ts`'te kalır (K10).
+
 ## Kapsam dışı
 - Revolve, sweep, loft, kabuk, pah / fillet adımı, desen ve ayna (SPEC 18 ve sonrası)
 - Kararlı yüz / kenar referansı (topolojik adlandırma, SPEC 18); yüze bağlı eskiz sayısal düzlemde kalır

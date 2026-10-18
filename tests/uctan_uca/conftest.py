@@ -143,6 +143,7 @@ def kutuphane() -> ToolLibrary:
                 kappa_r=93.0,
                 eps_r=55.0,
                 cutting=al_torna,
+                edge_len=8.0,  # uydurma kesici kenar boyu (SPEC 22 kesici bölge)
             ),
         ]
     )
