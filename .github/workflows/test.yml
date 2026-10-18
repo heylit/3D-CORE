@@ -28,12 +28,34 @@ jobs:
     timeout-minutes: 30      # takılan test runner'ı kilitlemesin (tek runner, PR'lar sırayla)
     env:
       PYTHONUTF8: "1"        # Windows konsolunda Türkçe karakterler
+      UV_PYTHON: "3.12"      # tek sürüm = tek iş
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6   # runner'da sistem Python'u yok: uv getirir, .venv kurar
-        with:
-          python-version: "3.12"   # tek sürüm = tek iş
-          activate-environment: true
+      - name: uv kur (Windows)  # setup-uv eylemi Windows'ta Node 24 çıkış hatasıyla çöküyor; doğrudan indir
+        if: runner.os == 'Windows'
+        run: |
+          set "UVDIR=%RUNNER_TOOL_CACHE%\uv-0.13.1"
+          if not exist "%UVDIR%\uv.exe" (
+            curl -fsSL -o "%RUNNER_TEMP%\uv.zip" https://github.com/astral-sh/uv/releases/download/0.13.1/uv-x86_64-pc-windows-msvc.zip || exit /b 1
+            mkdir "%UVDIR%"
+            tar -xf "%RUNNER_TEMP%\uv.zip" -C "%UVDIR%" || exit /b 1
+          )
+          >> "%GITHUB_PATH%" echo %UVDIR%
+      - uses: astral-sh/setup-uv@v6   # Linux runner için
+        if: runner.os != 'Windows'
+      - name: .venv kur ve etkinleştir (Windows)  # runner'da sistem Python'u yok: uv indirir
+        if: runner.os == 'Windows'
+        run: |
+          uv venv .venv || exit /b 1
+          >> "%GITHUB_PATH%" echo %CD%\.venv\Scripts
+          >> "%GITHUB_ENV%" echo VIRTUAL_ENV=%CD%\.venv
+      - name: .venv kur ve etkinleştir (Linux)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          uv venv .venv
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+          echo "VIRTUAL_ENV=$PWD/.venv" >> "$GITHUB_ENV"
       - name: Ekransız çizim kütüphaneleri (Linux)  # SPEC 15 pyvista OSMesa, SPEC 12 gmsh wheel'i
         if: runner.os == 'Linux'
         shell: bash

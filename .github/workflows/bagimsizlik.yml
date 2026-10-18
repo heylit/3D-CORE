@@ -31,13 +31,23 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0     # commit izleri (Claude-Session) için tüm geçmiş
-      - uses: astral-sh/setup-uv@v6   # runner'da sistem Python'u yok: uv getirir
-        with:
-          python-version: "3.12"
+      - name: uv kur (Windows)  # setup-uv eylemi Windows'ta Node 24 çıkış hatasıyla çöküyor; doğrudan indir
+        if: runner.os == 'Windows'
+        run: |
+          set "UVDIR=%RUNNER_TOOL_CACHE%\uv-0.13.1"
+          if not exist "%UVDIR%\uv.exe" (
+            curl -fsSL -o "%RUNNER_TEMP%\uv.zip" https://github.com/astral-sh/uv/releases/download/0.13.1/uv-x86_64-pc-windows-msvc.zip || exit /b 1
+            mkdir "%UVDIR%"
+            tar -xf "%RUNNER_TEMP%\uv.zip" -C "%UVDIR%" || exit /b 1
+          )
+          >> "%GITHUB_PATH%" echo %UVDIR%
+      - uses: astral-sh/setup-uv@v6   # Linux runner için
+        if: runner.os != 'Windows'
       - name: Test bağımsızlığı
         env:
           GITHUB_TOKEN: ${{ github.token }}
           PYTHONUTF8: "1"
+          UV_PYTHON: "3.12"   # runner'da sistem Python'u yok: uv indirir
           PR_NUMARASI: ${{ github.event.pull_request.number }}
         run: >
           uv run --no-project python scripts/bagimsizlik_kapisi.py
