@@ -10,6 +10,7 @@ yorum hatasını göremez; bu klasör o boşluğu kapatır.
 | `gcode_check.py` | Modelden beklenen hareketler, karşılaştırma, tezgâh güvenliği denetimleri | — |
 | `test_gcode_crosscheck.py` | `cam.gcode.write` çıktısı → `gcode_ref` → hareketler = CAM modeli; GRBL ↔ Fanuc aynı yol; GRBL çevrim açılımı ↔ LinuxCNC G81/G83; güvenlik (K1–K3) | `rs274` varsa onunla da |
 | `calculix.py`, `test_calculix.py` | Kendi FEM çözücümüz ↔ CalculiX (aynı model, `.inp` üzerinden): yer değiştirme, tepki, gerilme | `ccx` (yoksa atlanır) |
+| `calculix.py`, `test_calculix_tet4.py` | SPEC 13: tet4 ↔ C3D4 (testlerin kendi yazıcısı; L braket ve yapılandırılmış ağ), `fileio.calculix.to_inp` çıktısı ccx'te ↔ kendi çözücümüz (C3D4 ve T3D2); yer değiştirme, 6 bileşenli eleman gerilmesi, tepki `≤ 1e-5 · max` | `ccx`; braket için gmsh + build123d + `mesh.tet_mesh` |
 | `test_assy_closed_form.py` | Montaj çözücüsü ↔ kapalı form: dört çubuk mekanizması (çember kesişimi), eğik eksende kovan | — |
 
 ## Tezgâh güvenliği (inceleme K1–K3)
@@ -26,7 +27,8 @@ etkin olmalı. Karşılaştırma, güvenlik için eklenen fazladan hızlı harek
 ## Harici araçlar
 
 - **CalculiX**: Ubuntu/Debian `sudo apt install calculix-ccx`; Windows'ta `ccx` PATH'te olmalı.
-  Tanım farkı: CalculiX `RF = K u`, bizde `R = K u − F` (SPEC 01). Mesnetli düğüme doğrudan yük
+  Tanım farkı: CalculiX `RF = K u`, bizde `R = K u − F` (SPEC 01).
+  Sayılar `format(x, ".12e")` ile yazılır: ccx bir sayı alanının en çok 20 karakterini okur. Mesnetli düğüme doğrudan yük
   verilince ikisi o yük kadar ayrışır; test ccx tanımına çevirip karşılaştırır.
 - **LinuxCNC `rs274`**: varsa G-code testleri onunla da çalışır. Bu bağdaştırıcı geliştirme
   ortamında `rs274` olmadığı için denenmedi; ilk çalıştırmada çıktı biçimi kontrol edilmeli.
