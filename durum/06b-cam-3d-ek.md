@@ -13,6 +13,7 @@ Testleri ayrı oturum yazar (iskelet push edildi); test commit'i cherry-pick edi
 **2026-10-18**
 - SPEC 06b taslağı yazıldı (`specs/06b-cam-3d-ek.md`).
 - SPEC konik takımla birlikte onaylandı (kart "Konikle onayla" 10:24 UTC; kullanıcının yazılı onayı proje sohbetinde 10:38 UTC).
+- Ek 1 onaylandı (kullanıcı, 11:13 UTC): K16 eğimli duvara, SPEC 06 `test_k14_seviyeler_ve_cl[duz]` torik `_big()`, K1 dışbükeylik denetimi kapsam dışı.
 - İskelet: `cam/cutter.py`, `cam/waterline.py`, `cam/scallop.py` ekleri (`NotImplementedError`).
 - Konik takım için `cam/model.py` arayüz eki önerildi (`ToolKind.CONE`, `Tool.tip_angle`); sahibi "CAM model arayüzü" thread'i.
 
