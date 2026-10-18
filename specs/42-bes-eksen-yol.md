@@ -1,6 +1,6 @@
 # SPEC 42 — Eş zamanlı 5 eksen takım yolu: takım ekseni yönelimi, doğrusallaştırma, ters zaman ilerlemesi
 
-> **Durum: TASLAK** (kullanıcı onayı bekliyor). Bağımlılık: SPEC 41 (kinematik, `Frame`), SPEC 06 (drop-cutter),
+> **Durum: ONAYLANDI** (kullanıcı, 2026-10-18 10:38 UTC, proje sohbetinde yazılı onay: "SPEC … 41–44 metinlerini onaylıyorum"). Metin kullanıcı onayı olmadan değişmez. Bağımlılık: SPEC 41 (kinematik, `Frame`), SPEC 06 (drop-cutter),
 > SPEC 05 (`body_steps`). Arayüz: `Move.axis` (41 ile aynı arayüz PR'ı).
 
 ## Amaç

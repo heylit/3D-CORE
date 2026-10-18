@@ -1,6 +1,6 @@
 # SPEC 41 — Tezgâh kinematiği ve 3+2 indeksli işleme
 
-> **Durum: TASLAK** (kullanıcı onayı bekliyor). Çok eksen dizisinin ilk adımı: 41 → (42, 43) → 44.
+> **Durum: ONAYLANDI** (kullanıcı, 2026-10-18 10:38 UTC, proje sohbetinde yazılı onay: "SPEC … 41–44 metinlerini onaylıyorum"). Metin kullanıcı onayı olmadan değişmez. Çok eksen dizisinin ilk adımı: 41 → (42, 43) → 44.
 > Arayüz PR'ına bağlı: `cam/model.py`'ye `Frame`, `Toolpath.frame`, `Move.axis`, `RotaryAxis`, `Kinematics`
 > ("CAM model arayüzü" thread'i, ayrı PR). Bu SPEC arayüzü değiştirmez, kullanır.
 

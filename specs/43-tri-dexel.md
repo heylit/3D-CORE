@@ -1,6 +1,6 @@
 # SPEC 43 — Tri-dexel talaş simülasyonu: her yönde takım ekseni
 
-> **Durum: TASLAK** (kullanıcı onayı bekliyor). Bağımlılık: SPEC 05 (`cam/sim`, tek yönlü dexel; `main`'e girince),
+> **Durum: ONAYLANDI** (kullanıcı, 2026-10-18 10:38 UTC, proje sohbetinde yazılı onay: "SPEC … 41–44 metinlerini onaylıyorum"). Metin kullanıcı onayı olmadan değişmez. Bağımlılık: SPEC 05 (`cam/sim`, tek yönlü dexel; `main`'e girince),
 > SPEC 41 (`Frame`, `Move.axis`). 42 ile paralel yürür.
 
 ## Amaç
