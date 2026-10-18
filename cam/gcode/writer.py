@@ -26,6 +26,7 @@ from cam.gcode.cycles import DrillOp
 from cam.gcode.dialect import GRBL, Dialect
 from cam.gcode.modal import ModalState, fmt, snap
 from cam.model import ARCS, CamError, FeedMode, LatheTool, Move, MoveType, Plane, Setup, Toolpath
+from cam.setups import check_setup, clearance_height
 
 AXES = ("X", "Y", "Z")
 
@@ -42,6 +43,8 @@ class _Writer:
         self.tools_used = 0
         self.safe_z = 0.0
         self.p_true: tuple[float, float, float] | None = None  # yuvarlanmamış son nokta
+        self.wcs: str | None = None  # SPEC 14: programa yazılacak iş sıfırı kodu
+        self.length_offsets: dict[int, float] | None = None  # SPEC 14: GRBL G43.1 ofsetleri
 
     # --- satır ve sayı yardımcıları -------------------------------------------------
     def emit(self, words: list[str]) -> None:
@@ -77,8 +80,19 @@ class _Writer:
 
     # --- program parçaları ------------------------------------------------------------
     def header(self) -> None:
-        for h in self.d.header:
-            self.emit([h.format(program_no=self.program_no)])
+        """Program başı. İş sıfırı verilmişse (SPEC 14) baştaki G54 onunla değişir; G54 yoksa
+        G21'li satırın sonuna eklenir."""
+        lines = [h.format(program_no=self.program_no) for h in self.d.header]
+        if self.wcs is not None:
+            words = [line.split() for line in lines]
+            if any("G54" in w for w in words):
+                words = [[self.wcs if x == "G54" else x for x in w] for w in words]
+            else:
+                i = next(i for i, w in enumerate(words) if "G21" in w)
+                words[i].append(self.wcs)
+            lines = [" ".join(w) for w in words]
+        for line in lines:
+            self.emit([line])
 
     def footer(self) -> None:
         for f in self.d.footer:
@@ -105,6 +119,8 @@ class _Writer:
             self.emit(words)
             self.state.tool = tool_id
             self.tools_used += 1
+            if self.length_offsets is not None:
+                self.emit(["G43.1", f"Z{self.c(self.length_offsets[tool_id])}"])
         if changed or S != self.state.rpm:
             self.emit([f"S{S}", "M3"])
             self.state.rpm = S
@@ -212,6 +228,18 @@ def _yazilabilir(tp: Toolpath) -> None:
         raise CamError(f"Takım yolu '{tp.name}': G96 sabit kesme hızı desteklenmiyor (SPEC 21)")
 
 
+def _ofsetler(length_offsets: dict[int, float], ops: list, dialect: Dialect) -> None:
+    """G43.1 ofsetleri yalnız takım boyu tablosu olmayan dilde (GRBL); programdaki her takım için."""
+    if dialect.tool_length_comp:
+        raise CamError(f"{dialect.name}: takım boyu G43 H ile verilir, length_offsets kullanılmaz")
+    for op in ops:
+        n = op.tool.id
+        if n not in length_offsets:
+            raise CamError(f"length_offsets: T{n} için takım boyu ofseti yok")
+        if not math.isfinite(length_offsets[n]):
+            raise CamError(f"length_offsets: T{n} ofseti sonlu olmalı ({length_offsets[n]})")
+
+
 def write(
     ops: list[Toolpath | DrillOp],
     dialect: Dialect = GRBL,
@@ -229,8 +257,6 @@ def write(
     SPEC 14: `setup` verilirse bağlama denetimi, programda iş sıfırı kodu ve ham malzemeden güvenli Z;
     `length_offsets` (yalnız GRBL) her takım değişiminden sonra `G43.1 Z<ΔL>`.
     """
-    if setup is not None or length_offsets is not None:
-        raise NotImplementedError
     for op in ops:
         if isinstance(op, Toolpath):
             op.validate()
@@ -240,12 +266,23 @@ def write(
         else:
             raise CamError(f"Yazılamayan op tipi: {type(op).__name__}")
     z_top = max((op.start[2] for op in ops), default=0.0)
+    if setup is not None:
+        check_setup(setup, ops)
+        ust = clearance_height(setup, 0.0)  # malzeme / bağlama elemanlarının en üstü
+        if safe_z is None:
+            safe_z = max(clearance_height(setup), z_top)
+        elif not math.isfinite(safe_z) or safe_z < ust:
+            raise CamError(f"Güvenli Z ({safe_z}) ham malzeme / bağlama üstünden ({ust}) alçak olamaz")
     if safe_z is None:
         safe_z = z_top
     elif not math.isfinite(safe_z) or safe_z < z_top:
         raise CamError(f"Güvenli Z ({safe_z}) en yüksek op başından ({z_top}) alçak olamaz")
+    if length_offsets is not None:
+        _ofsetler(length_offsets, ops, dialect)
     w = _Writer(dialect, program_no)
     w.safe_z = float(safe_z)
+    w.wcs = None if setup is None else setup.wcs.code
+    w.length_offsets = length_offsets
     w.header()
     for op in ops:
         if isinstance(op, Toolpath):

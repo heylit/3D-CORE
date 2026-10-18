@@ -9,6 +9,7 @@ Yazıcıyla aynı `ModalState`'i kullanır: satırda olmayan kelime durumdan dol
 - Yay doğrulama: |r0 − r1| > arc_tol -> CamError; aksi halde merkez kirişin orta dikmesine
   izdüşürülür: c' = m + ((c − m)·u) u.
 - G81/G83 kanonik açılıma çevrilir (cycles.hole_moves).
+- G43.1 Z<v> (GRBL dinamik ofset, SPEC 14) ve G55..G59 kabul edilir, yola yansımaz.
 - G43 H<n> (takım boyu telafisi) yola yansımaz ama denetlenir: H olmadan G43, G43 olmadan H
   veya etkin takımdan farklı H -> CamError (yanlış telafi takımı malzemeye sokar).
 Hata mesajları 'satır <n>' içerir (metindeki 1 tabanlı satır sırası).
@@ -31,7 +32,8 @@ _COMMENT = re.compile(r"\([^()]*\)")
 
 LETTERS = set("GMXYZIJRQFSTNOH")
 G_MOTION = {0: "G0", 1: "G1", 2: "G2", 3: "G3", 80: "G80", 81: "G81", 83: "G83"}
-G_NOOP = {17, 21, 40, 49, 54, 94}  # baş satırda gelen, yola etkisi olmayan kodlar
+G_NOOP = {17, 21, 40, 49, 54, 55, 56, 57, 58, 59, 94}  # yola etkisi olmayan kodlar (G55..G59: SPEC 14)
+G43_1 = 431  # G43.1 (GRBL dinamik takım boyu ofseti) için iç kod; tam sayı olmayan tek G kodu
 G_REFUSED = {
     20: "G20 (inç) desteklenmiyor; birim dönüşümü yapılmaz",
     18: "G18 düzlemi desteklenmiyor (sadece G17)",
@@ -69,7 +71,8 @@ def _parse(raw: str) -> tuple[list[int], list[int], dict[str, float]] | None:
         if letter in "GM":
             v = float(num)
             if letter == "G" and v == 43.1:
-                raise NotImplementedError  # SPEC 14: G43.1 (GRBL dinamik takım boyu ofseti)
+                gs.append(G43_1)
+                continue
             if not v.is_integer():
                 raise CamError(f"bilinmeyen {letter} kodu '{letter}{num}'")
             (gs if letter == "G" else ms).append(int(v))
@@ -94,6 +97,9 @@ class _Reader:
 
     # --- satır ------------------------------------------------------------------------
     def line(self, gs: list[int], ms: list[int], w: dict[str, float]) -> None:
+        if G43_1 in gs:
+            self.dynamic_offset(gs, ms, w)
+            return
         motion = self.g_codes(gs)
         self.m_codes(ms)
         self.words(w)
@@ -128,8 +134,6 @@ class _Reader:
                 pass  # length_offset() denetler
             elif g in (98, 99):
                 self.state.retract = f"G{g}"
-            elif g in (55, 56, 57, 58, 59):
-                raise NotImplementedError  # SPEC 14: G55..G59 iş sıfırı
             elif g in G_REFUSED:
                 raise CamError(G_REFUSED[g])
             elif g not in G_NOOP:
@@ -163,6 +167,17 @@ class _Reader:
             raise CamError("G43 ve H kelimesi birlikte verilmeli")
         if g43 and w["H"] != self.state.tool:
             raise CamError(f"G43 H{w['H']:g}: etkin takım T{self.state.tool} ile uyuşmuyor")
+
+    def dynamic_offset(self, gs: list[int], ms: list[int], w: dict[str, float]) -> None:
+        """G43.1 Z<v> (SPEC 14): Z burada takım boyu ofsetidir, hareket değil; yola yansımaz.
+        Satırda başka G/M kodu veya Z dışında kelime olamaz."""
+        if len(gs) != 1 or ms:
+            raise CamError("G43.1 satırında başka G / M kodu olamaz")
+        fazla = set(w) - {"Z", "N"}
+        if fazla:
+            raise CamError(f"G43.1 satırında yalnız Z (ofset) olabilir, gelen {sorted(fazla)}")
+        if "Z" not in w:
+            raise CamError("G43.1: Z (ofset) verilmemiş")
 
     # --- hareketler -------------------------------------------------------------------
     def execute(self, w: dict[str, float]) -> None:
