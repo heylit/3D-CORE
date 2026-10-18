@@ -13,8 +13,9 @@ Kurallar (SPEC 50 Teori, Arayüz):
 - Genel düzlemde (birim normal N, yukarı) takımın N yönündeki en alt noktası
   N·uç + r_c (N·a) − (R − r_c)|N − (N·a)a| − r_c (aynı türetme, N_⊥ = N − (N·a)a).
 
-Torik dal SPEC 50 kodunda gelir; iskelette `finish5` yalnız küresel uç kabul ettiği için olumlu testler
-`xfail(strict=True)` ile işaretli (kod yazılınca işaret kaldırılır).
+Torik dal SPEC 50 kodunda gelir; iskelette `finish5` torik ucu "yalnız küresel uç" CamError'ıyla reddeder.
+Olumlu testler `_finish5` ile çağırır: bu belirli ret NotImplementedError'a ("uygulanmamış") çevrilir,
+başka her hata gerçek kırmızıdır.
 """
 
 from __future__ import annotations
@@ -33,7 +34,17 @@ from tests.cam.ref3d import sample_triangles, sphere_cap_mesh
 R, RC = 5.0, 1.0  # torik takım: dış yarıçap, köşe radyüsü
 FLUTE = 20.0
 FEED, PLUNGE, RPM = 1000.0, 300.0, 8000.0
-TORIK_YOK = pytest.mark.xfail(strict=True, reason="SPEC 50 torik finish5 dalı henüz yok (iskelet)")
+ISKELET_RED = "yalnız küresel uç (BALL)"  # iskeletteki finish5'in torik ucu reddi (SPEC 42 mesajı)
+
+
+def _finish5(*args, **kw):
+    """finish5; iskeletin torik uç reddi "uygulanmamış" (NotImplementedError), başka her hata gerçek."""
+    try:
+        return finish5(*args, **kw)
+    except CamError as e:
+        if ISKELET_RED in str(e):
+            raise NotImplementedError("SPEC 50: torik finish5 dalı henüz yok") from e
+        raise
 
 
 def _torik(corner_r: float = RC) -> Tool:
@@ -102,11 +113,10 @@ def _girme(Q: np.ndarray, uc: np.ndarray, a: np.ndarray) -> float:
 # ---------------------------------------------------------------- K6
 
 
-@TORIK_YOK
 @pytest.mark.parametrize("phi", [0.0, 10.0, 30.0, 60.0])
 def test_k6_yatay_duzlemde_uc_yuksekligi(phi):
     z0 = 2.5
-    tp = finish5(_duzlem(0.0, z0), _torik(), _raster(), Orientation("sabit", a=_eksen(phi)))
+    tp = _finish5(_duzlem(0.0, z0), _torik(), _raster(), Orientation("sabit", a=_eksen(phi)))
     kes = _kesme(tp)
     assert kes
     for m in kes:
@@ -129,12 +139,11 @@ def test_k6_formul_degerleri():
         )
 
 
-@TORIK_YOK
 def test_k6_dik_eksen_06_drop_ile_birebir():
     """φ = 0: eksen +Z, 5 eksen yol 06 torik (düz uç köşe radyüslü) drop ile aynı uç yüksekliği."""
     mesh = _duzlem(12.0, 1.0)
     tool = _torik()
-    tp = finish5(mesh, tool, _raster(), Orientation("sabit", a=(0.0, 0.0, 1.0)))
+    tp = _finish5(mesh, tool, _raster(), Orientation("sabit", a=(0.0, 0.0, 1.0)))
     kes = _kesme(tp)
     assert kes
     for m in kes:
@@ -144,13 +153,12 @@ def test_k6_dik_eksen_06_drop_ile_birebir():
 # ---------------------------------------------------------------- K7
 
 
-@TORIK_YOK
 @pytest.mark.parametrize(("beta", "phi"), [(20.0, -15.0), (20.0, 35.0), (35.0, 10.0)])
 def test_k7_egik_duzlemde_temas_ve_cakmazlik(beta, phi):
     """Düzlem z = x tan β: en alt nokta düzlemde (temas) ve altında değil (çakma yok), 1e-9."""
     b = math.radians(beta)
     N = np.array([-math.sin(b), 0.0, math.cos(b)])
-    tp = finish5(_duzlem(beta), _torik(), _raster(), Orientation("sabit", a=_eksen(phi)))
+    tp = _finish5(_duzlem(beta), _torik(), _raster(), Orientation("sabit", a=_eksen(phi)))
     kes = _kesme(tp)
     assert kes
     for m in kes:
@@ -169,7 +177,6 @@ def _kure() -> tuple[TriMesh, np.ndarray]:
     return _KURE
 
 
-@TORIK_YOK
 @pytest.mark.parametrize(
     "orient",
     [Orientation("normal", lead=10.0), Orientation("sabit", a=_eksen(20.0))],
@@ -179,7 +186,7 @@ def test_k7_kurede_cakmazlik(orient):
     mesh, Q = _kure()
     # max_dangle = 15°: satır dönüşünde lead ekseni ≈ 10° döner (SPEC 42 kuralı, ds_min = 0.5'te bölünemez);
     # çakmazlık denetimi bu parametreden bağımsız
-    tp = finish5(mesh, _torik(), _raster(lim=12.0, stepover=4.0), orient, max_dangle=15.0)
+    tp = _finish5(mesh, _torik(), _raster(lim=12.0, stepover=4.0), orient, max_dangle=15.0)
     kes = _kesme(tp)
     assert kes
     for m in kes:
