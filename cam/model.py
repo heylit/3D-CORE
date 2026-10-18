@@ -1,16 +1,23 @@
 """
 3D-CORE CAM veri modeli.
 
-CAM katmanının (takım yolu, G-code, simülasyon) ortak dili. Saf Python + numpy; OCCT gerektirmez.
+CAM katmanının (takım yolu, G-code, simülasyon, kurulum) ortak dili. Saf Python + numpy; OCCT gerektirmez.
 
 Birimler:
-    uzunluk  : mm
-    ilerleme : mm/dk
-    devir    : dev/dk
+    uzunluk     : mm
+    ilerleme    : mm/dk (G94) veya mm/dev (G95, torna)
+    devir       : dev/dk
+    kesme hızı  : m/dk (Vc)
+    açı         : derece
 
 Hareketler G-code anlamıyla aynıdır (ISO 6983): G0 hızlı, G1 doğrusal, G2 saat yönü yay,
-G3 saat yönü tersi yay (+Z'den bakınca). Yaylar XY düzleminde (G17); Z değişirse helis.
-Yay merkezi mutlak XY koordinatıdır.
+G3 saat yönü tersi yay. Yaylar takım yolunun düzlemindedir:
+    G17 (XY): +Z'den bakınca; merkez (x, y). Z değişirse helis.
+    G18 (ZX): +Y'den bakınca, G3 = Z'den X'e dönüş; merkez (x, z) (I, K sırası). Y değişirse helis.
+Yay merkezi mutlak koordinattır.
+
+Torna: iş mili ekseni Z, X radyal ve modelde X yarıçaptır (çap programlama G-code işidir).
+Torna yolları y = 0 düzleminde, XZ'dedir.
 """
 
 from __future__ import annotations
@@ -60,11 +67,7 @@ class FeedMode(StrEnum):
 
 
 ARCS = {MoveType.ARC_CW, MoveType.ARC_CCW}
-
-
-def _ek2(*_args, **_kwargs):
-    """SPEC 00 Ek 2 iskeleti: henüz uygulanmadı."""
-    raise NotImplementedError("SPEC 00 Ek 2")
+WCS_CODES = ("G54", "G55", "G56", "G57", "G58", "G59")
 
 
 def _sonlu(nerede: str, **degerler) -> None:
@@ -74,8 +77,104 @@ def _sonlu(nerede: str, **degerler) -> None:
             raise CamError(f"{nerede}: {ad} sonlu olmalı ({ad}={v})")
 
 
+def _alanlar(nerede: str, d: dict, zorunlu: set[str], istege_bagli: set[str]) -> None:
+    """JSON sözlüğünde eksik zorunlu alan veya bilinmeyen alan → CamError."""
+    eksik = zorunlu - d.keys()
+    fazla = d.keys() - zorunlu - istege_bagli
+    if eksik or fazla:
+        raise CamError(f"{nerede}: eksik alan {sorted(eksik)}, bilinmeyen alan {sorted(fazla)}")
+
+
+# ---------------------------------------------------------------- kesme verisi, tutucu
+
+
+@dataclass
+class CuttingData:
+    """Bir malzeme için kesme verisi. Freze: fz [mm/diş]; torna: fn [mm/dev]. Tam olarak biri verilir."""
+
+    Vc: float  # m/dk, kesme hızı
+    fz: float | None = None  # mm/diş (freze)
+    fn: float | None = None  # mm/dev (torna)
+    ap: float | None = None  # mm, kesme derinliği
+    ae: float | None = None  # mm, yanal kesme genişliği
+
+    def __post_init__(self) -> None:
+        _sonlu("Kesme verisi", Vc=self.Vc)
+        if self.Vc <= 0:
+            raise CamError(f"Kesme verisi: Vc pozitif olmalı (Vc={self.Vc})")
+        if (self.fz is None) == (self.fn is None):
+            raise CamError(f"Kesme verisi: fz ve fn'den tam olarak biri verilmeli ({self.fz=}, {self.fn=})")
+        for ad in ("fz", "fn", "ap", "ae"):
+            v = getattr(self, ad)
+            if v is None:
+                continue
+            _sonlu("Kesme verisi", **{ad: v})
+            if v <= 0:
+                raise CamError(f"Kesme verisi: {ad} pozitif olmalı ({ad}={v})")
+
+    def to_dict(self) -> dict:
+        return {"Vc": self.Vc, "fz": self.fz, "fn": self.fn, "ap": self.ap, "ae": self.ae}
+
+    @classmethod
+    def from_dict(cls, d: dict) -> CuttingData:
+        _alanlar("Kesme verisi", d, {"Vc"}, {"fz", "fn", "ap", "ae"})
+        return cls(**d)
+
+
+def _cutting_from_dict(d: dict) -> dict[str, CuttingData]:
+    return {k: CuttingData.from_dict(v) for k, v in d.items()}
+
+
+@dataclass
+class ToolHolder:
+    """Takım tutucu: iş mili ölçü hattından ağza boy ve dönel kesit profili.
+
+    profile: (z, r) noktaları; z tutucu ağzından (z = 0) yukarı, azalmayan;
+    ardışık iki nokta arası kesik koni.
+    """
+
+    name: str
+    gauge_length: float  # mm, ölçü hattı → tutucu ağzı
+    profile: tuple[tuple[float, float], ...]
+
+    def __post_init__(self) -> None:
+        self.profile = tuple((float(z), float(r)) for z, r in self.profile)
+        nerede = f"Tutucu '{self.name}'"
+        _sonlu(nerede, gauge_length=self.gauge_length)
+        if self.gauge_length <= 0:
+            raise CamError(f"{nerede}: ölçü boyu pozitif olmalı ({self.gauge_length})")
+        if len(self.profile) < 2:
+            raise CamError(f"{nerede}: profil en az 2 nokta olmalı")
+        P = np.array(self.profile)
+        _sonlu(nerede, profile=P)
+        z, r = P[:, 0], P[:, 1]
+        if z[0] != 0:
+            raise CamError(f"{nerede}: profil z = 0'dan (ağız) başlamalı (z0={z[0]})")
+        if np.any(np.diff(z) < 0):
+            raise CamError(f"{nerede}: profilde z azalmamalı")
+        if z[-1] > self.gauge_length:
+            raise CamError(f"{nerede}: profil ölçü boyunu aşıyor (z={z[-1]} > {self.gauge_length})")
+        if np.any(r <= 0):
+            raise CamError(f"{nerede}: profil yarıçapları pozitif olmalı")
+
+    def to_dict(self) -> dict:
+        profile = [list(p) for p in self.profile]
+        return {"name": self.name, "gauge_length": self.gauge_length, "profile": profile}
+
+    @classmethod
+    def from_dict(cls, d: dict) -> ToolHolder:
+        _alanlar("Tutucu", d, {"name", "gauge_length", "profile"}, set())
+        profile = tuple(tuple(p) for p in d["profile"])
+        return cls(name=d["name"], gauge_length=d["gauge_length"], profile=profile)
+
+
+# ---------------------------------------------------------------- takımlar
+
+
 @dataclass
 class Tool:
+    """Freze / matkap takımı."""
+
     id: int
     name: str
     kind: ToolKind
@@ -89,34 +188,184 @@ class Tool:
     cutting: dict[str, CuttingData] = field(default_factory=dict)  # malzeme → kesme verisi (fz)
 
     def __post_init__(self) -> None:
-        yeni = (self.flutes, self.shank_d, self.stickout, self.holder, self.cutting)
-        if yeni != (None, None, None, None, {}):
-            raise NotImplementedError("Tool yeni alanları (SPEC 00 Ek 2)")
         self.kind = ToolKind(self.kind)
-        _sonlu(f"Takım '{self.name}'", D=self.D, flute_length=self.flute_length, corner_r=self.corner_r)
+        nerede = f"Takım '{self.name}'"
+        _sonlu(nerede, D=self.D, flute_length=self.flute_length, corner_r=self.corner_r)
         if self.D <= 0:
-            raise CamError(f"Takım '{self.name}': D pozitif olmalı (D={self.D})")
+            raise CamError(f"{nerede}: D pozitif olmalı (D={self.D})")
         if self.flute_length <= 0:
-            raise CamError(f"Takım '{self.name}': kesici boy pozitif olmalı ({self.flute_length})")
+            raise CamError(f"{nerede}: kesici boy pozitif olmalı ({self.flute_length})")
         if self.kind is ToolKind.BALL:
             self.corner_r = self.D / 2
         if not 0 <= self.corner_r <= self.D / 2:
-            raise CamError(f"Takım '{self.name}': köşe radyüsü 0..D/2 olmalı ({self.corner_r})")
+            raise CamError(f"{nerede}: köşe radyüsü 0..D/2 olmalı ({self.corner_r})")
+        if self.flutes is not None and (isinstance(self.flutes, bool) or not isinstance(self.flutes, int)):
+            raise CamError(f"{nerede}: diş sayısı tam sayı olmalı ({self.flutes!r})")
+        if self.flutes is not None and self.flutes < 1:
+            raise CamError(f"{nerede}: diş sayısı en az 1 olmalı ({self.flutes})")
+        if self.shank_d is not None:
+            _sonlu(nerede, shank_d=self.shank_d)
+            if self.shank_d <= 0:
+                raise CamError(f"{nerede}: sap çapı pozitif olmalı ({self.shank_d})")
+        if self.stickout is not None:
+            _sonlu(nerede, stickout=self.stickout)
+            if self.stickout < self.flute_length:
+                raise CamError(f"{nerede}: taşma boyu kesici boydan kısa olamaz ({self.stickout})")
+        for malzeme, c in self.cutting.items():
+            if c.fz is None:
+                raise CamError(f"{nerede}: '{malzeme}' kesme verisinde fz (mm/diş) olmalı")
 
     @property
     def shank(self) -> float:
-        raise NotImplementedError("SPEC 00 Ek 2")
+        """Sap çapı [mm]; verilmemişse D."""
+        return self.D if self.shank_d is None else self.shank_d
 
     @property
     def gauge_length(self) -> float | None:
-        raise NotImplementedError("SPEC 00 Ek 2")
+        """Ölçü hattından takım ucuna boy [mm] = tutucu ölçü boyu + taşma; biri yoksa None."""
+        if self.holder is None or self.stickout is None:
+            return None
+        return self.holder.gauge_length + self.stickout
 
     def to_dict(self) -> dict:
-        raise NotImplementedError("SPEC 00 Ek 2")
+        return {
+            "id": self.id,
+            "name": self.name,
+            "kind": self.kind.value,
+            "D": self.D,
+            "flute_length": self.flute_length,
+            "corner_r": self.corner_r,
+            "flutes": self.flutes,
+            "shank_d": self.shank_d,
+            "stickout": self.stickout,
+            "holder": None if self.holder is None else self.holder.to_dict(),
+            "cutting": {k: v.to_dict() for k, v in self.cutting.items()},
+        }
 
     @classmethod
     def from_dict(cls, d: dict) -> Tool:
-        raise NotImplementedError("SPEC 00 Ek 2")
+        _alanlar(
+            "Takım",
+            d,
+            {"id", "name", "kind", "D", "flute_length"},
+            {"corner_r", "flutes", "shank_d", "stickout", "holder", "cutting"},
+        )
+        d = dict(d)
+        if d.get("holder") is not None:
+            d["holder"] = ToolHolder.from_dict(d["holder"])
+        d["cutting"] = _cutting_from_dict(d.get("cutting") or {})
+        return cls(**d)
+
+
+@dataclass
+class LatheTool:
+    """Torna takımı (uç geometrisiyle).
+
+    tip   : Fanuc hayali uç numarası 0..9 (burun yarıçapı telafisinin yönü; 0 ve 9 burun merkezi)
+    kappa_r: yaklaşma açısı, ana kesici kenar ile ilerleme yönü arası [derece]
+    eps_r : uç açısı [derece] (ISO: C 80, D 55, V 35, T 60; diş 60)
+    """
+
+    id: int
+    name: str
+    kind: LatheToolKind
+    nose_r: float  # mm, burun yarıçapı
+    tip: int
+    kappa_r: float
+    eps_r: float
+    width: float = 0.0  # mm, kanal ucu genişliği
+    cutting: dict[str, CuttingData] = field(default_factory=dict)  # malzeme → kesme verisi (fn)
+
+    def __post_init__(self) -> None:
+        self.kind = LatheToolKind(self.kind)
+        nerede = f"Torna takımı '{self.name}'"
+        _sonlu(nerede, nose_r=self.nose_r, kappa_r=self.kappa_r, eps_r=self.eps_r, width=self.width)
+        if self.nose_r < 0:
+            raise CamError(f"{nerede}: burun yarıçapı negatif olamaz ({self.nose_r})")
+        if self.kind in (LatheToolKind.TURN, LatheToolKind.BORE) and self.nose_r <= 0:
+            raise CamError(f"{nerede}: tornalama ucunda burun yarıçapı pozitif olmalı ({self.nose_r})")
+        if isinstance(self.tip, bool) or not isinstance(self.tip, int) or not 0 <= self.tip <= 9:
+            raise CamError(f"{nerede}: uç numarası 0..9 tam sayı olmalı ({self.tip!r})")
+        if not (0 < self.kappa_r < 180 and 0 < self.eps_r < 180):
+            raise CamError(f"{nerede}: açılar 0..180 arasında olmalı (κr={self.kappa_r}, εr={self.eps_r})")
+        if self.kappa_r + self.eps_r > 180:
+            raise CamError(f"{nerede}: κr + εr ≤ 180 olmalı ({self.kappa_r} + {self.eps_r})")
+        if self.kind is LatheToolKind.GROOVE:
+            if self.width <= 0:
+                raise CamError(f"{nerede}: kanal ucunda genişlik pozitif olmalı ({self.width})")
+            if self.nose_r > self.width / 2:
+                raise CamError(f"{nerede}: burun yarıçapı genişliğin yarısını aşamaz ({self.nose_r})")
+        elif self.width != 0:
+            raise CamError(f"{nerede}: genişlik sadece kanal ucunda verilir ({self.width})")
+        for malzeme, c in self.cutting.items():
+            if c.fn is None:
+                raise CamError(f"{nerede}: '{malzeme}' kesme verisinde fn (mm/dev) olmalı")
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "kind": self.kind.value,
+            "nose_r": self.nose_r,
+            "tip": self.tip,
+            "kappa_r": self.kappa_r,
+            "eps_r": self.eps_r,
+            "width": self.width,
+            "cutting": {k: v.to_dict() for k, v in self.cutting.items()},
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> LatheTool:
+        zorunlu = {"id", "name", "kind", "nose_r", "tip", "kappa_r", "eps_r"}
+        _alanlar("Torna takımı", d, zorunlu, {"width", "cutting"})
+        d = dict(d)
+        d["cutting"] = _cutting_from_dict(d.get("cutting") or {})
+        return cls(**d)
+
+
+def tool_from_dict(d: dict) -> Tool | LatheTool:
+    """`kind` değerine göre freze (Tool) veya torna (LatheTool) takımı."""
+    kind = d.get("kind")
+    if kind in {k.value for k in ToolKind}:
+        return Tool.from_dict(d)
+    if kind in {k.value for k in LatheToolKind}:
+        return LatheTool.from_dict(d)
+    raise CamError(f"Bilinmeyen takım türü: {kind!r}")
+
+
+@dataclass
+class ToolLibrary:
+    tools: list[Tool | LatheTool] = field(default_factory=list)
+
+    def validate(self) -> None:
+        ids = [t.id for t in self.tools]
+        dup = {i for i in ids if ids.count(i) > 1}
+        if dup:
+            raise CamError(f"Takım kütüphanesi: yinelenen id {sorted(dup)}")
+
+    def get(self, id: int) -> Tool | LatheTool:
+        for t in self.tools:
+            if t.id == id:
+                return t
+        raise CamError(f"Takım kütüphanesi: T{id} yok")
+
+    def add(self, tool: Tool | LatheTool) -> None:
+        if any(t.id == tool.id for t in self.tools):
+            raise CamError(f"Takım kütüphanesi: T{tool.id} zaten var")
+        self.tools.append(tool)
+
+    def to_dict(self) -> dict:
+        return {"tools": [t.to_dict() for t in self.tools]}
+
+    @classmethod
+    def from_dict(cls, d: dict) -> ToolLibrary:
+        _alanlar("Takım kütüphanesi", d, {"tools"}, set())
+        lib = cls([tool_from_dict(t) for t in d["tools"]])
+        lib.validate()
+        return lib
+
+
+# ---------------------------------------------------------------- ham malzeme, kurulum
 
 
 @dataclass
@@ -143,115 +392,135 @@ class Stock:
     def volume(self) -> float:
         return float(np.prod(self.size))
 
-    to_dict = _ek2
-    from_dict = classmethod(_ek2)
+    def to_dict(self) -> dict:
+        sinirlar = ("xmin", "ymin", "zmin", "xmax", "ymax", "zmax")
+        return {"type": "kutu", **{k: getattr(self, k) for k in sinirlar}}
 
-
-# ---------------------------------------------------------------- SPEC 00 Ek 2 iskeleti (uygulanacak)
-
-
-@dataclass
-class CuttingData:
-    Vc: float  # m/dk
-    fz: float | None = None  # mm/diş (freze)
-    fn: float | None = None  # mm/dev (torna)
-    ap: float | None = None  # mm
-    ae: float | None = None  # mm
-
-    __post_init__ = _ek2
-    to_dict = _ek2
-    from_dict = classmethod(_ek2)
-
-
-@dataclass
-class ToolHolder:
-    name: str
-    gauge_length: float  # mm, ölçü hattı → tutucu ağzı
-    profile: tuple[tuple[float, float], ...]  # (z, r)
-
-    __post_init__ = _ek2
-    to_dict = _ek2
-    from_dict = classmethod(_ek2)
-
-
-@dataclass
-class LatheTool:
-    id: int
-    name: str
-    kind: LatheToolKind
-    nose_r: float
-    tip: int
-    kappa_r: float
-    eps_r: float
-    width: float = 0.0
-    cutting: dict[str, CuttingData] = field(default_factory=dict)
-
-    __post_init__ = _ek2
-    to_dict = _ek2
-    from_dict = classmethod(_ek2)
-
-
-def tool_from_dict(d: dict) -> Tool | LatheTool:
-    raise NotImplementedError("SPEC 00 Ek 2")
-
-
-@dataclass
-class ToolLibrary:
-    tools: list[Tool | LatheTool] = field(default_factory=list)
-
-    __post_init__ = _ek2
-    validate = _ek2
-    get = _ek2
-    add = _ek2
-    to_dict = _ek2
-    from_dict = classmethod(_ek2)
+    @classmethod
+    def from_dict(cls, d: dict) -> Stock:
+        d = {k: v for k, v in d.items() if k != "type"}
+        _alanlar("Ham malzeme", d, {"xmin", "ymin", "zmin", "xmax", "ymax", "zmax"}, set())
+        return cls(**d)
 
 
 @dataclass
 class CylinderStock:
-    D: float
+    """Z eksenli silindir ham malzeme (torna çubuğu, boru); ekseni x = y = 0 [mm]."""
+
+    D: float  # dış çap
     zmin: float
     zmax: float
-    d: float = 0.0
+    d: float = 0.0  # iç çap (boru), 0 → dolu
 
-    __post_init__ = _ek2
-    length = property(_ek2)
-    volume = property(_ek2)
-    bbox = _ek2
-    to_dict = _ek2
-    from_dict = classmethod(_ek2)
+    def __post_init__(self) -> None:
+        _sonlu("Silindir ham malzeme", D=self.D, zmin=self.zmin, zmax=self.zmax, d=self.d)
+        if self.D <= 0:
+            raise CamError(f"Silindir ham malzeme: D pozitif olmalı (D={self.D})")
+        if self.zmax <= self.zmin:
+            raise CamError(f"Silindir ham malzeme: zmax > zmin olmalı ({self.zmin}, {self.zmax})")
+        if not 0 <= self.d < self.D:
+            raise CamError(f"Silindir ham malzeme: 0 ≤ d < D olmalı (d={self.d}, D={self.D})")
+
+    @property
+    def length(self) -> float:
+        return self.zmax - self.zmin
+
+    @property
+    def volume(self) -> float:
+        """V = π/4 · (D² − d²) · L"""
+        return math.pi / 4 * (self.D**2 - self.d**2) * self.length
+
+    def bbox(self) -> tuple[np.ndarray, np.ndarray]:
+        R = self.D / 2
+        return np.array([-R, -R, self.zmin]), np.array([R, R, self.zmax])
+
+    def to_dict(self) -> dict:
+        return {"type": "silindir", "D": self.D, "zmin": self.zmin, "zmax": self.zmax, "d": self.d}
+
+    @classmethod
+    def from_dict(cls, d: dict) -> CylinderStock:
+        d = {k: v for k, v in d.items() if k != "type"}
+        _alanlar("Silindir ham malzeme", d, {"D", "zmin", "zmax"}, {"d"})
+        return cls(**d)
+
+
+def _stock_from_dict(d: dict) -> Stock | CylinderStock:
+    if d.get("type") == "silindir":
+        return CylinderStock.from_dict(d)
+    if d.get("type") == "kutu":
+        return Stock.from_dict(d)
+    raise CamError(f"Bilinmeyen ham malzeme türü: {d.get('type')!r}")
 
 
 @dataclass
 class Wcs:
+    """İş koordinat sistemi: iş sıfırının makine koordinatı (G54..G59)."""
+
     code: str = "G54"
     origin: tuple[float, float, float] = (0.0, 0.0, 0.0)
 
-    __post_init__ = _ek2
-    to_machine = _ek2
-    to_work = _ek2
-    to_dict = _ek2
-    from_dict = classmethod(_ek2)
+    def __post_init__(self) -> None:
+        if self.code not in WCS_CODES:
+            raise CamError(f"İş sıfırı kodu G54..G59 olmalı ({self.code!r})")
+        self.origin = tuple(float(v) for v in self.origin)
+        if len(self.origin) != 3:
+            raise CamError(f"İş sıfırı: origin 3 bileşenli olmalı ({self.origin})")
+        _sonlu(f"İş sıfırı {self.code}", origin=self.origin)
+
+    def to_machine(self, p) -> np.ndarray:
+        """İş koordinatı → makine koordinatı: p + origin."""
+        return np.asarray(p, dtype=float) + np.array(self.origin)
+
+    def to_work(self, p) -> np.ndarray:
+        """Makine koordinatı → iş koordinatı: p − origin."""
+        return np.asarray(p, dtype=float) - np.array(self.origin)
+
+    def to_dict(self) -> dict:
+        return {"code": self.code, "origin": list(self.origin)}
+
+    @classmethod
+    def from_dict(cls, d: dict) -> Wcs:
+        _alanlar("İş sıfırı", d, set(), {"code", "origin"})
+        return cls(code=d.get("code", "G54"), origin=tuple(d.get("origin", (0.0, 0.0, 0.0))))
 
 
 @dataclass
 class Setup:
+    """Bağlama: iş sıfırı, ham malzeme ve bağlama elemanları (iş koordinatında)."""
+
     name: str
     wcs: Wcs
     stock: Stock | CylinderStock
     fixtures: list[Stock | CylinderStock] = field(default_factory=list)
 
-    __post_init__ = _ek2
-    to_dict = _ek2
-    from_dict = classmethod(_ek2)
+    def to_dict(self) -> dict:
+        return {
+            "name": self.name,
+            "wcs": self.wcs.to_dict(),
+            "stock": self.stock.to_dict(),
+            "fixtures": [f.to_dict() for f in self.fixtures],
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> Setup:
+        _alanlar("Kurulum", d, {"name", "wcs", "stock"}, {"fixtures"})
+        return cls(
+            name=d["name"],
+            wcs=Wcs.from_dict(d["wcs"]),
+            stock=_stock_from_dict(d["stock"]),
+            fixtures=[_stock_from_dict(f) for f in d.get("fixtures", [])],
+        )
+
+
+# ---------------------------------------------------------------- hareketler, takım yolu
 
 
 @dataclass
 class Move:
     type: MoveType
     end: tuple[float, float, float]
-    feed: float | None = None  # mm/dk; G1/G2/G3 için zorunlu
-    center: tuple[float, float] | None = None  # yay merkezi, mutlak XY
+    feed: float | None = None  # G1/G2/G3 için zorunlu; birimi Toolpath.feed_mode
+    center: tuple[float, float] | None = None  # yay merkezi, mutlak; XY → (x, y), ZX → (x, z)
 
     def __post_init__(self) -> None:
         self.type = MoveType(self.type)
@@ -264,10 +533,21 @@ class Move:
             _sonlu(f"Hareket ({self.type.value})", feed=self.feed)
 
 
-def _arc_sweep(p0: np.ndarray, p1: np.ndarray, c: np.ndarray, cw: bool) -> tuple[float, float]:
-    """XY'de yay yarıçapı r ve süpürme açısı |Δθ| [rad]. Başlangıç = bitiş ise tam daire (2π)."""
-    v0 = p0[:2] - c
-    v1 = p1[:2] - c
+# Düzlem → (u, v, w) eksen indisleri: G3 u'dan v'ye dönüştür, w düzleme dik (helis ekseni).
+_UVW = {Plane.XY: (0, 1, 2), Plane.ZX: (2, 0, 1)}
+
+
+def _center_uv(plane: Plane, center: tuple[float, float]) -> np.ndarray:
+    """Merkez tuple'ı (XY: (x, y), ZX: (x, z)) → düzlemin (u, v) koordinatı."""
+    if plane is Plane.XY:
+        return np.array(center, dtype=float)
+    return np.array([center[1], center[0]], dtype=float)  # ZX: u = z, v = x
+
+
+def _arc_sweep(u0: np.ndarray, u1: np.ndarray, c: np.ndarray, cw: bool) -> tuple[float, float]:
+    """Düzlemde (u, v) yay yarıçapı r ve süpürme açısı |Δθ| [rad]. Başlangıç = bitiş ise tam daire (2π)."""
+    v0 = u0 - c
+    v1 = u1 - c
     r = float(np.hypot(*v0))
     dtheta = math.atan2(v1[1], v1[0]) - math.atan2(v0[1], v0[0])
     if cw:
@@ -284,25 +564,37 @@ class Toolpath:
     tool: Tool | LatheTool
     start: tuple[float, float, float]
     moves: list[Move] = field(default_factory=list)
-    rpm: float = 0.0
+    rpm: float = 0.0  # dev/dk; css verilirse devir üst sınırı (G50)
     plane: Plane = Plane.XY
     feed_mode: FeedMode = FeedMode.PER_MIN
     css: float | None = None  # m/dk, G96 sabit kesme hızı
 
     def __post_init__(self) -> None:
-        if (self.plane, self.feed_mode, self.css) != (Plane.XY, FeedMode.PER_MIN, None) or isinstance(
-            self.tool, LatheTool
-        ):
-            raise NotImplementedError("Toolpath plane / feed_mode / css / torna (SPEC 00 Ek 2)")
         self.start = tuple(float(v) for v in self.start)
+        self.plane = Plane(self.plane)
+        self.feed_mode = FeedMode(self.feed_mode)
         _sonlu(f"Takım yolu '{self.name}'", start=self.start)
+
+    def _uv(self, p: np.ndarray) -> np.ndarray:
+        iu, iv, _ = _UVW[self.plane]
+        return np.array([p[iu], p[iv]])
 
     def validate(self) -> None:
         """Tutarsızlıkta CamError. Hareketler oluşturulduktan sonra yerinde değiştirilmiş olabilir:
         sonlu sayı kontrolleri burada da tekrarlanır."""
-        _sonlu(f"Takım yolu '{self.name}'", start=self.start, rpm=self.rpm)
+        nerede = f"Takım yolu '{self.name}'"
+        _sonlu(nerede, start=self.start, rpm=self.rpm)
         if self.rpm <= 0:
-            raise CamError(f"Takım yolu '{self.name}': devir pozitif olmalı (rpm={self.rpm})")
+            raise CamError(f"{nerede}: devir pozitif olmalı (rpm={self.rpm})")
+        if self.css is not None:
+            _sonlu(nerede, css=self.css)
+            if self.css <= 0:
+                raise CamError(f"{nerede}: sabit kesme hızı pozitif olmalı (css={self.css})")
+        torna = isinstance(self.tool, LatheTool)
+        if torna and self.plane is not Plane.ZX:
+            raise CamError(f"{nerede}: torna yolu ZX (G18) düzleminde olmalı")
+        if torna and self.start[1] != 0:
+            raise CamError(f"{nerede}: torna yolunda başlangıç y = 0 olmalı (y={self.start[1]})")
         p0 = np.array(self.start)
         for i, m in enumerate(self.moves):
             p1 = np.array(m.end, dtype=float)
@@ -311,14 +603,16 @@ class Toolpath:
                 _sonlu(f"Hareket {i} ({m.type.value})", center=m.center)
             if m.feed is not None:
                 _sonlu(f"Hareket {i} ({m.type.value})", feed=m.feed)
+            if torna and p1[1] != 0:
+                raise CamError(f"Hareket {i}: torna yolunda y = 0 olmalı (y={p1[1]})")
             if m.type is not MoveType.RAPID and (m.feed is None or m.feed <= 0):
                 raise CamError(f"Hareket {i} ({m.type.value}): ilerleme pozitif olmalı (feed={m.feed})")
             if m.type in ARCS:
                 if m.center is None:
                     raise CamError(f"Hareket {i} ({m.type.value}): yay merkezi yok")
-                c = np.array(m.center)
-                r0 = float(np.hypot(*(p0[:2] - c)))
-                r1 = float(np.hypot(*(p1[:2] - c)))
+                c = _center_uv(self.plane, m.center)
+                r0 = float(np.hypot(*(self._uv(p0) - c)))
+                r1 = float(np.hypot(*(self._uv(p1) - c)))
                 if r0 < R_MIN:
                     raise CamError(f"Hareket {i}: yay yarıçapı sıfır")
                 if abs(r0 - r1) > ARC_TOL:
@@ -337,45 +631,55 @@ class Toolpath:
             p0 = p1
 
     def length(self, types: set[MoveType] | None = None) -> float:
-        """Toplam yol boyu [mm]. Yay: s = sqrt((r·|Δθ|)² + Δz²)."""
+        """Toplam yol boyu [mm]. Yay: s = sqrt((r·|Δθ|)² + Δw²), w düzleme dik eksen."""
+        w = _UVW[self.plane][2]
         total = 0.0
         for m, p0, p1 in self._segments():
             if types is not None and m.type not in types:
                 continue
             if m.type in ARCS:
-                r, dtheta = _arc_sweep(p0, p1, np.array(m.center), m.type is MoveType.ARC_CW)
-                total += math.hypot(r * dtheta, p1[2] - p0[2])
+                c = _center_uv(self.plane, m.center)
+                r, dtheta = _arc_sweep(self._uv(p0), self._uv(p1), c, m.type is MoveType.ARC_CW)
+                total += math.hypot(r * dtheta, p1[w] - p0[w])
             else:
                 total += float(np.linalg.norm(p1 - p0))
         return total
 
     def bbox(self) -> tuple[np.ndarray, np.ndarray]:
-        """Sınır kutusu. Yayların geçtiği eksen uç noktaları (0°, 90°, 180°, 270°) da dahil."""
+        """Sınır kutusu. Yayların geçtiği düzlem eksen uç noktaları (0°, 90°, 180°, 270°) da dahil."""
+        iu, iv, iw = _UVW[self.plane]
         pts = [self.points()]
         for m, p0, p1 in self._segments():
             if m.type not in ARCS:
                 continue
-            c = np.array(m.center)
+            c = _center_uv(self.plane, m.center)
             cw = m.type is MoveType.ARC_CW
-            r, dtheta = _arc_sweep(p0, p1, c, cw)
-            theta0 = math.atan2(p0[1] - c[1], p0[0] - c[0])
+            u0 = self._uv(p0)
+            r, dtheta = _arc_sweep(u0, self._uv(p1), c, cw)
+            theta0 = math.atan2(u0[1] - c[1], u0[0] - c[0])
             for k in range(4):
                 phi = k * math.pi / 2
                 # başlangıçtan yay yönünde phi'ye kadarki açı
                 d = (theta0 - phi) if cw else (phi - theta0)
                 d %= 2 * math.pi
                 if d <= dtheta:
-                    z = p0[2] + (p1[2] - p0[2]) * d / dtheta
-                    pts.append(np.array([[c[0] + r * math.cos(phi), c[1] + r * math.sin(phi), z]]))
+                    q = np.zeros(3)
+                    q[iu] = c[0] + r * math.cos(phi)
+                    q[iv] = c[1] + r * math.sin(phi)
+                    q[iw] = p0[iw] + (p1[iw] - p0[iw]) * d / dtheta
+                    pts.append(q[None, :])
         allp = np.vstack(pts)
         return allp.min(axis=0), allp.max(axis=0)
 
     def to_dict(self) -> dict:
         return {
             "name": self.name,
-            "tool": {**self.tool.__dict__, "kind": self.tool.kind.value},
+            "tool": self.tool.to_dict(),
             "start": list(self.start),
             "rpm": self.rpm,
+            "plane": self.plane.value,
+            "feed_mode": self.feed_mode.value,
+            "css": self.css,
             "moves": [
                 {
                     "type": m.type.value,
@@ -391,9 +695,12 @@ class Toolpath:
     def from_dict(cls, d: dict) -> Toolpath:
         return cls(
             name=d["name"],
-            tool=Tool(**d["tool"]),
+            tool=tool_from_dict(d["tool"]),
             start=tuple(d["start"]),
             rpm=d["rpm"],
+            plane=d.get("plane", Plane.XY),
+            feed_mode=d.get("feed_mode", FeedMode.PER_MIN),
+            css=d.get("css"),
             moves=[
                 Move(
                     type=m["type"],
