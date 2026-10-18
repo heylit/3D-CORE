@@ -3,7 +3,7 @@
 Dal: `claude/spec-35-standart-parca-xm561f` · Oturum: bulut
 
 ## Sıradaki adım
-SPEC metni kullanıcı onayında; onaydan sonra `NotImplementedError` iskeleti, ayrı test thread'inin testleri, sonra kod.
+İskelet push edildi; ayrı test thread'inin test commit'i cherry-pick edilecek, sonra kod ayrı commit'te.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
@@ -16,11 +16,9 @@ SPEC metni kullanıcı onayında; onaydan sonra `NotImplementedError` iskeleti, 
   doğrulanan geometri), ISO 273 geçiş delikleri, SPEC 23 delik kayıtlarından eş eksen dizisi, vida boyu seçimi
   (dişliye imbus vida, boydan boyaya civata + 2 pul + somun), SPEC 08 eş eksen + düzlem kısıtlarıyla yerleşim.
 - Arayüz (`*/model.py`, `geometry/part.py`) eki gerekmiyor.
+- SPEC metni önerilen varsayılanlarla onaylandı (kullanıcı 11:14 kuralı: 2 dakika cevapsız → öneri kabul).
+- `NotImplementedError` iskeleti: `geometry/standart/{__init__,tablo,parcalar}.py`, `assy/oneri.py`. Tablolar SPEC'teki
+  değerlerle dolu; `tablo.P_KABA` = SPEC 23 kaba hatve tablosunun OCCT'siz kopyası (oneri.py 2P taşma için).
 
 ## Açık sorular
-1. `assy/oneri.py`, OCCT'siz `geometry/standart/tablo.py`'yi import ediyor (önerilen: tablo geometry'nin ikinci
-   OCCT'siz arayüz dosyası sayılır).
-2. Basit geometri (diş, pah, köşe yuvarlatması yok; rulman dolu halka) kabul mü?
-3. Boydan boya bağlantıda 2 pul (baş ve somun altı) + uçta 2 hatve taşma kuralı.
-4. Diş kavrama katsayısı κ varsayılanı 1.0·d (çelik); alüminyum için kullanıcı 2.0 verir.
-5. Otomatik öneri yalnız vida/civata; pim ve rulman yalnız kütüphane; havşa başlı vida yok.
+_(yok; 1–6 önerilen varsayılanlarla kabul edildi)_
