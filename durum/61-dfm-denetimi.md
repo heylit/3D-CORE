@@ -3,8 +3,9 @@
 Dal: `claude/project-thread-aeemx5` · Oturum: bulut
 
 ## Sıradaki adım
-Kod ve testler dalda (`atolye/dfm.py`). PR #131 CI yeşil olunca birleşir. K11 (`GET /api/ekran/model/dfm`)
-Tezgah thread'inde; öneri `/mnt/project-files/arayuz/61-dfm-tezgah-ucu.md`.
+`atolye/dfm.py` main'de (PR #131). K11: `GET /api/ekran/model/dfm` ayrı modülde (`tezgah/ekranlar/dfm.py`, sekme
+olmayan ekran kaydı, `kur(app)` ile bağlanır; model ekranının dosyasına dokunulmaz). İskelet push edildi; testi
+SPEC 61 test oturumu yazar (`tests/tezgah/test_dfm_ucu.py`), sonra kod.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
