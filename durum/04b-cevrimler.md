@@ -3,7 +3,7 @@
 Dal: `claude/spec-04b-cevrimler-9qxeq6` · Oturum: bulut
 
 ## Sıradaki adım
-Kod tamam. SPEC 30 blok ekleri (#98, f1a3ed7) dala birleştirildi; yalnız A0 (`cam/model.py`) bekleniyor, birleşince main'i alıp PR'ı birleştir.
+Kod tamam; A0 (#107) ve SPEC 30 ekleri (#98) dalda. #107 main'e girip GitHub Actions düzelince main'i al, CI yeşilse PR #81'i birleştir.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
@@ -11,6 +11,7 @@ Kod tamam. SPEC 30 blok ekleri (#98, f1a3ed7) dala birleştirildi; yalnız A0 (`
 | 2026-10-18 | — | — | Yalnız SPEC metni; kod ve test yok |
 | 2026-10-18 | 33 | 140 uygulanmamış | Test commit db622a4 alındı; A0 yerelde taklit edilince K1–K7 123/123 yeşil |
 | 2026-10-18 | 173 (A0 WIP yamasıyla) | 0 | #98 birleştirildi; K1–K13 hepsi yeşil, A0 yaması `arayuz/a0-cam-ek3-wip.patch` ile scratch kopyada |
+| 2026-10-18 | 5805 (tam paket, `--uygulanmamis-hata`) | 0 | A0 dalı #107 (5eb08c1) birleştirildi; bağımsızlık kapısı tamam |
 
 ## Son oturum
 **2026-10-18**
