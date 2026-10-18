@@ -5,7 +5,7 @@
 > (kurallar: `BASLANGIC.md` bölüm 7). Sıra ve paralellik: `docs/yol-haritasi.md` → "Paralel çalışma: dalgalar".
 
 ## Açık dalga
-**Dalga 2 tamamlandı** (05, 06, 07, 11, 14, 15, 16, 20, 23). **Dalga 3 tamamlandı** (09, 12, 13, 17, 21, 24, 27); 03b de tamamlandı. Dalga 5'in SPEC metinleri onaylandı. Dalga 1 tamamlandı (01, 02, 03, 04, 08).
+**Dalga 2 tamamlandı** (05, 06, 07, 11, 14, 15, 16, 20, 23). **Dalga 3 tamamlandı** (09, 12, 13, 17, 21, 24, 27); 03b ve 28 de tamamlandı. Dalga 5'in SPEC metinleri onaylandı. Dalga 1 tamamlandı (01, 02, 03, 04, 08).
 
 ## SPEC tablosu
 | SPEC | Dalga | Durum | Kimde (dal / oturum) | Ayrıntı |
@@ -37,7 +37,8 @@
 | 22-torna-sim | 4 | SPEC onaylı (2026-10-18 10:38) | — | — |
 | 18-ozellik-agaci, 19-adaptif-kaba | 4 → 5 | Dalga 5'e alındı | — | — |
 | 03b-cep-kalan-malzeme | — | tamamlandı (PR #49, `4e59efe`) | — | `durum/03b-cep-kalan-malzeme.md` |
-| 06b-cam-3d-ek, 25-tezgah-torna-montaj, 26-tezgah-modelleme, 28-torna-profili, 30-tezgah-profili, 31-sinumerik-heidenhain, 41-kinematik-3arti2, 42-bes-eksen-yol, 43-tri-dexel, 44-tezgah-carpisma | — | SPEC onaylı (2026-10-18 10:38); dalgası henüz atanmadı. | — | — |
+| 28-torna-profili | 4 | tamamlandı (PR #56, `fba8875`) | — | `durum/28-torna-profili.md` |
+| 06b-cam-3d-ek, 25-tezgah-torna-montaj, 26-tezgah-modelleme, 30-tezgah-profili, 31-sinumerik-heidenhain, 41-kinematik-3arti2, 42-bes-eksen-yol, 43-tri-dexel, 44-tezgah-carpisma | — | SPEC onaylı (2026-10-18 10:38); dalgası henüz atanmadı. | — | — |
 | 29-islem-plani | — | SPEC metni onaylı ve birleşti (PR #58, `94989a3`); kod bekliyor | — | `durum/29-islem-plani.md` |
 | Dalga 5: 4 arayüz PR'ı + 03c, 04b, 10, 18, 19, 32, 33, 34, 35, 36, 37, 38, 39, 40, 45, 46, 47 | 5 | kapsam onaylı (2026-10-18 10:51); SPEC metinleri onaylı (35 ve 46 ~11:16, diğerleri 11:13) | — | — |
 
@@ -90,6 +91,7 @@
 | 00-arayuzler | Koni takım, tezgâh profili ve çok eksen arayüz ekleri (PR #60, `65381cf`) | 2026-10-18 | 272 |
 | 47-tezgah-ekranlari | SPEC metni onaylandı (PR #74, `6b043ca`) | 2026-10-18 | — |
 | — | `pyproject.toml`: `atolye*` ve `analiz*` paketleri (PR #80, `b62c3a7`) | 2026-10-18 | — |
+| 28-torna-profili | Katıdan torna profili (PR #56, `fba8875`) | 2026-10-18 | 67 |
 | 05-cam-sim | Talaş simülasyonu: z-map, dexel, süre, çarpışma, oyma (PR #54) | 2026-10-18 | 175 |
 | 17-kroki | `sketch/model.py` eskiz veri modeli arayüzü (PR #55, `fb99eb6`) | 2026-10-18 | 138 |
 | — | CI: gmsh (mesh ekstrası) ve sistem kütüphaneleri kuruluyor (PR #57, `49a739f`) | 2026-10-18 | — |
