@@ -3,7 +3,7 @@
 Dal: `claude/project-thread-udniip` · Oturum: bulut
 
 ## Sıradaki adım
-SPEC metninin kullanıcı onayı (proje sohbeti). Kod, SPEC 24 iskeleti ile 21, 22, 09 `main`'e girince başlar.
+İskelet (`NotImplementedError`), SPEC 24'ün `tezgah/` iskeleti `main`'e girince. Kod, SPEC 24 iskeleti ile 21, 22, 09 `main`'e girince başlar.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
@@ -15,6 +15,7 @@ SPEC metninin kullanıcı onayı (proje sohbeti). Kod, SPEC 24 iskeleti ile 21, 
 - `specs/25-tezgah-torna-montaj.md` taslağı yazıldı: torna ekranı (çap DRO, devir şeridi, 270° kesit, torna sim olayları),
   montaj ekranı (ağaç, BOM, montaj sırası, parça serbestliği ve vida eksenleri, yaklaşma yönü, girişim),
   tek iplik (parametre bağı, ikiye bölme önerisi). Prototipin "Torna" ve "Montaj" sekmelerine dayanır.
+- SPEC kullanıcı onayı: 2026-10-18 10:24 UTC, proje sohbetindeki kart ("Önerilerle onayla").
 
 ## Açık sorular
 - 21, 22, 09'un fonksiyon adları onaylarından sonra bağlanacak. 22'den gereken: hareket başına kesit durumu,

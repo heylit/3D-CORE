@@ -1,6 +1,7 @@
 # SPEC 25 — Tezgah: torna ekranı ve montaj ekranı
 
-> **Durum: TASLAK** (kullanıcı onayı bekliyor). Kod, SPEC 24 iskeleti `main`'e girdikten ve aşağıdaki
+> **Durum: ONAYLANDI** (kullanıcı, 2026-10-18 10:24 UTC kart "Önerilerle onayla", 10:38 UTC yazılı onay: montajda CAD
+> şekli, bağ yalnız torna işine, otomatik öneri dahil, DRO varsayılanı çap). Kod, SPEC 24 iskeleti `main`'e girdikten ve aşağıdaki
 > "Bağımlılıklar" tablosundaki SPEC'ler (21, 22, 09) onaylanıp birleştikten sonra başlar.
 > Prototip: https://claude.ai/artifact/2YA8RRJYuFSpRJyEFMEX8u ("Torna" ve "Montaj" sekmeleri; konsept, kabul ölçütü değil).
 > SPEC 24'ün "Öneri: SPEC 25" bölümünün ayrıntılı halidir.
