@@ -1,6 +1,7 @@
 # SPEC 19 — Adaptif (sabit temas açılı) kaba işleme ve trokoidal kanal
 
-> Durum: **taslak, kullanıcı onayı bekliyor.** Onaydan önce kod yazılmaz.
+> Onaylandı: kullanıcı, 2026-10-18 11:13 (proje sohbetinde Dalga 5 toplu yazılı onay, "önerilerle"):
+> dar bölgeler kalan olarak raporlanır, giriş yerel basit helis, malzeme ızgarası, trokoidal düz kanal dahil.
 
 ## Amaç
 Düz parmak frezeyle 2.5D cepleri (`cam.profile.Region`) takımın malzemeye **temas açısı** `φ` hiçbir adımda
