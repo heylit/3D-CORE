@@ -221,6 +221,7 @@ class Component:
     part: str  # parça referansı (dosya yolu veya kimlik)
     T: np.ndarray = field(default_factory=lambda: np.eye(4))
     fixed: bool = False
+    material: str | None = None  # malzeme.model.Malzeme.id (SPEC B2); None = atanmamış
 
     def __post_init__(self) -> None:
         self.T = np.asarray(self.T, dtype=float)
@@ -229,14 +230,31 @@ class Component:
                 f"Bileşen '{self.name}': T rijit bir dönüşüm değil"
                 " — T için ortonormal dönme ve son satırı (0, 0, 0, 1) olan 4×4 matris girin"
             )
+        # Kimliğin kütüphanede olup olmadığını assy bilmez (SPEC 66 köprüsü); burada yalnız biçim
+        if self.material is not None and (not isinstance(self.material, str) or not self.material.strip()):
+            raise AssyError(
+                f"Bileşen {self.name!r}: material boş metin olamaz ({self.material!r})"
+                " — malzeme kimliğini boş olmayan bir metin olarak girin ya da None bırakın"
+            )
 
     def __eq__(self, other: object) -> bool:
         # dataclass'ın ürettiği __eq__ numpy dizisinde ValueError verir; T'yi np.array_equal ile karşılaştır
         if not isinstance(other, Component):
             return NotImplemented
-        return (self.name, self.part, self.fixed) == (other.name, other.part, other.fixed) and np.array_equal(
-            self.T, other.T
-        )
+        return (self.name, self.part, self.fixed, self.material) == (
+            other.name,
+            other.part,
+            other.fixed,
+            other.material,
+        ) and np.array_equal(self.T, other.T)
+
+
+def _component_dict(c: Component) -> dict:
+    """Bileşen sözlüğü; material yalnız atanmışsa yazılır (eski JSON'lar aynen kalır)."""
+    d = {"name": c.name, "part": c.part, "T": c.T.tolist(), "fixed": c.fixed}
+    if c.material is not None:
+        d["material"] = c.material
+    return d
 
 
 @dataclass
@@ -515,9 +533,7 @@ class Assembly:
 
         return {
             "name": self.name,
-            "components": [
-                {"name": c.name, "part": c.part, "T": c.T.tolist(), "fixed": c.fixed} for c in self.components
-            ],
+            "components": [_component_dict(c) for c in self.components],
             "mates": [
                 {"kind": m.kind.value, "a": ref(m.a), "b": ref(m.b), "value": m.value, "flip": m.flip}
                 for m in self.mates
@@ -549,7 +565,13 @@ class Assembly:
         return cls(
             name=d["name"],
             components=[
-                Component(name=c["name"], part=c["part"], T=np.array(c["T"]), fixed=c.get("fixed", False))
+                Component(
+                    name=c["name"],
+                    part=c["part"],
+                    T=np.array(c["T"]),
+                    fixed=c.get("fixed", False),
+                    material=c.get("material"),
+                )
                 for c in d.get("components", [])
             ],
             mates=[
