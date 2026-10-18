@@ -154,7 +154,9 @@ Malzeme kaldırmayan işlem (ΔV ≤ 1e-9 mm³) → `GeometryError` (SPEC 02 ile
   (uzaklık ≤ 1e-6 mm), yön n (3,) normalize edilir, eksen boyunca derinlik `depth`; `None` → boydan boya.
   p yüzeyde değil, `|n| = 0`, n malzemeye girmiyor (p + 1e-3·n parça dışında), boydan boyada eksen
   parçadan çıkmıyor → `GeometryError`. Boydan boyada kaydın `depth`'i eksenin parça içindeki boyudur
-  (giriş ile çıkış noktası arası). Kesici gövde p'nin PAY = 1 mm gerisinden başlar (SPEC 02 ile aynı).
+  (giriş ile çıkış noktası arası). Kesici gövde girişte p'nin, boydan boyada çıkışta da
+  çıkış noktasının PAY + r·tanθ ötesine uzanır (θ: eksen ile o yüzeyin normali arası açı); θ > ~87°
+  (cos θ < 0.05) → `GeometryError`.
 
 ## Kabul kriterleri
 - [x] K1 `fillet_vertical`: blokta ΔV = (4 − π) r² c ve ΔS formülle rel 1e-6; sınır kutusu değişmez — `tests/geometry/test_fillet.py`
