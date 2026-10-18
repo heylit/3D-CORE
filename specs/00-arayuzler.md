@@ -93,6 +93,84 @@ JSON'lar aynen çalışır.
   - `Tool` (D, flute_length, corner_r), `Stock` sınırları, `Move` (end, center, feed), `Toolpath.start`:
     `nan` / `inf` → `CamError`. `Toolpath.validate()` aynı kontrolleri (ve `rpm`) yerinde değişikliğe karşı tekrarlar.
 
+### Ek 2 — Dalga 2 CAM arayüzü 2026-10-18 (SPEC 14 kurulum, 20 torna yolu, 05 tutucu çarpışması)
+Geriye uyumludur: yukarıdaki bütün çağrılar, alanlar ve eski JSON'lar aynen çalışır; yeni alanların hepsinin varsayılanı var.
+Sadece veri tipleri ve doğrulamaları; hesap (devir / ilerleme, telafi, çarpışma) ilgili SPEC'tedir.
+
+**Birimler ve yönler**
+- Kesme hızı `Vc` m/dk; diş başı ilerleme `fz` mm/diş (freze); devir başı ilerleme `fn` mm/dev (torna); açılar derece.
+- Torna: iş mili ekseni Z, X radyal. Modelde X **yarıçaptır** (çap programlama G-code işidir, SPEC 21). Torna yolları
+  `y = 0` düzleminde, XZ'dedir.
+- `G18` (ZX düzlemi) yaylarında yön +Y'den bakınca tanımlanır (ISO 6983, sağ el kuralı +Y ekseni etrafında):
+  `G3` = Z'den X'e doğru dönüş. `G17`'de olduğu gibi yay düzleme dik eksende (burada Y) ilerlerse helistir.
+  Yay boyu formülü aynı: `s = sqrt((r·|Δθ|)² + Δ⊥²)`.
+
+**Yeni sabitler**
+- `class Plane(str, Enum)`: `XY="G17"`, `ZX="G18"`
+- `class FeedMode(str, Enum)`: `PER_MIN="G94"` (mm/dk), `PER_REV="G95"` (mm/dev)
+- `class LatheToolKind(str, Enum)`: `TURN="tornalama"`, `BORE="ic_tornalama"`, `GROOVE="kanal"`, `THREAD="dis"`
+  (değerler `ToolKind` değerleriyle çakışmaz; JSON'da takım türü `kind` değerinden anlaşılır)
+
+**Kesme verisi**
+- `@dataclass CuttingData(Vc: float, fz: float | None = None, fn: float | None = None, ap: float | None = None, ae: float | None = None)`
+  - `Vc > 0`; `fz` ve `fn`'den **tam olarak biri** verilir ve `> 0`; `ap`, `ae` verilirse `> 0`; `nan` / `inf` → `CamError`.
+  - `to_dict()`, `CuttingData.from_dict(d)`
+
+**Takım tutucu (05 çarpışma, 14 takım boyu)**
+- `@dataclass ToolHolder(name: str, gauge_length: float, profile: tuple[tuple[float, float], ...])`
+  - `gauge_length`: iş mili ölçü hattından tutucu ağzına boy, `> 0`.
+  - `profile`: tutucunun dönel kesiti, `(z, r)` noktaları; `z` tutucu ağzından yukarı (ağız `z = 0`), ilk nokta `z = 0`,
+    `z` azalmayan, `0 <= z <= gauge_length`, `r > 0`, en az 2 nokta. Ardışık iki nokta arası kesik koni.
+    Aksi `CamError`.
+  - `to_dict()`, `ToolHolder.from_dict(d)`
+
+**Freze takımı — `Tool`'a eklenen alanlar** (hepsi isteğe bağlı)
+- `flutes: int | None = None` — diş sayısı `z`, verilirse `>= 1`
+- `shank_d: float | None = None` — sap çapı, verilirse `> 0`; `None` → `D` kabul edilir (`shank` özelliği)
+- `stickout: float | None = None` — tutucu ağzından takım ucuna boy, verilirse `>= flute_length`
+- `holder: ToolHolder | None = None`
+- `cutting: dict[str, CuttingData] = {}` — malzeme adı → kesme verisi; freze için her kayıtta `fz` zorunlu (`fn` → `CamError`)
+- `gauge_length -> float | None` (özellik) — `holder.gauge_length + stickout`; ikisinden biri yoksa `None`.
+  Fanuc `G43 H` ve GRBL prob ölçümünün (`G38.2` + `G43.1`) karşılaştırılacağı değer (SPEC 14).
+- `to_dict()`, `Tool.from_dict(d)` — eksik yeni alanlar varsayılan alır
+
+**Torna takımı**
+- `@dataclass LatheTool(id: int, name: str, kind: LatheToolKind, nose_r: float, tip: int, kappa_r: float, eps_r: float, width: float = 0.0, cutting: dict[str, CuttingData] = {})`
+  - `nose_r` burun yarıçapı `>= 0` (`TURN`, `BORE` için `> 0`).
+  - `tip`: Fanuc hayali uç numarası 0..9 (burun yarıçapı telafisinin yönü; 0 ve 9 burun merkezi).
+  - `kappa_r`: yaklaşma açısı (ana kesici kenar ile ilerleme yönü arası), `eps_r`: uç açısı (ISO: C 80°, D 55°, V 35°,
+    T 60°, diş 60°). `0 < kappa_r < 180`, `0 < eps_r < 180`, `kappa_r + eps_r <= 180` (arka kenarda boşluk).
+  - `GROOVE` için `width > 0` ve `nose_r <= width / 2`; diğerlerinde `width = 0`.
+  - `cutting` kayıtlarında `fn` zorunlu (`fz` → `CamError`).
+  - `nan` / `inf` → `CamError`. `to_dict()`, `LatheTool.from_dict(d)`
+- `tool_from_dict(d) -> Tool | LatheTool` — `kind` değerine göre
+
+**Takım kütüphanesi**
+- `@dataclass ToolLibrary(tools: list[Tool | LatheTool] = [])`
+  - `validate()` → yinelenen `id` → `CamError`; `get(id)` → yoksa `CamError`; `add(tool)` → yinelenen `id` → `CamError`
+  - `to_dict()`, `ToolLibrary.from_dict(d)` — JSON gidiş-dönüş birebir (SPEC 14 dosyaya yazar / okur)
+
+**Ham malzeme ve kurulum**
+- `Stock`: `to_dict()`, `Stock.from_dict(d)` eklendi.
+- `@dataclass CylinderStock(D: float, zmin: float, zmax: float, d: float = 0.0)` — Z eksenli silindir (torna çubuğu, boru),
+  ekseni `x = y = 0`; `D > 0`, `zmax > zmin`, `0 <= d < D`, aksi `CamError`.
+  - `length -> float`, `volume -> float` = `π/4·(D² − d²)·(zmax − zmin)`, `bbox() -> (min, max)`; `to_dict` / `from_dict`
+- `@dataclass Wcs(code: str = "G54", origin: tuple[float, float, float] = (0, 0, 0))`
+  - `code` `G54`..`G59`; `origin` iş sıfırının makine koordinatı. `to_machine(p) = p + origin`, `to_work(p) = p − origin`.
+  - `to_dict` / `from_dict`
+- `@dataclass Setup(name: str, wcs: Wcs, stock: Stock | CylinderStock, fixtures: list[Stock | CylinderStock] = [])`
+  - Bağlama elemanları (mengene çenesi, pabuç, torna aynası) iş koordinatında kutu veya silindir; 05 ve 22 çarpışma için okur.
+  - `to_dict()`, `Setup.from_dict(d)`
+
+**`Toolpath`'e eklenenler**
+- `tool: Tool | LatheTool`
+- `plane: Plane = Plane.XY` — yaylar bu düzlemde. `center` iki sayıdır: `XY` → `(x, y)`, `ZX` → `(x, z)` (I, K sırası).
+- `feed_mode: FeedMode = FeedMode.PER_MIN` — `feed` birimi
+- `css: float | None = None` — `G96` sabit kesme hızı `Vc` [m/dk]; verilirse `> 0` ve `rpm` devir üst sınırıdır (`G50`).
+- `validate()` ek olarak: `css <= 0`; takım `LatheTool` ise `plane` `ZX` değil veya başlangıçta / herhangi bir bitişte `y != 0`
+  → `CamError`. Yay yarıçapı denetimi, `length()` ve `bbox()` yayın düzleminde yapılır.
+- `to_dict` / `from_dict`: `plane`, `feed_mode`, `css` alanları; yoksa varsayılan (eski JSON çalışır).
+
 ### Ortak kurulum
 - `pyproject.toml`: paket listesine `cam*`, `assy*`; pytest işareti `occt: build123d / OpenCascade gerektirir`.
 - Kök `conftest.py`:
@@ -115,8 +193,13 @@ JSON'lar aynen çalışır.
 - [ ] K8 `Part`: 10×20×30 kutuda hacim 6000, alan 2200, ağırlık merkezi ve sınır kutusu tam; STEP gidiş-dönüş hacmi koruyor; eksik dosya hata (`occt`) — `tests/geometry/test_part.py`
 - [ ] K9 `NotImplementedError` → xfail kuralı; mevcut SPEC 01 testleri "uygulanmamış" görünüyor, `pytest` 0 failed
 - [ ] K10 `ruff check .` temiz; bulut kurulum betiği temiz bir klonda `pytest` çalıştırabiliyor
+- [ ] K11 (Ek 2) `CuttingData`, `ToolHolder`, `Tool` yeni alanları, `LatheTool` doğrulamaları; `gauge_length` = tutucu + taşma — `tests/cam/test_model_dalga2.py`
+- [ ] K12 (Ek 2) `ToolLibrary` yinelenen id / bilinmeyen id hata; freze + torna takımlı kütüphane JSON gidiş-dönüş birebir — `tests/cam/test_model_dalga2.py`
+- [ ] K13 (Ek 2) `CylinderStock` hacmi `π/4·(D² − d²)·L` rel 1e-12; `Wcs` `to_machine` / `to_work`; `Setup` JSON gidiş-dönüş — `tests/cam/test_model_dalga2.py`
+- [ ] K14 (Ek 2) `G18` yayları: çeyrek yay boyu `πr/2`, helis (Y'de ilerleme), yön kuralı (G3 = Z'den X'e) `bbox` ile; torna yolunda `y != 0` ve `XY` düzlemi hata — `tests/cam/test_model_dalga2.py`
+- [ ] K15 (Ek 2) Eski JSON (yeni alanlar yok) okunuyor; Dalga 1 testleri (`tests/cam/`) değişmeden geçiyor
 
 ## Kapsam dışı
 - Takım yolu üretimi (03), G-code yazma/okuma (04), kısıt çözme (08), STEP montaj (07), parça modelleme işlemleri (02)
-- Alt montajlar (07'de), takım tutucu ve takım ömrü bilgisi
+- Alt montajlar (07'de), takım ömrü bilgisi (takım tutucu Ek 2 ile eklendi)
 - `core/` FEM'de herhangi bir değişiklik
