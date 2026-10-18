@@ -1,5 +1,6 @@
 // SPEC 24 — sunucu istemcisi. Tüm mühendislik sayıları buradan gelir.
 
+import type { EkranApi } from "./ekranlar/tip";
 import { noktalariCoz, simCoz } from "./ikili";
 import type { Is, Noktalar, ParametreYaniti, SimVeri } from "./tipler";
 
@@ -50,4 +51,21 @@ export async function parametreGonder(ad: string, islem: number, anahtar: string
     body: JSON.stringify({ islem, anahtar, deger }),
   });
   return (await yanit(r)).json();
+}
+
+// ------------------------------------------------------------------ A3 ekran kaydı (specs/24a-ekran-kaydi.md)
+
+/**
+ * Başarılı her durum değiştiren istekten (POST / PUT / PATCH / DELETE) sonra `cb(etiket)` çağrılır.
+ * Dönen fonksiyon aboneliği kaldırır.
+ */
+export function degisiklikSonrasi(cb: (etiket: string | null) => void): () => void {
+  void cb;
+  throw new Error("A3: uygulanmadı");
+}
+
+/** `/api/ekran/<ad>/` önekli istemci; postJson `X-Tezgah-Etiket` başlığı taşır, GET taşımaz. */
+export function ekranApi(ad: string): EkranApi {
+  void ad;
+  throw new Error("A3: uygulanmadı");
 }
