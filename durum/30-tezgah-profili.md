@@ -3,7 +3,7 @@
 Dal: `claude/project-thread-t2yott` · Oturum: bulut ("Postprosesörler ve tezgâh profilleri" thread'i)
 
 ## Sıradaki adım
-SPEC onaylandı (2026-10-18 10:38). Kod, `cam/gcode/writer.py`'ye dokunan PR'lar (#33, #27, SPEC 21) main'e girince başlar.
+SPEC onaylandı (2026-10-18 10:38). İskelet push edildi (`cam/post/`, NotImplementedError); testler ayrı thread'de yazılacak, sonra kod. `cam/gcode/writer.py` ayrımı #27 ve #42 birleşince.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
