@@ -31,6 +31,7 @@ from cam.model import (
     ToolKind,
     Toolpath,
 )
+from cam.sim import hizli
 from cam.sim.blok import ball_envelope, merge_collinear, tiles
 from cam.sim.dexel import DexelMap
 from cam.sim.sweep import body_steps, flat_min_z, sweep_envelope, sweep_top
@@ -224,6 +225,68 @@ def _rel(w, W):
     return tuple(slice(s.start - S.start, s.stop - S.start) for s, S in zip(w, W, strict=True))
 
 
+class _Olaylar:
+    """Olay kaydı: (hücre, z) tek büyüyen tamponda, adım başına bir parça (başlangıç, k).
+
+    Sonuç (hücre, k) sıralı: hücre başına sayım + sıra → doğrudan yerleştirme (lexsort ile aynı sonuç).
+    """
+
+    def __init__(self, ncell: int) -> None:
+        self.c = np.empty(1 << 16, dtype=np.int32)
+        self.z = np.empty(1 << 16)
+        self.n = 0
+        self.bas: list[int] = []
+        self.k: list[int] = []
+        self.say = np.zeros(ncell, dtype=np.int64)
+
+    def yer(self, m: int) -> None:
+        """En az m olaylık boş yer."""
+        if self.n + m > self.c.size:
+            boy = max(2 * self.c.size, self.n + m)
+            c = np.empty(boy, dtype=np.int32)
+            z = np.empty(boy)
+            c[: self.n] = self.c[: self.n]
+            z[: self.n] = self.z[: self.n]
+            self.c, self.z = c, z
+
+    def yazildi(self, m: int, k: int) -> None:
+        """Tampona n'den itibaren m olay yazıldı (say güncellenmiş)."""
+        if m:
+            self.bas.append(self.n)
+            self.k.append(k)
+            self.n += m
+
+    def ekle(self, cell: np.ndarray, z: np.ndarray, k: int) -> None:
+        """Bir adımın olayları; bir adımda hücreler tekil."""
+        m = cell.size
+        self.yer(m)
+        self.c[self.n : self.n + m] = cell
+        self.z[self.n : self.n + m] = z
+        self.say[cell] += 1
+        self.yazildi(m, k)
+
+    def sirala(self) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        ncell = self.say.size
+        offsets = np.zeros(ncell + 1, dtype=np.int64)
+        np.cumsum(self.say, out=offsets[1:])
+        cell_ = np.repeat(np.arange(ncell, dtype=np.int32), self.say)
+        k_ = np.empty(cell_.size, dtype=np.int32)
+        z_ = np.empty(cell_.size)
+        yer0 = offsets[:-1].copy()  # hücrenin sıradaki boş yeri
+        bas = np.array(self.bas + [self.n], dtype=np.int64)
+        kk = np.array(self.k, dtype=np.int32)
+        if hizli.VAR:
+            hizli.yerlestir(self.c, self.z, bas, kk, yer0, k_, z_)
+        else:
+            for p in range(len(self.k)):
+                c = self.c[bas[p] : bas[p + 1]]
+                yer = yer0[c]
+                k_[yer] = kk[p]
+                z_[yer] = self.z[bas[p] : bas[p + 1]]
+                yer0[c] += 1
+        return cell_, k_, z_, offsets
+
+
 class _Sim:
     def __init__(
         self,
@@ -246,12 +309,11 @@ class _Sim:
         self.arc_tol = arc_tol
         self.gouged = None if part_z is None else np.zeros_like(part_z, dtype=bool)
         self.coll: dict[tuple[str, int], Collision] = {}
-        self.ev_cell: list[np.ndarray] = []
-        self.ev_k: list[np.ndarray] = []
-        self.ev_z: list[np.ndarray] = []
-        self.say = np.zeros(grid.nx * grid.ny, dtype=np.int64)
+        self.olay = _Olaylar(grid.nx * grid.ny)
         self.block = block
         self.merge = merge
+        # id(takım) → (takım, ρ_max, H_min); takım da tutulur ki id yeniden kullanılmasın
+        self._govde: dict[int, tuple] = {}
 
     def _record(self, kind: str, k: int, op: int, depth: np.ndarray, X, Y, zs) -> None:
         j = int(np.argmax(depth))
@@ -287,14 +349,11 @@ class _Sim:
                 en_alt[_rel(t, w)] = e_sub
         return en_alt
 
-    def _events(self, W, degisen: np.ndarray, z: np.ndarray, k) -> None:
-        """Değişen hücrelerin olayları; k skaler ya da hücre başına dizi."""
+    def _events(self, W, degisen: np.ndarray, z: np.ndarray, k: int) -> None:
+        """Adım k'de değişen hücrelerin olayları."""
         jj, ii = np.nonzero(degisen)
         cell = ((jj + W[0].start) * self.g.nx + (ii + W[1].start)).astype(np.int32)
-        self.ev_cell.append(cell)
-        self.ev_k.append(k)  # skaler ya da hücre başına
-        self.ev_z.append(z)
-        self.say[cell] += 1  # bir çağrıda hücreler tekil
+        self.olay.ekle(cell, z, k)
 
     def step(self, k: int, op: int, tool: Tool, p0: np.ndarray, m: Move) -> float:
         """Adım k'yi uygular; kaldırılan hacmi [mm³] döndürür."""
@@ -354,6 +413,10 @@ class _Sim:
         W = self._win(kose, R)
         if W is None:
             return 0.0
+        kure = tool.kind is not ToolKind.DRILL and tool.corner_r == R
+        duz = tool.kind is ToolKind.DRILL or tool.corner_r == 0
+        if hizli.VAR and isinstance(self.f, _ZField) and len(chords) == 1 and (kure or duz):
+            return self._derlenmis(k, W, chords[0], R, kure)
         env = _ball if tool.kind is not ToolKind.DRILL and tool.corner_r == R else sweep_envelope
         top_once = self.f.top(W).copy()
         boy = np.zeros_like(top_once)
@@ -369,19 +432,39 @@ class _Sim:
             self._events(W, degisen, top_sonra[degisen], k)
         return float(np.sum(boy) * self.g.dx * self.g.dy)
 
+    def _derlenmis(self, k: int, W, chord, R: float, kure: bool) -> float:
+        """numba çekirdeği ile tek kirişli hareket (z-haritası, düz ya da küresel uç)."""
+        o = self.olay
+        o.yer((W[0].stop - W[0].start) * (W[1].stop - W[1].start))
+        g = self.g
+        a, b = chord
+        toplam, m = hizli.zmap_hareket(
+            g.z, g.zmin, g.x0, g.dx, g.y0, g.dy, W[0].start, W[0].stop, W[1].start, W[1].stop,
+            np.asarray(a, dtype=float), np.asarray(b, dtype=float), R, kure, o.c[o.n :], o.z[o.n :], o.say,
+        )  # fmt: skip
+        o.yazildi(m, k)
+        return float(toplam * g.dx * g.dy)
+
     def _body_clear(self, tool: Tool, pts: list[np.ndarray]) -> bool:
         """Gövde denetimi bu harekette tetiklenebilir mi?
 
         Hareket öncesi yüzey en alçak uç + en alçak gövde basamağı + tol'un altındaysa hiçbir alt adımda
         tetiklenmez (yüzey yalnız alçalır, alt adım pencereleri hareket penceresinin içinde).
         """
-        steps = body_steps(tool)
-        rho_max = max(tool.D / 2, steps[-1][0])
+        anahtar = id(tool)
+        if anahtar not in self._govde:
+            steps = body_steps(tool)
+            self._govde[anahtar] = (tool, max(tool.D / 2, steps[-1][0]), steps[0][1])
+        _, rho_max, H_min = self._govde[anahtar]
         wb = self._win(pts, rho_max)
         if wb is None:
             return True
         z_alt = min(float(p[2]) for p in pts)
-        return not self.f.top(wb).max() > z_alt + steps[0][1] + self.tol
+        if hizli.VAR and isinstance(self.f, _ZField):
+            ust = hizli.pencere_max(self.g.z, wb[0].start, wb[0].stop, wb[1].start, wb[1].stop)
+        else:
+            ust = self.f.top(wb).max()
+        return not ust > z_alt + H_min + self.tol
 
     def _body(self, k, op, a, b, steps, rho_max, H_min) -> None:
         """Gövde (sap, tutucu) denetimi: alt adımdan önceki üst yüzeyle."""
@@ -520,18 +603,7 @@ def simulate(
             t += ek
             op_times[i] += ek
 
-    # olaylar (hücre, k) sıralı: hücre başına sayım + sıra → doğrudan yerleştirme (lexsort ile aynı sonuç)
-    offsets = np.zeros(grid.nx * grid.ny + 1, dtype=np.int64)
-    np.cumsum(sim.say, out=offsets[1:])
-    cell_ = np.repeat(np.arange(grid.nx * grid.ny, dtype=np.int32), sim.say)
-    k_ = np.empty(cell_.size, dtype=np.int32)
-    z_ = np.empty(cell_.size)
-    yer0 = offsets[:-1].copy()  # hücrenin sıradaki boş yeri
-    for c, kk, zz in zip(sim.ev_cell, sim.ev_k, sim.ev_z, strict=True):
-        yer = yer0[c]
-        k_[yer] = kk
-        z_[yer] = zz
-        yer0[c] += 1
+    cell_, k_, z_, offsets = sim.olay.sirala()
     collisions = sorted(sim.coll.values(), key=lambda c: (c.k, KINDS.index(c.kind)))
     if dexel is not None:
         grid.z = dexel.top()

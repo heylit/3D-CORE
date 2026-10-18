@@ -3,8 +3,8 @@
 Dal: `claude/spec-05-cam-sim-ch33p2` · Oturum: bulut
 
 ## Sıradaki adım
-Bağımsız test commit'i cherry-pick edilecek; kod commit'i ve CI ölçümü. B2 < 10 s saf numpy ile tutmuyor:
-CI ölçümünden sonra numba kararı kullanıcıya sorulacak (karar 2).
+numba pyproject PR'ı (DURUM thread'i) birleşince main alınacak; test thread'i `test_K4_B2_hiz` xfail'ini
+kaldıracak; CI ölçümü (B2) buraya yazılacak; pytest + kapi yeşilse birleştirme.
 
 ## Ölçümler (0.1 mm z-map, bulut oturumu; bu makinede bellek sayfa hataları pahalı, CI daha hızlı olmalı)
 | Program | Yol | Süre | Not |
@@ -14,6 +14,13 @@ CI ölçümünden sonra numba kararı kullanıcıya sorulacak (karar 2).
 | B2 | eski | ölçülmedi | 0.5 mm'de bile 384 s (70 319 hareket, altın oran araması) |
 | B2 | yeni | 70–103 s | fark ≤ 1.4e-14 mm; 39 s zarf, ~30 s olay kaydı/yerleştirme |
 | CI (`ubuntu-latest`) | — | — | `test_perf_hiz.py` çıktısından yazılacak |
+
+## numba yolu (kullanıcı onayı 2026-10-18 17:57 UTC: "SPEC 53 için numba bağımlılığını onaylıyorum")
+- `cam/sim/hizli.py`: z-haritası + düz / küresel uç, tek kirişli hareket için derlenmiş hücre döngüsü (aynı formüller,
+  aynı işlem sırası); küresel uçta iz dışı ve alt sınır erken çıkışları; olaylar tek büyüyen tamponda.
+  numba yoksa `VAR = False` → numpy yolu (sonuç aynı; B1 0.5 mm'de iki yol eski yolla birebir).
+- Bu makinede (bellek sayfa hataları çok pahalı): B1 3.2 s; B2 toplam ~42 s, çekirdek ~13 s, kalanı 94 M olayın
+  bellek yazımı / yerleştirmesi (4.5 GB RSS). CI ölçümü bekleniyor.
 
 ## Uygulama notları
 - `merge=True`: hareketin alt adımları ve aynı doğrudaki ardışık G1'ler tek süpürme. Gövde denetimi hareket öncesi
