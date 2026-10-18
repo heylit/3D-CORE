@@ -15,7 +15,7 @@
 | 02-parca | 1 | tamamlandı (PR #6, `a631d77`) | — | `durum/02-parca.md` |
 | 03-cam-2d | 1 | tamamlandı (PR #5, `b22c7ad`); testler "bağımsız değil" işaretli, sıradaki 03b | — | — |
 | 04-gcode | 1 | tamamlandı (PR #4, `32d2676`) | — | `durum/04-gcode.md` |
-| 08-kisitlar | 1 | tamamlandı (PR #3, `46e7889`); ölçekli artıklar birleşti (PR #15, `b30f5a4`); ters başlangıç kaçışı açık (PR #16) | — | `durum/08-kisitlar.md` |
+| 08-kisitlar | 1 | tamamlandı (PR #3, `46e7889`); ölçekli artıklar birleşti (PR #15, `b30f5a4`); ters başlangıç kaçışı birleşti (PR #16, `26fced4`) | — | `durum/08-kisitlar.md` |
 | 05-cam-sim, 06-cam-3d, 07-montaj-agaci, 11-tet4, 14-cam-kurulum, 15-goruntuleyici, 16-teknik-resim, 20-torna-yol, 23-parca-ek | 2 | bekliyor | — | — |
 | 09-girisim, 10-montaj-cam, 12-gmsh, 13-calculix, 17-kroki, 21-torna-gcode | 3 | bekliyor | — | — |
 | 18-ozellik-agaci, 19-adaptif-kaba, 22-torna-sim | 4 | bekliyor | — | — |
@@ -36,6 +36,7 @@
 | 00-arayuzler | Sonlu değer kontrolleri, `Mate.flip` (PR #12) | 2026-10-18 | — |
 | — | Bağımsız çapraz kontrol, inceleme Y1 (PR #13) | 2026-10-18 | — |
 | 08-kisitlar | Ölçekli artıklar (PR #15) | 2026-10-18 | — |
+| 08-kisitlar | Ters başlangıç kaçışı (PR #16) | 2026-10-18 | — |
 
 ## Kurulum kontrol listesi (bir kez, kullanıcı)
 - [x] `powershell -ExecutionPolicy Bypass -File _kurulum\yerlestir.ps1`
