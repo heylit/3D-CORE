@@ -237,6 +237,11 @@ def _yazilabilir(tp: Toolpath) -> None:
         raise CamError(f"Takım yolu '{tp.name}': iş düzlemi (frame) bu yazıcıda desteklenmiyor (SPEC 41)")
     if any(m.axis is not None and m.axis != Z_AXIS for m in tp.moves):
         raise CamError(f"Takım yolu '{tp.name}': eğik takım ekseni bu yazıcıda desteklenmiyor (SPEC 42)")
+    # Torna-freze (CAM Ek 4): C ekseni ve polar / silindirik koordinat bu yazıcıda yok; yok sayılmasın.
+    if tp.coord != "kartezyen":
+        raise CamError(f"Takım yolu '{tp.name}': {tp.coord} koordinatı bu yazıcıda yok (SPEC 49)")
+    if any(m.c is not None for m in tp.moves):
+        raise CamError(f"Takım yolu '{tp.name}': C ekseni açısı bu yazıcıda desteklenmiyor (SPEC 49)")
 
 
 def _z_kesme(ops: list[Toolpath | DrillOp]) -> float:
