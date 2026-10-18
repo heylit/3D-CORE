@@ -3,14 +3,14 @@
 Dal: `claude/project-thread-6zs2nh` · Oturum: bulut
 
 ## Sıradaki adım
-Ek E3 (SPEC 40, eksenel delme): ayrı test oturumu `tests/cam/test_gcode_lathe_drill.py`'yi yazacak (K12–K15);
-test commit'i cherry-pick edilip kod ayrı commit'te yazılacak.
+PR #88 (Ek E3) CI'ı yeşile dönünce birleştirilecek.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
 |---|---|---|---|
 | 2026-10-18 | — | — | Sadece SPEC taslağı; kod ve test yok. |
 | 2026-10-18 | 120 (SPEC 21) | 0 | `--uygulanmamis-hata` ile; testler kodu görmeden yazıldı, ilk çalıştırmada yeşil. |
+| 2026-10-18 | 167 (SPEC 21 + Ek E3) | 0 | Ek E3: 47 test (`e01bbb2`, ayrı oturum); SPEC 40 K6 gidiş-dönüşü de yeşil. |
 
 ## Son oturum
 **2026-10-18**
@@ -28,6 +28,9 @@ test commit'i cherry-pick edilip kod ayrı commit'te yazılacak.
   kabul kriterleri K12–K15.
 - `cam/gcode/lathe.py` iskeleti: `DRILL`/`CONE` `Tool` yazıcıda ve okuyucuda `NotImplementedError`; `read_lathe`
   `tools` tipi `LatheTool | Tool`. K1–K11 değişmeden yeşil.
+- Testler ayrı oturumda (`e01bbb2`) yazıldı, cherry-pick edildi; kod ayrı commit'te (`c36e2ac`).
+- SPEC 40 K6 testinin z toleransı 0,25·10⁻³ idi; 3 ondalıklı Z ile tutmuyordu (uç −28,0043 → 0,3·10⁻³ hata).
+  SPEC 40 sahibi SPEC 21 toleranslarına (x 0,25·10⁻³, z 0,5·10⁻³) çekti (`f3e9c02`), #88'e cherry-pick edildi.
 
 ## Açık sorular
 _(yok)_
