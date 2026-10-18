@@ -9,6 +9,10 @@ Yazıcıyla aynı `ModalState`'i kullanır: satırda olmayan kelime durumdan dol
 - Yay doğrulama: |r0 − r1| > arc_tol -> CamError; aksi halde merkez kirişin orta dikmesine
   izdüşürülür: c' = m + ((c − m)·u) u.
 - G81/G83 kanonik açılıma çevrilir (cycles.hole_moves).
+- G43.1 Z<v> (GRBL dinamik ofset, SPEC 14) ve G55..G59 kabul edilir, yola yansımaz.
+- `G53 G0 Z<z>` (SPEC 30 takım değişim konumu) yalnız `cam.post.read_program` üzerinden kabul edilir
+  (`read` onu SPEC 14 gereği reddeder); yola yansımaz: konum bilinmez olur; ardından yeni
+  takım (T) gelmeden hareket → CamError (makine koordinatındaki yol iş koordinatında çizilemez).
 - G43 H<n> (takım boyu telafisi) yola yansımaz ama denetlenir: H olmadan G43, G43 olmadan H
   veya etkin takımdan farklı H -> CamError (yanlış telafi takımı malzemeye sokar).
 Hata mesajları 'satır <n>' içerir (metindeki 1 tabanlı satır sırası).
@@ -31,7 +35,8 @@ _COMMENT = re.compile(r"\([^()]*\)")
 
 LETTERS = set("GMXYZIJRQFSTNOH")
 G_MOTION = {0: "G0", 1: "G1", 2: "G2", 3: "G3", 80: "G80", 81: "G81", 83: "G83"}
-G_NOOP = {17, 21, 40, 49, 54, 94}  # baş satırda gelen, yola etkisi olmayan kodlar
+G_NOOP = {17, 21, 40, 49, 54, 55, 56, 57, 58, 59, 94}  # yola etkisi olmayan kodlar (G55..G59: SPEC 14)
+G43_1 = 431  # G43.1 (GRBL dinamik takım boyu ofseti) için iç kod; tam sayı olmayan tek G kodu
 G_REFUSED = {
     20: "G20 (inç) desteklenmiyor; birim dönüşümü yapılmaz",
     18: "G18 düzlemi desteklenmiyor (sadece G17)",
@@ -68,6 +73,9 @@ def _parse(raw: str) -> tuple[list[int], list[int], dict[str, float]] | None:
             raise CamError(f"bilinmeyen kelime '{letter}{num}'")
         if letter in "GM":
             v = float(num)
+            if letter == "G" and v == 43.1:
+                gs.append(G43_1)
+                continue
             if not v.is_integer():
                 raise CamError(f"bilinmeyen {letter} kodu '{letter}{num}'")
             (gs if letter == "G" else ms).append(int(v))
@@ -81,7 +89,10 @@ def _parse(raw: str) -> tuple[list[int], list[int], dict[str, float]] | None:
 class _Reader:
     """Okuma durumu: modal durum, çıkan yollar, açık yol ve 'yeni yol bekleniyor' bayrağı."""
 
-    def __init__(self, tools: dict[int, Tool], dialect: Dialect, arc_tol: float) -> None:
+    def __init__(
+        self, tools: dict[int, Tool], dialect: Dialect, arc_tol: float, machine_z: bool = False
+    ) -> None:
+        self.machine_z_ok = machine_z  # `G53 G0 Z` kabul edilsin mi (SPEC 30)
         self.tools = tools
         self.d = dialect
         self.arc_tol = arc_tol
@@ -89,9 +100,16 @@ class _Reader:
         self.paths: list[Toolpath] = []
         self.path: Toolpath | None = None
         self.pending = False
+        self.g53 = False  # G53 sonrası, yeni takım bekleniyor
 
     # --- satır ------------------------------------------------------------------------
     def line(self, gs: list[int], ms: list[int], w: dict[str, float]) -> None:
+        if G43_1 in gs:
+            self.dynamic_offset(gs, ms, w)
+            return
+        if 53 in gs and self.machine_z_ok:
+            self.machine_z(gs, ms, w)
+            return
         motion = self.g_codes(gs)
         self.m_codes(ms)
         self.words(w)
@@ -111,6 +129,16 @@ class _Reader:
         if motion is not None:
             self.state.motion = motion
         self.execute(w)
+
+    def machine_z(self, gs: list[int], ms: list[int], w: dict[str, float]) -> None:
+        """Yalnız `G53 G0 Z<z>` kabul edilir: konum ve hareket tipi sonrası için bilinmez / G0."""
+        if sorted(gs) != [0, 53] or ms or set(w) - {"N"} != {"Z"}:
+            raise CamError("G53 yalnız 'G53 G0 Z<z>' biçiminde destekleniyor")
+        if self.state.in_cycle:
+            raise CamError("çevrim içinde G53 olamaz (önce G80)")
+        self.state.pos = None
+        self.state.motion = "G0"
+        self.g53 = True
 
     def g_codes(self, gs: list[int]) -> str | None:
         """Modal G kodlarını duruma işler; satırdaki hareket kodunu (varsa) döndürür."""
@@ -160,6 +188,17 @@ class _Reader:
         if g43 and w["H"] != self.state.tool:
             raise CamError(f"G43 H{w['H']:g}: etkin takım T{self.state.tool} ile uyuşmuyor")
 
+    def dynamic_offset(self, gs: list[int], ms: list[int], w: dict[str, float]) -> None:
+        """G43.1 Z<v> (SPEC 14): Z burada takım boyu ofsetidir, hareket değil; yola yansımaz.
+        Satırda başka G/M kodu veya Z dışında kelime olamaz."""
+        if len(gs) != 1 or ms:
+            raise CamError("G43.1 satırında başka G / M kodu olamaz")
+        fazla = set(w) - {"Z", "N"}
+        if fazla:
+            raise CamError(f"G43.1 satırında yalnız Z (ofset) olabilir, gelen {sorted(fazla)}")
+        if "Z" not in w:
+            raise CamError("G43.1: Z (ofset) verilmemiş")
+
     # --- hareketler -------------------------------------------------------------------
     def execute(self, w: dict[str, float]) -> None:
         """Satırda hareket varsa yürütür (eksen kelimesi, yayda I/J/R, çevrimde X Y Z R Q)."""
@@ -200,6 +239,8 @@ class _Reader:
 
     def add(self, t: MoveType, end: tuple[float, float, float], center=None) -> None:
         """Hareketi açık yola ekler. T/S sonrası ilk hareket G0 ise yeni yolun başlangıcıdır."""
+        if self.g53 and not self.pending:
+            raise CamError("G53 sonrası yeni takım (T) gelmeden hareket desteklenmiyor")
         if self.pending:
             if t is not MoveType.RAPID:
                 raise CamError(f"T/S sonrası ilk hareket G0 olmalı ({t.value} geldi)")
@@ -227,6 +268,7 @@ class _Reader:
         self.paths.append(self.path)
         self.state.pos = start
         self.pending = False
+        self.g53 = False
 
     # --- yay --------------------------------------------------------------------------
     def arc(self, t: MoveType, w: dict[str, float]) -> None:
@@ -320,7 +362,14 @@ def read(
     text: str, tools: dict[int, Tool], dialect: Dialect = GRBL, arc_tol: float = 0.005
 ) -> list[Toolpath]:
     """G-code metnini Toolpath listesine çevirir. Hatalar CamError, mesajda 'satır <n>'."""
-    rd = _Reader(tools, dialect, arc_tol)
+    return _read(text, tools, dialect, arc_tol)
+
+
+def _read(
+    text: str, tools: dict[int, Tool], dialect: Dialect, arc_tol: float, machine_z: bool = False
+) -> list[Toolpath]:
+    """`read`; `machine_z = True` → `G53 G0 Z<z>` satırları kabul edilir (SPEC 30 `read_program`)."""
+    rd = _Reader(tools, dialect, arc_tol, machine_z)
     for n, raw in enumerate(text.splitlines(), start=1):
         try:
             parsed = _parse(raw)

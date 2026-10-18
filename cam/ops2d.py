@@ -17,6 +17,7 @@ from cam.geom2d import LINK_TOL, TOL, closest, intersect
 from cam.model import CamError, Move, MoveType, Stock, Tool, ToolKind, Toolpath
 from cam.offset import offset
 from cam.profile import Arc, Line, Profile, Region, Segment
+from cam.rest import RingNode, ring_tree
 
 
 @dataclass
@@ -62,6 +63,12 @@ def _check_tool(tool: Tool) -> float:
     if tool.kind is not ToolKind.FLAT:
         raise CamError(f"SPEC 03 sadece düz parmak freze kabul eder ({tool.kind.value})")
     return tool.D / 2
+
+
+def _check_plunge(tool: Tool) -> None:
+    """Ek A2: düz dalan işlemler merkezden kesmeyen takımı reddeder (rampa / helis 03b'de)."""
+    if not tool.center_cutting:
+        raise CamError(f"Takım '{tool.name}' merkezden kesmiyor; düz dalma yapılamaz (Ek A2)")
 
 
 def _stepover(cut: Cut, tool: Tool) -> float:
@@ -169,6 +176,7 @@ def contour(profile: Profile, tool: Tool, cut: Cut, side: str, climb: bool = Tru
     Tırmanma: dış kontur CW, iç kontur CCW; climb=False tersi.
     """
     r = _check_tool(tool)
+    _check_plunge(tool)
     if side not in ("dis", "ic", "uzerinde"):
         raise CamError(f"contour: side 'dis', 'ic' veya 'uzerinde' olmalı ({side!r})")
     if side == "uzerinde":
@@ -198,40 +206,6 @@ def contour(profile: Profile, tool: Tool, cut: Cut, side: str, climb: bool = Tru
 
 
 # ---------------------------------------------------------------- cep
-
-
-INRADIUS_TOL = 1e-9  # iç yarıçap ikiye bölme hassasiyeti (D'ye göre)
-
-
-@dataclass
-class _Node:
-    region: Region
-    children: list[_Node] = field(default_factory=list)
-
-
-def _inradius(region: Region, hi: float, tol: float) -> float:
-    """offset(region, t) boşalan en küçük t'nin üst sınırı (ikiye bölme). offset(region, hi) boş olmalı."""
-    lo = 0.0
-    while hi - lo > tol:
-        mid = 0.5 * (lo + hi)
-        if offset(region, mid):
-            lo = mid
-        else:
-            hi = mid
-    return hi
-
-
-def _build_tree(region: Region, r: float, s: float, D: float) -> _Node:
-    node = _Node(region)
-    for child in offset(region, s):
-        node.children.append(_build_tree(child, r, s, D))
-    if not node.children:
-        # yaprak: ortada r'den geniş kesilmemiş alan kalmasın
-        t_star = _inradius(region, s, INRADIUS_TOL * D)
-        t_extra = t_star - r + LINK_TOL  # ikiye bölmenin erken "boş" demesine karşı pay
-        if t_extra > TOL:
-            node.children = [_Node(c) for c in offset(region, t_extra)]
-    return node
 
 
 def _rotate(segs: list[Segment], i: int, t: float) -> list[Segment]:
@@ -274,21 +248,22 @@ def _link_ok(q, p, region: Region) -> bool:
 
 
 def pocket(region: Region, tool: Tool, cut: Cut, climb: bool = True) -> Toolpath:
-    """Kontur-paralel cep: halkalar d_k = r + k·s, içten dışa; halkalar arası mümkünse inmeden geçiş."""
+    """Kontur-paralel cep: halka ağacı SPEC 03b ring_tree (kalan malzeme denetimli adım), içten dışa;
+    halkalar arası mümkünse inmeden geçiş."""
     r = _check_tool(tool)
     s = _stepover(cut, tool)
-    first = offset(region, r)
-    if not first:
+    _check_plunge(tool)
+    roots = ring_tree(region, r, s)
+    if not roots:
         raise CamError("pocket: takım cebe sığmıyor")
-    roots = [_build_tree(rg, r, s, tool.D) for rg in first]
 
-    def loops_of(node: _Node) -> list[list[Segment]]:
+    def loops_of(node: RingNode) -> list[list[Segment]]:
         lps = [h.segments for h in node.region.holes] + [node.region.outer.segments]
         if not climb:
             lps = [Profile(lp).reversed().segments for lp in lps]
         return lps
 
-    def leaf_start(node: _Node):
+    def leaf_start(node: RingNode):
         while node.children:
             node = node.children[0]
         return loops_of(node)[0][0].p0
@@ -310,7 +285,7 @@ def pocket(region: Region, tool: Tool, cut: Cut, climb: bool = True) -> Toolpath
         state["down"] = True
         b.loop(lp, z)
 
-    def cut_node(node: _Node) -> None:
+    def cut_node(node: RingNode) -> None:
         for k, child in enumerate(node.children):
             if k > 0:
                 b.retract()
