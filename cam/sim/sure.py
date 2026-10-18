@@ -12,6 +12,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import numpy as np
+
 from cam.model import CamError, Toolpath  # noqa: F401  (CamError gövdelerde kullanılacak)
 
 
@@ -64,6 +66,18 @@ def plan_speeds(segments, dyn: Dynamics) -> list[float]:
     raise NotImplementedError
 
 
-def toolpath_time(tp: Toolpath, dyn: Dynamics) -> PathTime:
-    """Takım yolunun süresi (Teori 1–5)."""
+def toolpath_time(
+    tp: Toolpath,
+    dyn: Dynamics,
+    *,
+    q: np.ndarray | None = None,
+    tcp: bool = False,
+    inv_feed: np.ndarray | None = None,
+) -> PathTime:
+    """Takım yolunun süresi (Teori 1–5).
+
+    q: (n+1, 3+k) eklem değerleri (SPEC 42 `inverse_time` biçimi); q[:, 3:] döner eksenler [derece],
+    `dyn.rot_v` sırasıyla. Doğrusal mesafe tp noktalarından alınır. Döner sınır t_r = |Δq_r| / ω_r.
+    tcp: G43.4 / TRAORI / M128 (G1'de F uç hızı). inv_feed: (n,) G93 değerleri [1/dk], t = 60 / F_inv.
+    """
     raise NotImplementedError
