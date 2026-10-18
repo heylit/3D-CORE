@@ -9,9 +9,9 @@ if [ ! -x .venv/bin/python ]; then
   if command -v uv >/dev/null 2>&1; then uv venv -q .venv; else python3 -m venv .venv; fi
 fi
 if command -v uv >/dev/null 2>&1; then
-  uv pip install -q -p .venv/bin/python -e ".[dev,cad,viz]"
+  uv pip install -q -p .venv/bin/python -e ".[dev,cad,viz,web]"
 else
-  .venv/bin/python -m pip install -q -e ".[dev,cad,viz]"
+  .venv/bin/python -m pip install -q -e ".[dev,cad,viz,web]"
 fi
 # pyvista ekransız çizim (SPEC 15): bulutta ekran yok, VTK OSMesa ile çizer. Kurulamazsa viz testleri düşer.
 if [ ! -e /usr/lib/x86_64-linux-gnu/libOSMesa.so.8 ] && command -v apt-get >/dev/null 2>&1; then
