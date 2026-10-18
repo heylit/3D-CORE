@@ -3,7 +3,7 @@
 Dal: `claude/project-thread-hv45j3` · Oturum: bulut
 
 ## Sıradaki adım
-SPEC metni kullanıcı onayında; onaydan sonra önce `geometry/part.py` arayüz PR'ı (`SectionEdge`, `SectionFace`,
+SPEC onaylandı (Mustafa, 2026-10-18 10:38, proje sohbeti; davranış kartta "Hata ver"). Sıradaki: `geometry/part.py` arayüz PR'ı (`SectionEdge`, `SectionFace`,
 `AxialSection`, `Part.axial_section`), sonra test thread'i, sonra kod.
 
 ## Test durumu
@@ -21,5 +21,5 @@ SPEC metni kullanıcı onayında; onaydan sonra önce `geometry/part.py` arayüz
   `outer` / `inner`).
 
 ## Açık sorular
-- Dönel olmayan parça: hata (öneri) mi, dönel zarf mı? Koordinatöre karar sorusu olarak gönderildi.
-- `geometry/part.py` arayüz eki: sahibi thread ve kullanıcı onayı bekleniyor.
+_(yok)_ — Karar: dönel olmayan parça yüz numaralarıyla reddedilir; dönel zarf ileride ayrı SPEC.
+Arayüz eki PR #53'te (`3fa6b5d`); bu dala merge edildi.
