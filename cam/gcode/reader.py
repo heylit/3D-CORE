@@ -13,6 +13,9 @@ Yazıcıyla aynı `ModalState`'i kullanır: satırda olmayan kelime durumdan dol
 - `G53 G0 Z<z>` (SPEC 30 takım değişim konumu) yalnız `cam.post.read_program` üzerinden kabul edilir
   (`read` onu SPEC 14 gereği reddeder); yola yansımaz: konum bilinmez olur; ardından yeni
   takım (T) gelmeden hareket → CamError (makine koordinatındaki yol iş koordinatında çizilemez).
+- SPEC 04b: G82 (P zorunlu, bekleme yola yansımaz), G84 (rijit kılavuz, çıkış F ile), `M29 S`, `G4 P`.
+  G84 iş mili dönmüyorken (M3 yok), G84 satırında Q, rijit kılavuzu M29 olan dilde (Fanuc) G84'ten
+  önce aynı S ile M29 yoksa -> CamError.
 - G43 H<n> (takım boyu telafisi) yola yansımaz ama denetlenir: H olmadan G43, G43 olmadan H
   veya etkin takımdan farklı H -> CamError (yanlış telafi takımı malzemeye sokar).
 Hata mesajları 'satır <n>' içerir (metindeki 1 tabanlı satır sırası).
@@ -33,8 +36,8 @@ from cam.model import R_MIN, CamError, Move, MoveType, Tool, Toolpath
 _WORD = re.compile(r"([A-Z])([+-]?(?:\d+\.?\d*|\.\d+))")
 _COMMENT = re.compile(r"\([^()]*\)")
 
-LETTERS = set("GMXYZIJRQFSTNOH")
-G_MOTION = {0: "G0", 1: "G1", 2: "G2", 3: "G3", 80: "G80", 81: "G81", 83: "G83"}
+LETTERS = set("GMXYZIJRQFSTNOHP")
+G_MOTION = {0: "G0", 1: "G1", 2: "G2", 3: "G3", 80: "G80", 81: "G81", 82: "G82", 83: "G83", 84: "G84"}
 G_NOOP = {17, 21, 40, 49, 54, 55, 56, 57, 58, 59, 94}  # yola etkisi olmayan kodlar (G55..G59: SPEC 14)
 G43_1 = 431  # G43.1 (GRBL dinamik takım boyu ofseti) için iç kod; tam sayı olmayan tek G kodu
 G_REFUSED = {
@@ -44,7 +47,7 @@ G_REFUSED = {
     41: "G41 takım yarıçap telafisi desteklenmiyor",
     42: "G42 takım yarıçap telafisi desteklenmiyor",
 }
-M_OK = {0, 1, 2, 3, 5, 6, 7, 8, 9, 30}  # M7/M8/M9 kabul edilir, yola yansımaz
+M_OK = {0, 1, 2, 3, 5, 6, 7, 8, 9, 29, 30}  # M7/M8/M9 kabul edilir, yola yansımaz; M29 rijit kılavuz
 ARC_TYPES = {"G2": MoveType.ARC_CW, "G3": MoveType.ARC_CCW}
 LINEAR_TYPES = {"G0": MoveType.RAPID, "G1": MoveType.LINEAR}
 
@@ -101,6 +104,9 @@ class _Reader:
         self.path: Toolpath | None = None
         self.pending = False
         self.g53 = False  # G53 sonrası, yeni takım bekleniyor
+        self.spindle_on = False  # M3 ile açık, M5 ile kapalı (G84 için)
+        self.m29_s: float | None = None  # son M29 S değeri, G84 çevrimi başlayınca tüketilir
+        self.cycle_p: float | None = None  # G82 bekleme (P)
 
     # --- satır ------------------------------------------------------------------------
     def line(self, gs: list[int], ms: list[int], w: dict[str, float]) -> None:
@@ -110,9 +116,13 @@ class _Reader:
         if 53 in gs and self.machine_z_ok:
             self.machine_z(gs, ms, w)
             return
+        if 4 in gs:
+            self.dwell(gs, ms, w)
+            return
         motion = self.g_codes(gs)
         self.m_codes(ms)
         self.words(w)
+        self.spindle(ms, w)
         self.length_offset(43 in gs, w)
         if motion == "G80":
             if any(k in w for k in "XYZIJRQ"):
@@ -124,11 +134,45 @@ class _Reader:
                 raise CamError(f"G91 (artımsal) altında {motion} çevrimi desteklenmiyor")
             if not self.state.in_cycle:
                 self.state.cycle_z0 = None  # yeni çevrim: z0 ilk delikte alınır
+                self.cycle_begin(motion, w)
         elif motion is not None:
             self.state.end_cycle()
         if motion is not None:
             self.state.motion = motion
         self.execute(w)
+
+    def dwell(self, gs: list[int], ms: list[int], w: dict[str, float]) -> None:
+        """`G4 P<s>` (SPEC 04b, açılmış G82): bekleme yola yansımaz. Satırda başka kod / kelime olamaz."""
+        if gs != [4] or ms or set(w) - {"N"} != {"P"}:
+            raise CamError("G4 yalnız 'G4 P<s>' biçiminde destekleniyor")
+        if not w["P"] > 0:
+            raise CamError(f"G4: bekleme pozitif olmalı (P={w['P']:g})")
+
+    def spindle(self, ms: list[int], w: dict[str, float]) -> None:
+        """M3 / M5 iş mili durumu; `M29 S<rpm>` rijit kılavuz modu (S zorunlu)."""
+        if 3 in ms:
+            self.spindle_on = True
+        if 5 in ms:
+            self.spindle_on = False
+        if 29 in ms:
+            if "S" not in w:
+                raise CamError("M29: S (devir) verilmeli")
+            self.m29_s = w["S"]
+
+    def cycle_begin(self, motion: str, w: dict[str, float]) -> None:
+        """Yeni çevrimin ilk satırı: G82'de P zorunlu; G84'te iş mili ve (Fanuc) M29 denetimi."""
+        if motion == "G82":
+            if "P" not in w or not w["P"] > 0:
+                raise CamError("G82: bekleme P verilmeli ve pozitif olmalı")
+            self.cycle_p = w["P"]
+        if motion == "G84":
+            if not self.spindle_on:
+                raise CamError("G84: iş mili dönmüyor (M3 yok)")
+            if self.d.rigid_tap == "m29":
+                if self.m29_s is None or self.m29_s != self.state.rpm:
+                    S = self.state.rpm
+                    raise CamError(f"G84: önce aynı devirle 'M29 S{S:g}' yazılmalı (rijit kılavuz)")
+                self.m29_s = None
 
     def machine_z(self, gs: list[int], ms: list[int], w: dict[str, float]) -> None:
         """Yalnız `G53 G0 Z<z>` kabul edilir: konum ve hareket tipi sonrası için bilinmez / G0."""
@@ -203,9 +247,15 @@ class _Reader:
     def execute(self, w: dict[str, float]) -> None:
         """Satırda hareket varsa yürütür (eksen kelimesi, yayda I/J/R, çevrimde X Y Z R Q)."""
         mo = self.state.motion
+        if "P" in w and mo != "G82":
+            raise CamError("P kelimesi yalnız G82 ve G4'te geçerli")
         if mo in CYCLE_KINDS:
             if any(k in w for k in "IJ"):
                 raise CamError("çevrimde I/J kelimesi olamaz")
+            if mo == "G84" and "Q" in w:
+                raise CamError("G84 Q (gagalı kılavuz) desteklenmiyor")
+            if mo != "G83" and "Q" in w:
+                raise CamError(f"Q kelimesi sadece G83 çevriminde geçerli ({mo})")
             if any(k in w for k in "XYZRQ"):
                 self.hole(w)
             return
