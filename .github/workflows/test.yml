@@ -1,4 +1,4 @@
-# GitHub Actions - kendi Windows runner'ımızda (self-hosted), bulut dakikası harcamaz
+# GitHub Actions - DAKİKA TASARRUFLU
 # Ana kontrol yerelde (pre-commit, pre-push, ci.ps1). Burası sadece son bağımsız kapı.
 # Çalıştığı durumlar:  main'e açılan PR  +  Actions sekmesinden elle "Run workflow"
 # main'e doğrudan push CI TETİKLEMEZ (zaten pre-push hook'undan geçmiştir).
@@ -8,72 +8,62 @@ name: testler
 on:
   pull_request:
     branches: [main]
-    paths-ignore:            # sadece belge değişirse çalışma
-      - "**.md"
-      - "docs/**"
-      - "specs/**"
   workflow_dispatch:         # elle çalıştırma
 
 concurrency:                 # aynı PR'a yeni push gelirse eski çalışmayı iptal et
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-defaults:
-  run:
-    shell: cmd   # Windows runner'da PowerShell betik çalıştırma kapalı (ExecutionPolicy); Linux adımları bash'i açıkça seçer
-
 jobs:
   pytest:
-    runs-on: self-hosted     # kendi Windows makinemiz; adımlar Linux runner'da da çalışır
-    timeout-minutes: 30      # takılan test runner'ı kilitlemesin (tek runner, PR'lar sırayla)
+    runs-on: ubuntu-latest   # Windows 2x, macOS 10x dakika sayar
+    timeout-minutes: 10      # takılan test dakika yiyemez
     env:
-      PYTHONUTF8: "1"        # Windows konsolunda Türkçe karakterler
-      UV_PYTHON: "3.12"      # tek sürüm = tek iş
+      VTK_DEFAULT_OPENGL_WINDOW: vtkOSOpenGLRenderWindow   # ekran yok: VTK doğrudan OSMesa ile çizer
     steps:
       - uses: actions/checkout@v4
-      - name: uv kur (Windows)  # setup-uv eylemi Windows'ta Node 24 çıkış hatasıyla çöküyor; doğrudan indir
-        if: runner.os == 'Windows'
+        with:
+          fetch-depth: 0     # belge kontrolü için PR tabanı gerekli
+      - name: Sadece belge mi değişti  # zorunlu pytest kontrolü belge PR'larında da raporlansın: koşup hemen yeşil biter
+        id: degisen
+        if: github.event_name == 'pull_request'
         run: |
-          set "UVDIR=%RUNNER_TOOL_CACHE%\uv-0.13.1"
-          if not exist "%UVDIR%\uv.exe" (
-            curl -fsSL -o "%RUNNER_TEMP%\uv.zip" https://github.com/astral-sh/uv/releases/download/0.13.1/uv-x86_64-pc-windows-msvc.zip || exit /b 1
-            mkdir "%UVDIR%"
-            tar -xf "%RUNNER_TEMP%\uv.zip" -C "%UVDIR%" || exit /b 1
-          )
-          >> "%GITHUB_PATH%" echo %UVDIR%
-      - uses: astral-sh/setup-uv@v6   # Linux runner için
-        if: runner.os != 'Windows'
-      - name: .venv kur ve etkinleştir (Windows)  # runner'da sistem Python'u yok: uv indirir
-        if: runner.os == 'Windows'
-        run: |
-          uv venv .venv || exit /b 1
-          >> "%GITHUB_PATH%" echo %CD%\.venv\Scripts
-          >> "%GITHUB_ENV%" echo VIRTUAL_ENV=%CD%\.venv
-      - name: .venv kur ve etkinleştir (Linux)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          uv venv .venv
-          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
-          echo "VIRTUAL_ENV=$PWD/.venv" >> "$GITHUB_ENV"
-      - name: Ekransız çizim kütüphaneleri (Linux)  # SPEC 15 pyvista OSMesa, SPEC 12 gmsh wheel'i
-        if: runner.os == 'Linux'
-        shell: bash
+          if git diff --quiet ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} \
+               -- . ':(exclude)*.md' ':(exclude)docs/**' ':(exclude)specs/**'; then
+            echo "Yalnız belge değişti (**.md, docs/, specs/), testler atlanıyor."
+            echo "belge=1" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-python@v5
+        if: steps.degisen.outputs.belge != '1'
+        with:
+          python-version: "3.12"   # tek sürüm = tek iş
+          cache: pip
+      - name: Görüntüleyici (pyvista) kur  # SPEC 15; ekransız çizim için OSMesa
+        if: steps.degisen.outputs.belge != '1'
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends libosmesa6 libglu1-mesa libxcursor1 libxinerama1 libxft2
-          echo "VTK_DEFAULT_OPENGL_WINDOW=vtkOSOpenGLRenderWindow" >> "$GITHUB_ENV"
-      - name: CalculiX (ccx) kur (Linux)  # Windows'ta ccx PATH'te değilse tests/reference/test_calculix.py atlanır
-        if: runner.os == 'Linux'
-        shell: bash
-        run: sudo apt-get install -y --no-install-recommends calculix-ccx
-      - run: uv pip install -e ".[dev,cad,viz,web,mesh]"   # web: SPEC 24 Tezgah, mesh: gmsh (SPEC 12)
-      - run: ruff check .
-      - run: ruff format --check .
-      - run: pytest -rs --uygulanmamis-hata   # -rs: atlanan testler ve nedenleri logda; NotImplementedError PR'da kırmızı (conftest.py)
-      - name: LinuxCNC rs274 çapraz kontrolü  # Debian kapsayıcısında; Windows runner'da Docker/Linux yok, atlanır
-        if: runner.os == 'Linux'
-        shell: bash
+          sudo apt-get install -y --no-install-recommends libosmesa6
+          pip install -e ".[viz]"
+          python -c "import pyvista as pv; p = pv.Plotter(off_screen=True, window_size=(64, 48)); p.add_mesh(pv.Cube()); assert p.screenshot(return_img=True).shape == (48, 64, 3)"
+      - name: gmsh kur  # SPEC 12 ağ testleri atlanmasın; gmsh wheel'i bu sistem kütüphanelerini ister
+        if: steps.degisen.outputs.belge != '1'
+        run: sudo apt-get install -y --no-install-recommends libglu1-mesa libxcursor1 libxinerama1 libxft2
+      - if: steps.degisen.outputs.belge != '1'
+        run: pip install -e ".[dev,cad,web,mesh]"   # web: SPEC 24 Tezgah, mesh: gmsh (SPEC 12)
+      - name: CalculiX (ccx) kur  # FEM çapraz kontrolü (tests/reference/test_calculix.py) atlanmasın
+        if: steps.degisen.outputs.belge != '1'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends calculix-ccx
+          command -v ccx
+      - if: steps.degisen.outputs.belge != '1'
+        run: ruff check .
+      - if: steps.degisen.outputs.belge != '1'
+        run: ruff format --check .
+      - if: steps.degisen.outputs.belge != '1'
+        run: pytest -rs --uygulanmamis-hata   # -rs: atlanan testler ve nedenleri logda; NotImplementedError PR'da kırmızı (conftest.py)
+      - name: LinuxCNC rs274 çapraz kontrolü  # Ubuntu 24.04'te LinuxCNC paketi yok: Debian kapsayıcısında
+        if: steps.degisen.outputs.belge != '1'
         run: |
           docker run --rm -v "$PWD:/w" -w /w debian:trixie bash -euo pipefail -c '
             apt-get update -qq

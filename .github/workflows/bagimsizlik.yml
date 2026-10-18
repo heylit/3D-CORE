@@ -1,6 +1,6 @@
 # Test bağımsızlığı kapısı (CLAUDE.md "Test bağımsızlığı"; scripts/bagimsizlik_kapisi.py).
 # Aynı Claude oturumu bir PR'da hem testleri hem kodu değiştirdiyse kırmızı.
-# Sadece git geçmişini okur: kurulum yok (uv yalnız Python'u getirir), ~15 sn. Etiket olayları istisna etiketi için tetikler.
+# Sadece git geçmişini okur: kurulum yok, ~15 sn. Etiket olayları istisna etiketi için tetikler.
 
 name: bagimsizlik
 
@@ -18,38 +18,20 @@ permissions:
   issues: read
   pull-requests: read
 
-defaults:
-  run:
-    shell: cmd   # Windows runner'da PowerShell betik çalıştırma kapalı (ExecutionPolicy); Linux adımları bash'i açıkça seçer
-
 jobs:
   kapi:
-    runs-on: self-hosted   # kendi Windows makinemiz; runner'da git PATH'te olmalı (geçmiş için)
-    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0     # commit izleri (Claude-Session) için tüm geçmiş
-      - name: uv kur (Windows)  # setup-uv eylemi Windows'ta Node 24 çıkış hatasıyla çöküyor; doğrudan indir
-        if: runner.os == 'Windows'
-        run: |
-          set "UVDIR=%RUNNER_TOOL_CACHE%\uv-0.13.1"
-          if not exist "%UVDIR%\uv.exe" (
-            curl -fsSL -o "%RUNNER_TEMP%\uv.zip" https://github.com/astral-sh/uv/releases/download/0.13.1/uv-x86_64-pc-windows-msvc.zip || exit /b 1
-            mkdir "%UVDIR%"
-            tar -xf "%RUNNER_TEMP%\uv.zip" -C "%UVDIR%" || exit /b 1
-          )
-          >> "%GITHUB_PATH%" echo %UVDIR%
-      - uses: astral-sh/setup-uv@v6   # Linux runner için
-        if: runner.os != 'Windows'
       - name: Test bağımsızlığı
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          PYTHONUTF8: "1"
-          UV_PYTHON: "3.12"   # runner'da sistem Python'u yok: uv indirir
           PR_NUMARASI: ${{ github.event.pull_request.number }}
         run: >
-          uv run --no-project python scripts/bagimsizlik_kapisi.py
+          python3 scripts/bagimsizlik_kapisi.py
           --taban ${{ github.event.pull_request.base.sha }}
           --uc ${{ github.event.pull_request.head.sha }}
