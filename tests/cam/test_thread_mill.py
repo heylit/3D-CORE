@@ -14,7 +14,7 @@ Kaynaklar (SPEC 52):
   koyar; r_ε = H/8 burunlu V'nin sanal sivri tepesi D/2 + H/8'de, yani ISO temel üçgenin tepesinde olur
   (sivri takımda d₂ 0.2·P kayardı). Helis bozulması (bağımsız zarf hesabı, Δz = 0.002, medyan) d₂'yi D = 10'da
   +0.023·P kaydırır; bu yüzden ISO d₂ toleransı 0.03·P (SPEC'teki 0.01·P D = 10 ile geometrik olarak
-  sağlanamaz; koordinatöre bildirildi, karar bekleniyor).
+  sağlanamaz; kullanıcı onayı 2026-10-18 16:27 UTC).
 - Tırmanma (M3 iş mili): iç dişte takım delik çevresinde CCW (G3), dış dişte CW (G2); geleneksel tersi.
   Sağ helis korunur: CCW yayda ΔZ > 0, CW yayda ΔZ < 0. İki yön aynı yüzeyi verir.
 - Giriş yayı delik duvarına teğet: giriş yayının bitişi helis başlangıcı; iki çember bu noktada teğet
