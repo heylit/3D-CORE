@@ -24,8 +24,8 @@ from cam.gcode import FANUC, GRBL, Dialect, ModalState, fmt
         # SPEC 04 K1'in dört örneği birebir
         (10, 3, "10."),
         (-2.5, 3, "-2.5"),
-        (-0.0001, 3, "0."),       # -0.0001 → 3 basamakta -0.000 → "-0." yasak → "0."
-        (1.23456, 3, "1.235"),    # 1.23456 → 1.235 (4. basamak 5, sonrası 6: yukarı)
+        (-0.0001, 3, "0."),  # -0.0001 → 3 basamakta -0.000 → "-0." yasak → "0."
+        (1.23456, 3, "1.235"),  # 1.23456 → 1.235 (4. basamak 5, sonrası 6: yukarı)
     ],
 )
 def test_fmt_spec_examples(v, d, beklenen):
@@ -35,18 +35,18 @@ def test_fmt_spec_examples(v, d, beklenen):
 @pytest.mark.parametrize(
     "v, d, beklenen",
     [
-        (0.0, 3, "0."),            # sıfır noktalı yazılır
-        (-0.0, 3, "0."),           # IEEE eksi sıfır da "0."
-        (-0.0004, 3, "0."),        # |v| < 0.5e-3 → sıfıra yuvarlanır, işaret düşer
-        (100.0, 1, "100."),        # F biçimi (feed_decimals = 1)
-        (300.04, 1, "300."),       # 300.04 → 300.0 → "300."
+        (0.0, 3, "0."),  # sıfır noktalı yazılır
+        (-0.0, 3, "0."),  # IEEE eksi sıfır da "0."
+        (-0.0004, 3, "0."),  # |v| < 0.5e-3 → sıfıra yuvarlanır, işaret düşer
+        (100.0, 1, "100."),  # F biçimi (feed_decimals = 1)
+        (300.04, 1, "300."),  # 300.04 → 300.0 → "300."
         (12.3456789, 1, "12.3"),
-        (2.0004, 3, "2."),         # 2.0004 → 2.000 → sondaki sıfırlar atılır
-        (-1.9996, 3, "-2."),       # -1.9996 → -2.000
+        (2.0004, 3, "2."),  # 2.0004 → 2.000 → sondaki sıfırlar atılır
+        (-1.9996, 3, "-2."),  # -1.9996 → -2.000
         (1234.5, 3, "1234.5"),
         (123456.789, 3, "123456.789"),  # büyük sayı: bilimsel gösterim yok
-        (1e-7, 3, "0."),           # küçük sayı: bilimsel gösterim yok (1e-07 değil)
-        (0.5, 3, "0.5"),           # karar: baştaki sıfır yazılır (Python biçimi), ".5" değil
+        (1e-7, 3, "0."),  # küçük sayı: bilimsel gösterim yok (1e-07 değil)
+        (0.5, 3, "0.5"),  # karar: baştaki sıfır yazılır (Python biçimi), ".5" değil
         (-0.25, 3, "-0.25"),
     ],
 )

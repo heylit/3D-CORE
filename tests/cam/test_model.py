@@ -58,12 +58,12 @@ def test_flat_tool_defaults_and_bull_nose_limit():
 @pytest.mark.parametrize(
     "D, flute_length, corner_r",
     [
-        (0.0, 20.0, 0.0),     # D = 0
-        (-6.0, 20.0, 0.0),    # D < 0
-        (6.0, 0.0, 0.0),      # flute_length = 0
-        (6.0, -1.0, 0.0),     # flute_length < 0
-        (6.0, 20.0, -0.1),    # corner_r < 0
-        (6.0, 20.0, 3.001),   # corner_r > D/2 = 3
+        (0.0, 20.0, 0.0),  # D = 0
+        (-6.0, 20.0, 0.0),  # D < 0
+        (6.0, 0.0, 0.0),  # flute_length = 0
+        (6.0, -1.0, 0.0),  # flute_length < 0
+        (6.0, 20.0, -0.1),  # corner_r < 0
+        (6.0, 20.0, 3.001),  # corner_r > D/2 = 3
     ],
 )
 def test_tool_invalid_rejected(D, flute_length, corner_r):
@@ -81,9 +81,9 @@ def test_stock_size_and_volume():
 @pytest.mark.parametrize(
     "bounds",
     [
-        (0, 0, 0, 0, 10, 10),     # xmax = xmin
-        (0, 0, 0, 10, -1, 10),    # ymax < ymin
-        (0, 0, 0, 10, 10, 0),     # zmax = zmin
+        (0, 0, 0, 0, 10, 10),  # xmax = xmin
+        (0, 0, 0, 10, -1, 10),  # ymax < ymin
+        (0, 0, 0, 10, 10, 0),  # zmax = zmin
     ],
 )
 def test_stock_invalid_rejected(bounds):
@@ -115,11 +115,11 @@ def test_validate_rpm_not_positive(rpm):
 @pytest.mark.parametrize(
     "move",
     [
-        Move(MoveType.LINEAR, (0.0, 0.0, 0.0)),                                    # G1 feed yok
-        Move(MoveType.LINEAR, (0.0, 0.0, 0.0), feed=0.0),                          # G1 feed = 0
-        Move(MoveType.LINEAR, (0.0, 0.0, 0.0), feed=-50.0),                        # G1 feed < 0
-        Move(MoveType.ARC_CW, (-R, 0.0, 0.0), center=(0.0, 0.0)),                  # G2 feed yok
-        Move(MoveType.ARC_CCW, (-R, 0.0, 0.0), feed=0.0, center=(0.0, 0.0)),       # G3 feed = 0
+        Move(MoveType.LINEAR, (0.0, 0.0, 0.0)),  # G1 feed yok
+        Move(MoveType.LINEAR, (0.0, 0.0, 0.0), feed=0.0),  # G1 feed = 0
+        Move(MoveType.LINEAR, (0.0, 0.0, 0.0), feed=-50.0),  # G1 feed < 0
+        Move(MoveType.ARC_CW, (-R, 0.0, 0.0), center=(0.0, 0.0)),  # G2 feed yok
+        Move(MoveType.ARC_CCW, (-R, 0.0, 0.0), feed=0.0, center=(0.0, 0.0)),  # G3 feed = 0
     ],
 )
 def test_validate_feed_missing_or_not_positive(move):

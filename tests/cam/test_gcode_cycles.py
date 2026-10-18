@@ -21,7 +21,7 @@ from cam.gcode import FANUC, GRBL, DrillOp, read, write
 from cam.model import CamError, Move, MoveType, Tool, ToolKind, Toolpath
 
 G0, G1 = MoveType.RAPID, MoveType.LINEAR
-EPS = 0.5e-3 + 1e-9      # mm, 3 basamak yuvarlama sınırı (SPEC 04 Teori)
+EPS = 0.5e-3 + 1e-9  # mm, 3 basamak yuvarlama sınırı (SPEC 04 Teori)
 
 HOLES3 = [(10.0, 10.0), (20.0, 10.0), (20.0, 20.0)]
 
@@ -106,16 +106,32 @@ def assert_same_path(got: Toolpath, exp: Toolpath, tol: float = EPS) -> None:
 
 # G98: dönüş z0 = 10. Elle, delik başına 4 hareket (ilk G0 z_akım = 10'da XY gezisi):
 G81_G98 = [
-    (G0, (10.0, 10.0, 10.0)), (G0, (10.0, 10.0, 2.0)), (G1, (10.0, 10.0, -5.0)), (G0, (10.0, 10.0, 10.0)),
-    (G0, (20.0, 10.0, 10.0)), (G0, (20.0, 10.0, 2.0)), (G1, (20.0, 10.0, -5.0)), (G0, (20.0, 10.0, 10.0)),
-    (G0, (20.0, 20.0, 10.0)), (G0, (20.0, 20.0, 2.0)), (G1, (20.0, 20.0, -5.0)), (G0, (20.0, 20.0, 10.0)),
+    (G0, (10.0, 10.0, 10.0)),
+    (G0, (10.0, 10.0, 2.0)),
+    (G1, (10.0, 10.0, -5.0)),
+    (G0, (10.0, 10.0, 10.0)),
+    (G0, (20.0, 10.0, 10.0)),
+    (G0, (20.0, 10.0, 2.0)),
+    (G1, (20.0, 10.0, -5.0)),
+    (G0, (20.0, 10.0, 10.0)),
+    (G0, (20.0, 20.0, 10.0)),
+    (G0, (20.0, 20.0, 2.0)),
+    (G1, (20.0, 20.0, -5.0)),
+    (G0, (20.0, 20.0, 10.0)),
 ]
 
 # G99: dönüş r = 2. 2. ve 3. delikte z_akım = r → "G0 (x, y, r)" sıfır boylu, yazılmaz:
 G81_G99 = [
-    (G0, (10.0, 10.0, 10.0)), (G0, (10.0, 10.0, 2.0)), (G1, (10.0, 10.0, -5.0)), (G0, (10.0, 10.0, 2.0)),
-    (G0, (20.0, 10.0, 2.0)), (G1, (20.0, 10.0, -5.0)), (G0, (20.0, 10.0, 2.0)),
-    (G0, (20.0, 20.0, 2.0)), (G1, (20.0, 20.0, -5.0)), (G0, (20.0, 20.0, 2.0)),
+    (G0, (10.0, 10.0, 10.0)),
+    (G0, (10.0, 10.0, 2.0)),
+    (G1, (10.0, 10.0, -5.0)),
+    (G0, (10.0, 10.0, 2.0)),
+    (G0, (20.0, 10.0, 2.0)),
+    (G1, (20.0, 10.0, -5.0)),
+    (G0, (20.0, 10.0, 2.0)),
+    (G0, (20.0, 20.0, 2.0)),
+    (G1, (20.0, 20.0, -5.0)),
+    (G0, (20.0, 20.0, 2.0)),
 ]
 
 
@@ -144,8 +160,11 @@ def test_g81_zero_length_moves_skipped_at_start():
     assert_moves(
         tp,
         [
-            (G1, (10.0, 10.0, -5.0)), (G0, (10.0, 10.0, 2.0)),
-            (G0, (20.0, 10.0, 2.0)), (G1, (20.0, 10.0, -5.0)), (G0, (20.0, 10.0, 2.0)),
+            (G1, (10.0, 10.0, -5.0)),
+            (G0, (10.0, 10.0, 2.0)),
+            (G0, (20.0, 10.0, 2.0)),
+            (G1, (20.0, 10.0, -5.0)),
+            (G0, (20.0, 10.0, 2.0)),
         ],
     )
     assert_no_zero_length(tp)
@@ -157,12 +176,20 @@ def test_g81_zero_length_moves_skipped_at_start():
 # r = 2, z = −10, q = 3, c = 0.5 → n = ⌈12/3⌉ = 4; d = −1, −4, −7, −10.
 # G1 boyları: 3 (2 → −1), 3.5 (−0.5 → −4), 3.5 (−3.5 → −7), 3.5 (−6.5 → −10) → toplam 13.5 = 12 + 3·0.5.
 G83_G98 = [
-    (G0, (5.0, 5.0, 10.0)), (G0, (5.0, 5.0, 2.0)),
-    (G1, (5.0, 5.0, -1.0)), (G0, (5.0, 5.0, 2.0)),
-    (G0, (5.0, 5.0, -0.5)), (G1, (5.0, 5.0, -4.0)), (G0, (5.0, 5.0, 2.0)),
-    (G0, (5.0, 5.0, -3.5)), (G1, (5.0, 5.0, -7.0)), (G0, (5.0, 5.0, 2.0)),
-    (G0, (5.0, 5.0, -6.5)), (G1, (5.0, 5.0, -10.0)), (G0, (5.0, 5.0, 2.0)),
-    (G0, (5.0, 5.0, 10.0)),                                    # G98: z_dön = z0 = 10
+    (G0, (5.0, 5.0, 10.0)),
+    (G0, (5.0, 5.0, 2.0)),
+    (G1, (5.0, 5.0, -1.0)),
+    (G0, (5.0, 5.0, 2.0)),
+    (G0, (5.0, 5.0, -0.5)),
+    (G1, (5.0, 5.0, -4.0)),
+    (G0, (5.0, 5.0, 2.0)),
+    (G0, (5.0, 5.0, -3.5)),
+    (G1, (5.0, 5.0, -7.0)),
+    (G0, (5.0, 5.0, 2.0)),
+    (G0, (5.0, 5.0, -6.5)),
+    (G1, (5.0, 5.0, -10.0)),
+    (G0, (5.0, 5.0, 2.0)),
+    (G0, (5.0, 5.0, 10.0)),  # G98: z_dön = z0 = 10
 ]
 
 
@@ -174,8 +201,8 @@ def test_g83_analytic(dialect):
     g1 = [m for m in tp.moves if m.type is G1]
     assert len(g1) == 4
     assert tp.length({G1}) == pytest.approx(12.0 + 3 * 0.5, rel=1e-12)
-    assert g1[-1].end[2] == -10.0                              # tam z (max(r − n·q, z) = z)
-    assert min(m.end[2] for m in tp.moves) == -10.0            # dibin altına inilmez
+    assert g1[-1].end[2] == -10.0  # tam z (max(r − n·q, z) = z)
+    assert min(m.end[2] for m in tp.moves) == -10.0  # dibin altına inilmez
     assert_moves(tp, G83_G98)
     assert_no_zero_length(tp)
 
@@ -204,7 +231,7 @@ def test_g83_peck_clearance_from_dialect():
     tp = g83().to_toolpath(d)
     assert tp.length({G1}) == pytest.approx(15.0, rel=1e-12)
     g0_z = [m.end[2] for m in tp.moves if m.type is G0]
-    for zz in (0.0, -3.0, -6.0):                              # −1 + 1, −4 + 1, −7 + 1
+    for zz in (0.0, -3.0, -6.0):  # −1 + 1, −4 + 1, −7 + 1
         assert zz in g0_z
 
 
@@ -321,12 +348,12 @@ def test_drill_then_toolpath_same_tool_merges():
     """Fanuc: G80 sonrası konum son deliğin (x, y, z_dön) noktası (Ek A). Aynı takım ve devirde
     ardından gelen yol tek yol olarak okunur: açılım + G0 (yol başı) + yol hareketleri."""
     op = g81()
-    tp2 = Toolpath("sonra", op.tool, (30.0, 30.0, 10.0), rpm=2000.0,
-                   moves=[Move(G1, (30.0, 30.0, -1.0), feed=100.0)])
+    tp2 = Toolpath(
+        "sonra", op.tool, (30.0, 30.0, 10.0), rpm=2000.0, moves=[Move(G1, (30.0, 30.0, -1.0), feed=100.0)]
+    )
     (got,) = read(write([op, tp2], FANUC), {3: op.tool}, FANUC)
     exp = op.to_toolpath(FANUC)
-    exp = Toolpath("bek", op.tool, exp.start, rpm=2000.0,
-                   moves=[*exp.moves, Move(G0, tp2.start), *tp2.moves])
+    exp = Toolpath("bek", op.tool, exp.start, rpm=2000.0, moves=[*exp.moves, Move(G0, tp2.start), *tp2.moves])
     assert_same_path(got, with_retract(exp, 10.0))
 
 

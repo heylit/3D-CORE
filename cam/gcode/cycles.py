@@ -86,7 +86,7 @@ def hole_moves(
     for t, pt in seq:
         pt = tuple(float(v) for v in pt)
         if pt == prev:
-            continue                       # sıfır boylu hareket yazılmaz
+            continue  # sıfır boylu hareket yazılmaz
         moves.append(Move(t, pt, feed if t is not MoveType.RAPID else None))
         prev = pt
     return moves

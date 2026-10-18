@@ -24,11 +24,11 @@ from cam.model import Move, MoveType, Tool, ToolKind, Toolpath
 G0, G1, G2, G3 = MoveType.RAPID, MoveType.LINEAR, MoveType.ARC_CW, MoveType.ARC_CCW
 ARCS = (G2, G3)
 
-TOL_END = 0.5e-3 + 1e-9      # mm, koordinat başına
-TOL_FEED = 0.05 + 1e-9       # mm/dk
-TOL_CENTER = 1e-2            # mm (Öklid uzaklığı)
+TOL_END = 0.5e-3 + 1e-9  # mm, koordinat başına
+TOL_FEED = 0.05 + 1e-9  # mm/dk
+TOL_CENTER = 1e-2  # mm (Öklid uzaklığı)
 
-SEED = 20261018              # sabit tohum: test her çalışmada aynı yolu üretir
+SEED = 20261018  # sabit tohum: test her çalışmada aynı yolu üretir
 N_MOVES = 200
 
 PHI_MIN = 2 * math.asin(0.25)  # kiriş L = 2r·sin(φ/2) ≥ r/2  ⇔  sin(φ/2) ≥ 1/4
@@ -83,10 +83,10 @@ def random_path(seed: int = SEED, n: int = N_MOVES) -> tuple[Toolpath, dict[str,
         else:
             r = float(rng.uniform(1, 50))
             a = float(rng.uniform(0, 2 * math.pi))
-            c = p[:2] - r * np.array([math.cos(a), math.sin(a)])   # p, merkezden a açısında
+            c = p[:2] - r * np.array([math.cos(a), math.sin(a)])  # p, merkezden a açısında
             full = rng.random() < 0.15
             if full:
-                xy = p[:2].copy()                                     # tam daire: aynı XY
+                xy = p[:2].copy()  # tam daire: aynı XY
             else:
                 phi = float(rng.uniform(PHI_MIN, 2 * math.pi - PHI_MIN))
                 xy = c + r * np.array([math.cos(a + phi), math.sin(a + phi)])
@@ -162,10 +162,10 @@ def test_random_roundtrip(dialect):
     got = read(write([tp], dialect), tools, dialect)
     assert len(got) == 1
     g = got[0]
-    g.validate()                         # SPEC: çıkan her yol Toolpath.validate()'ten geçer
+    g.validate()  # SPEC: çıkan her yol Toolpath.validate()'ten geçer
     assert g.tool == tp.tool
-    assert g.rpm == 12_000               # devir tam
-    assert g.name == "T1-1"              # Ek A: yol adı T<n>-<k>
+    assert g.rpm == 12_000  # devir tam
+    assert g.name == "T1-1"  # Ek A: yol adı T<n>-<k>
     assert_paths_close(g, with_retract(tp, tp.start[2]))
 
 
@@ -209,21 +209,39 @@ def test_golden_path_roundtrip_exact(dialect):
 def three_ops() -> list[Toolpath]:
     """İki takım, üç op: op1 ve op2 T1 / 10000, op3 T2 / 8000."""
     t1, t2 = freze6(), freze10()
-    op1 = Toolpath("op1", t1, (0.0, 0.0, 5.0), rpm=10_000.0, moves=[
-        Move(G1, (0.0, 0.0, -1.0), feed=100.0),
-        Move(G1, (20.0, 0.0, -1.0), feed=300.0),
-        Move(G0, (20.0, 0.0, 5.0)),
-    ])
-    op2 = Toolpath("op2", t1, (40.0, 0.0, 5.0), rpm=10_000.0, moves=[
-        Move(G1, (40.0, 0.0, -2.0), feed=100.0),
-        Move(G2, (50.0, 0.0, -2.0), feed=300.0, center=(45.0, 0.0)),
-        Move(G0, (50.0, 0.0, 5.0)),
-    ])
-    op3 = Toolpath("op3", t2, (0.0, 30.0, 5.0), rpm=8_000.0, moves=[
-        Move(G1, (0.0, 30.0, -3.0), feed=80.0),
-        Move(G1, (30.0, 30.0, -3.0), feed=150.0),
-        Move(G0, (30.0, 30.0, 5.0)),
-    ])
+    op1 = Toolpath(
+        "op1",
+        t1,
+        (0.0, 0.0, 5.0),
+        rpm=10_000.0,
+        moves=[
+            Move(G1, (0.0, 0.0, -1.0), feed=100.0),
+            Move(G1, (20.0, 0.0, -1.0), feed=300.0),
+            Move(G0, (20.0, 0.0, 5.0)),
+        ],
+    )
+    op2 = Toolpath(
+        "op2",
+        t1,
+        (40.0, 0.0, 5.0),
+        rpm=10_000.0,
+        moves=[
+            Move(G1, (40.0, 0.0, -2.0), feed=100.0),
+            Move(G2, (50.0, 0.0, -2.0), feed=300.0, center=(45.0, 0.0)),
+            Move(G0, (50.0, 0.0, 5.0)),
+        ],
+    )
+    op3 = Toolpath(
+        "op3",
+        t2,
+        (0.0, 30.0, 5.0),
+        rpm=8_000.0,
+        moves=[
+            Move(G1, (0.0, 30.0, -3.0), feed=80.0),
+            Move(G1, (30.0, 30.0, -3.0), feed=150.0),
+            Move(G0, (30.0, 30.0, 5.0)),
+        ],
+    )
     return [op1, op2, op3]
 
 
@@ -239,12 +257,13 @@ def test_multi_tool_program_reads_two_paths(dialect):
     for g in got:
         g.validate()
 
-    assert p1.name == "T1-1" and p2.name == "T2-2"      # Ek A: k çıktı listesindeki sıra
+    assert p1.name == "T1-1" and p2.name == "T2-2"  # Ek A: k çıktı listesindeki sıra
     assert p1.tool == op1.tool and p2.tool == op3.tool
     assert p1.rpm == 10_000 and p2.rpm == 8_000
 
-    merged = Toolpath("bek", op1.tool, op1.start, rpm=10_000.0,
-                      moves=[*op1.moves, Move(G0, op2.start), *op2.moves])
+    merged = Toolpath(
+        "bek", op1.tool, op1.start, rpm=10_000.0, moves=[*op1.moves, Move(G0, op2.start), *op2.moves]
+    )
     assert_paths_close(p1, merged)
     assert_paths_close(p2, op3)
     assert len(p1.moves) == 3 + 1 + 3
@@ -263,7 +282,19 @@ def test_rpm_change_starts_new_path():
     assert [g.name for g in got] == ["T1-1", "T1-2"]
     assert [g.rpm for g in got] == [10_000, 12_000]
     assert_paths_close(got[0], with_retract(op1, 5.0))
-    assert_paths_close(got[1], Toolpath("bek", t1, op2.start, rpm=12_000.0,
-                                        moves=[*op2.moves, Move(G0, (10.0, 0.0, 5.0)),
-                                               Move(G0, op3.start), *op3.moves,
-                                               Move(G0, (20.0, 0.0, 5.0))]))
+    assert_paths_close(
+        got[1],
+        Toolpath(
+            "bek",
+            t1,
+            op2.start,
+            rpm=12_000.0,
+            moves=[
+                *op2.moves,
+                Move(G0, (10.0, 0.0, 5.0)),
+                Move(G0, op3.start),
+                *op3.moves,
+                Move(G0, (20.0, 0.0, 5.0)),
+            ],
+        ),
+    )
