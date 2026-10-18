@@ -177,7 +177,9 @@ def _kure() -> tuple[TriMesh, np.ndarray]:
 )
 def test_k7_kurede_cakmazlik(orient):
     mesh, Q = _kure()
-    tp = finish5(mesh, _torik(), _raster(lim=12.0, stepover=4.0), orient)
+    # max_dangle = 15°: satır dönüşünde lead ekseni ≈ 10° döner (SPEC 42 kuralı, ds_min = 0.5'te bölünemez);
+    # çakmazlık denetimi bu parametreden bağımsız
+    tp = finish5(mesh, _torik(), _raster(lim=12.0, stepover=4.0), orient, max_dangle=15.0)
     kes = _kesme(tp)
     assert kes
     for m in kes:
