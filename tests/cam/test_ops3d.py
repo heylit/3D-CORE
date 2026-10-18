@@ -351,9 +351,11 @@ def _k14(tool: Tool):
     return V, T, mesh, stock, rr, a_p, z_bottom, tp
 
 
-def _big(tool: Tool) -> Tool:
+def _big(tool: Tool) -> Tool | Cutter:
+    """Pay için büyütülmüş takım. SPEC 06b kesin ofset: küresel R → küresel R + δ; düz R → torik
+    (R + δ, r_c = δ) = Cutter.offset(δ) (SPEC 06'nın tutucu düz R + δ kuralının yerine)."""
     rad = tool.D / 2 + DELTA
-    return ball(rad) if tool.kind is ToolKind.BALL else flat(rad)
+    return ball(rad) if tool.kind is ToolKind.BALL else Cutter.from_tool(tool).offset(DELTA)
 
 
 def _rect_dist(xy: np.ndarray) -> np.ndarray:

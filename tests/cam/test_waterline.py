@@ -21,10 +21,12 @@ import math
 
 import numpy as np
 import pytest
+from scipy.optimize import brentq
 
 from cam.cutter import Cutter
 from cam.dropcutter import TriMesh, drop
 from cam.model import CamError, MoveType, Tool, ToolKind
+from cam.scallop import scallop_flat
 from cam.waterline import Waterline, waterline, waterline_loops
 from tests.cam.ref3d import grid_mesh, point_mesh_distance, sample_triangles, sphere_cap_mesh
 from tests.cam.ref3d_ek import dist_to_segments, prism_mesh, profil, segments_of, signed_area
@@ -351,6 +353,77 @@ def test_k15_sinir_dogrulugu(make, climb):
             assert np.all(z_cl(M[ic] + w * nm[ic]) <= z)
         if np.any(~ic):
             assert np.all(z_cl(M[~ic] - w * nm[~ic]) > z)
+
+
+# --- K16 --------------------------------------------------------------------------------------------
+# Onaylı ek (kullanıcı, 2026-10-18 11:13): tam dik duvarda takımın silindir gövdesi sırtı sıfırlar; iz
+# neredeyse dik (α = 75°) duvarda ölçülür. Ardışık seviyelerin profil kesitleri düzleme paralel bir
+# doğru üzerinde L = Δz / sin α aralıklı → küresel scallop_flat(R, L), torik scallop_flat(r_c, L).
+
+ALFA = math.radians(75.0)
+H_DUVAR = 10.0
+
+
+def steep_wall_mesh() -> TriMesh:
+    """x ≤ 0'da z = H plato, x ≥ 0'da z = H − x·tan α eğik duvar (y ∈ [−10, 10])."""
+    x1 = (H_DUVAR + 20.0) / math.tan(ALFA)
+    xs = np.concatenate([np.linspace(-10.0, 0.0, 11), np.linspace(0.0, x1, 21)[1:]])
+    ys = np.linspace(-10.0, 10.0, 21)
+    return mesh_of(*grid_mesh(lambda X, Y: np.where(X <= 0, H_DUVAR, H_DUVAR - X * math.tan(ALFA)), xs, ys))
+
+
+def wall_profile(x_k: float, z_k: float, f, R: float) -> tuple[np.ndarray, np.ndarray]:
+    """Eksen kesitinde takımın duvar (−x) tarafındaki alt yüzeyi + silindir gövdesi, düzlem
+    koordinatlarında (s: düzlem boyunca aşağı, n: düzleme dik yukarı), s'ye göre artan."""
+    rho = np.linspace(0.0, R, 200001)
+    h = np.linspace(0.0, 3 * R, 2001)[1:]
+    x = np.concatenate([x_k - rho, np.full_like(h, x_k - R)])
+    z = np.concatenate([z_k + f(rho), z_k + float(f(R)) + h])
+    dx, dz = x, z - H_DUVAR
+    s = dx * math.cos(ALFA) - dz * math.sin(ALFA)
+    n = dx * math.sin(ALFA) + dz * math.cos(ALFA)
+    return s[::-1], n[::-1]
+
+
+@pytest.mark.parametrize(
+    "make, r_iz",
+    [pytest.param(ball, RAD, id="kuresel"), pytest.param(torus, RC, id="torik")],
+)
+def test_k16_dike_yakin_duvarda_iz(make, r_iz):
+    tool = make()
+    f = ref_f(tool)
+    dz = 0.3
+    zs = [4.0 - k * dz for k in range(5)]
+    m = math.tan(ALFA)
+    Rt = tool.D / 2 - tool.corner_r
+    f_star = Rt * math.tan(ALFA) + tool.corner_r * (1 / math.cos(ALFA) - 1)
+    mesh = steep_wall_mesh()
+    egriler = []
+    for z in zs:
+        loops = loops_of(mesh, tool, z)
+        P = np.vstack(loops)
+        P = P[(np.abs(P[:, 1]) < 4.0) & (P[:, 0] > 0.0)]
+        assert len(P) >= 2
+        x_k = (H_DUVAR + f_star - z) / m  # eğik düzlemde z_CL = z_düzlem + f*(tan α)
+        np.testing.assert_allclose(P[:, 0], x_k, atol=EPS)
+        assert x_k - RAD > 0.5  # temas eğik yüzde, plato takımın altında değil
+        egriler.append(wall_profile(float(P[:, 0].mean()), z, f, RAD))
+    temas = [float(s[int(np.argmin(n))]) for s, n in egriler]  # her seviyenin düzleme değdiği s
+    L = dz / math.sin(ALFA)
+    beklenen = scallop_flat(r_iz, L)
+    for k in range(len(egriler) - 1):
+        (s0, n0), (s1, n1) = egriler[k], egriler[k + 1]
+        a, c = sorted((temas[k], temas[k + 1]))
+        assert c - a == pytest.approx(L, abs=1e-6)
+
+        def fark(t, s0=s0, n0=n0, s1=s1, n1=n1):
+            return float(np.interp(t, s0, n0) - np.interp(t, s1, n1))
+
+        s_r = brentq(fark, a, c, xtol=1e-14)  # komşu iki profilin kesiştiği sırt
+        sirt = float(np.interp(s_r, s0, n0))
+        diger = [float(np.interp(s_r, s, n, left=np.inf, right=np.inf)) for s, n in egriler]
+        assert min(diger) == pytest.approx(sirt, abs=1e-12)  # sırt zarfın üstünde
+        assert sirt == pytest.approx(beklenen, abs=1e-6)
 
 
 # --- K17 --------------------------------------------------------------------------------------------
