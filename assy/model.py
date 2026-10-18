@@ -82,6 +82,69 @@ class MateKind(StrEnum):
     ANGLE = "aci"
 
 
+class Distribution(StrEnum):
+    """Tolerans dağılımı. T = yarı bant genişliği."""
+
+    NORMAL = "normal"  # bant = ±sigma_level·σ
+    UNIFORM = "duzgun"  # σ = T / √3
+    TRIANGULAR = "ucgen"  # σ = T / √6
+
+
+@dataclass(frozen=True)
+class Tolerance:
+    """Bir boyutun toleransı. lower / upper nominale göre sapmadır (mm veya derece), lower ≤ upper.
+
+    Ör. Ø20 H7: Tolerance(20.0, 0.0, 0.021); 50 ± 0.1: Tolerance.symmetric(50.0, 0.1).
+    __post_init__: distribution dizeden çevrilir; nominal, lower, upper, sigma_level sonlu; lower ≤ upper;
+    sigma_level > 0; aksi AssyError.
+    """
+
+    nominal: float
+    lower: float = 0.0
+    upper: float = 0.0
+    distribution: Distribution = Distribution.NORMAL
+    sigma_level: float = 3.0  # yalnız NORMAL: bant = ±sigma_level·σ
+    name: str = ""
+
+    def __post_init__(self) -> None:
+        raise NotImplementedError("A1a: Tolerance doğrulaması")
+
+    @property
+    def mean(self) -> float:
+        """nominal + (lower + upper) / 2."""
+        raise NotImplementedError("A1a: Tolerance.mean")
+
+    @property
+    def half_width(self) -> float:
+        """T = (upper − lower) / 2."""
+        raise NotImplementedError("A1a: Tolerance.half_width")
+
+    @property
+    def sigma(self) -> float:
+        """NORMAL: T / sigma_level; UNIFORM: T / √3; TRIANGULAR: T / √6; T = 0 → 0."""
+        raise NotImplementedError("A1a: Tolerance.sigma")
+
+    def to_dict(self) -> dict:
+        """distribution .value olarak."""
+        raise NotImplementedError("A1a: Tolerance.to_dict")
+
+    @classmethod
+    def from_dict(cls, d: dict) -> Tolerance:
+        raise NotImplementedError("A1a: Tolerance.from_dict")
+
+    @classmethod
+    def symmetric(
+        cls,
+        nominal: float,
+        t: float,
+        distribution: Distribution = Distribution.NORMAL,
+        sigma_level: float = 3.0,
+        name: str = "",
+    ) -> Tolerance:
+        """nominal ± t (lower = −t, upper = +t); t ≥ 0, aksi AssyError."""
+        raise NotImplementedError("A1a: Tolerance.symmetric")
+
+
 @dataclass
 class Ref:
     """Bileşenin yerel koordinatında geometrik referans. PLANE: direction = normal; AXIS: eksen yönü."""
@@ -167,11 +230,55 @@ class Mate:
         return cift == {RefKind.POINT, RefKind.PLANE} and self.kind is MateKind.DISTANCE
 
 
+class JointKind(StrEnum):
+    FIXED = "sabit"  # 0 SD
+    REVOLUTE = "doner"  # 1 SD: eksen etrafında dönme
+    PRISMATIC = "kayar"  # 1 SD: eksen boyunca öteleme
+    CYLINDRICAL = "silindirik"  # 2 SD: dönme + öteleme
+    SPHERICAL = "kuresel"  # 3 SD: nokta etrafında dönme
+
+
+@dataclass
+class Joint:
+    """İki bileşen arası yönlü eklem: a ebeveyn, b çocuk; z_b = +z_a.
+
+    a, b: SPHERICAL → NOKTA referansı; diğerleri → EKSEN referansı.
+    zero_a / zero_b: yerel sıfır yönü; eksene dik bileşeni birimlenir. None → dünya taban vektörlerinden
+    |z·e| en küçük olan (eşitlikte x, y, z sırası), x = birim(e − (e·z) z).
+    limits: REVOLUTE (alt, üst) derece ⊂ [−180, 180]; PRISMATIC (alt, üst) mm;
+    CYLINDRICAL ((θa, θü) | None, (sa, sü) | None); SPHERICAL / FIXED → None zorunlu.
+    __post_init__ AssyError: boş name; referans türü uyumsuz; zero sonlu değil veya eksene paralel
+    (|birim(zero) × z| < 1e-9); SPHERICAL / FIXED'de limits dolu; alt > üst, sonlu olmayan, REVOLUTE
+    [−180, 180] dışı; CYLINDRICAL limits iki elemanlı değil.
+    """
+
+    name: str
+    kind: JointKind
+    a: Ref
+    b: Ref
+    zero_a: tuple[float, float, float] | None = None
+    zero_b: tuple[float, float, float] | None = None
+    limits: tuple | None = None
+
+    def __post_init__(self) -> None:
+        raise NotImplementedError("A1b: Joint doğrulaması")
+
+    @property
+    def dof(self) -> int:
+        """Serbestlik derecesi: FIXED 0, REVOLUTE 1, PRISMATIC 1, CYLINDRICAL 2, SPHERICAL 3."""
+        raise NotImplementedError("A1b: Joint.dof")
+
+    def axis_frame(self, side: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """side 'a' / 'b' için bileşenin YEREL koordinatında (origin, z, x); z = ref yönü, x = sıfır yönü."""
+        raise NotImplementedError("A1b: Joint.axis_frame")
+
+
 @dataclass
 class Assembly:
     name: str
     components: list[Component] = field(default_factory=list)
     mates: list[Mate] = field(default_factory=list)
+    joints: list[Joint] = field(default_factory=list)  # A1b: validate ve to_dict / from_dict ("joints") kodda
 
     def component(self, name: str) -> Component:
         for c in self.components:
