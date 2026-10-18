@@ -99,3 +99,36 @@ export function yuzeyAt(s: SimVeri, k: number, z: Float32Array, islem: Int16Arra
     olay[c] = s.k[a];
   }
 }
+
+/** SPEC 25 torna nokta dizisi: SPEC 24 biçimi + son blok float32[n] devir. */
+export function tornaNoktalariCoz(buf: ArrayBuffer): import("./tipler").TornaNoktalar {
+  const v = new DataView(buf);
+  sema(v);
+  const n = v.getUint32(4, true);
+  const o = new Okuyucu(buf, 8);
+  const out = {
+    n,
+    konum: o.al(Float32Array, 3 * n),
+    zaman: o.al(Float64Array, n),
+    satir: o.al(Int32Array, n),
+    islem: o.al(Int16Array, n),
+    hizli: o.al(Uint8Array, n),
+    yuk: o.al(Float32Array, n),
+    hareket: o.al(Int32Array, n),
+    devir: o.al(Float32Array, n),
+  };
+  if (o.ofs !== buf.byteLength) throw new Error("Torna nokta dizisi boyu tutmuyor");
+  return out;
+}
+
+/** SPEC 25 üçgen ağ: uint32 sema, nv, nt, 0; float32[nv·3]; uint32[nt·3]. */
+export function agCoz(buf: ArrayBuffer): import("./tipler").Ag {
+  const v = new DataView(buf);
+  sema(v);
+  const nv = v.getUint32(4, true);
+  const nt = v.getUint32(8, true);
+  const o = new Okuyucu(buf, 16);
+  const out = { V: o.al(Float32Array, 3 * nv), F: o.al(Uint32Array, 3 * nt) };
+  if (o.ofs !== buf.byteLength) throw new Error("Ağ dizisi boyu tutmuyor");
+  return out;
+}

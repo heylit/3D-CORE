@@ -4,6 +4,8 @@ SPEC 25 — Torna ve montaj uçları. `sunucu.uygulama` bunları SPEC 24 uçlar�
 
 Uçlar:
     GET  /api/is/kademeli_mil[/noktalar|/sim]   → torna `Is` / ikili diziler (tezgah.torna)
+    POST /api/is/kademeli_mil/parametre         gövde {"islem", "anahtar", "deger"} (müfettiş, SPEC 24 biçimi)
+                                                → {"sema", "is", "sure_farki"}
     GET  /api/montajlar                         → {"sema": 1, "montajlar": [ad, ...]}
     GET  /api/montaj/{ad}                       → Montaj JSON
     GET  /api/montaj/{ad}/ag/{parca}            → ikili parça ağı
@@ -35,6 +37,12 @@ from tezgah.montaj import girisim_agi, parca_agi
 IKILI = "application/octet-stream"
 CEKIRDEK_HATALARI = (CamError, AssyError, GeometryError, ModelError)
 TORNA_IS = "kademeli_mil"
+
+
+class IslemParametre(BaseModel):
+    islem: int
+    anahtar: str
+    deger: float
 
 
 class BagParametre(BaseModel):
@@ -73,6 +81,11 @@ def ekle(app: FastAPI, depo: Depo | None = None) -> Depo:
     @app.get("/api/is/kademeli_mil/sim")
     def torna_sim() -> Response:
         return Response(calistir(lambda: torna.sim_ikili(depo.torna_isi(TORNA_IS))), media_type=IKILI)
+
+    @app.post("/api/is/kademeli_mil/parametre")
+    def torna_parametre(p: IslemParametre) -> dict:
+        Y = calistir(lambda: depo.islem_ayarla(TORNA_IS, p.islem, p.anahtar, p.deger))
+        return {"sema": SEMA, **Y}
 
     @app.get("/api/montajlar")
     def montajlar() -> dict:

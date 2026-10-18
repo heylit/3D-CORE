@@ -1,25 +1,29 @@
 // SPEC 24 — ön yüz giriş noktası: durum, oynatma döngüsü, klavye, komut çubuğu, test kancası.
-// Çalışma alanları (Freze, ileride Torna / Montaj / Modelleme) `ALANLAR` listesine eklenir.
+// SPEC 25 — kabuk: Freze / Torna / Montaj sekmeleri (1/2/3, #/freze #/torna #/montaj); torna ve montaj
+// ekranları ekran_torna.ts ve ekran_montaj.ts'de. Freze ekranının durumu bu dosyada (SPEC 24).
 
 import "./stil.css";
 
 import { SunucuHatasi, isAl, isListesi, noktalarAl, parametreGonder, simAl } from "./api";
 import { hareketSatir, satirUcNoktasi } from "./gcode";
+import { MontajEkrani } from "./ekran_montaj";
+import { TornaEkrani } from "./ekran_torna";
 import type { TezgahKanca } from "./kanca";
+import { DURAKLAT_SVG, type Komut, OYNAT_SVG, anahtarSayi } from "./komut";
 import { GcodePaneli, PARAMETRE, islemRengi, kanitlarCiz, mufettisCiz, sayi, solCiz } from "./paneller";
 import { type Katman, Sahne } from "./sahne";
 import { Serit, sureYaz } from "./serit";
-import type { Is, Nokta3, Noktalar, SimVeri } from "./tipler";
+import type { EkranAdi, Is, Nokta3, Noktalar, SimVeri } from "./tipler";
 import { hareketKonum } from "./yol";
 import { idxAt } from "./zaman";
 
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector<T>(s)!;
 
 const ALANLAR = [
-  { kimlik: "freze", ad: "Freze", hazir: true },
-  { kimlik: "torna", ad: "Torna", hazir: false, not: "SPEC 25" },
-  { kimlik: "montaj", ad: "Montaj", hazir: false, not: "SPEC 25" },
-  { kimlik: "modelleme", ad: "Modelleme", hazir: false, not: "eskiz → ekstrüzyon" },
+  { kimlik: "freze", ad: "Freze", hazir: true, tus: "1" },
+  { kimlik: "torna", ad: "Torna", hazir: true, tus: "2" },
+  { kimlik: "montaj", ad: "Montaj", hazir: true, tus: "3" },
+  { kimlik: "modelleme", ad: "Modelleme", hazir: false, not: "eskiz → ekstrüzyon", tus: "" },
 ];
 const HIZLAR = [1, 5, 20, 60];
 
@@ -86,8 +90,10 @@ async function yukle(ad: string, kameraKoru = false, hazirIs?: Is): Promise<void
   sahne.isKur(is, nk, sim, D.renkler, kameraKoru);
   const hatalar = is.kontroller.filter((k) => k.durum === "hata").map((k) => kontrolNoktasi(k.aciklama));
   serit.kur(is, nk, D.renkler, hatalar.filter((k): k is number => k !== null));
-  gcode.kur(is);
-  panelleriCiz();
+  if (gosterilen === "freze") {
+    if (D.sekme === "gcode") gcode.kur(is);
+    panelleriCiz();
+  }
   guncelle(true);
   D.gelenIs = null;
   D.mesgul = false;
@@ -122,6 +128,7 @@ function sekmeleriCiz(): void {
 
 function sekmeSec(sekme: Durum["sekme"]): void {
   D.sekme = sekme;
+  if (!D.is || gosterilen !== "freze") return;
   sekmeleriCiz();
   if (sekme === "gcode") gcode.kur(D.is!);
   else kanitlarCiz($("#bolme"), D.is!.kontroller);
@@ -179,7 +186,7 @@ function guncelle(zorla = false): void {
   sahne.ilerleme(k);
   serit.zaman(D.t);
   const satir = k + 1 < nk.n && nk.satir[k + 1] >= 0 ? nk.satir[k + 1] : nk.satir[k];
-  if (D.sekme === "gcode") gcode.vurgula(satir, D.oynuyor || zorla);
+  if (D.sekme === "gcode" && gosterilen === "freze") gcode.vurgula(satir, D.oynuyor || zorla);
   const hk = nk.hareket[Math.min(k + 1, nk.n - 1)];
   const F = hk >= 0 ? is.hareketler[hk].F : null;
   $("#hudDro").innerHTML = `<div class="dro" data-test="dro">
@@ -208,7 +215,8 @@ function islemSec(i: number): void {
 function satirUstunde(satir: number): void {
   D.uzerindeSatir = satir;
   gcode.ustundeki(satir);
-  const is = D.is!;
+  const is = D.is;
+  if (!is) return;
   const p = satir >= 0 ? satirUcNoktasi(satir, is.satir_hareket, is.hareketler) : null;
   const ar = satir >= 0 ? is.satir_hareket[satir] : null;
   sahne.hayalet(p, ar ? is.hareketler[ar[1]].islem : 0);
@@ -241,12 +249,10 @@ async function parametreDegistir(anahtar: string, deger: number): Promise<void> 
     D.hata = e instanceof SunucuHatasi ? e.message : String(e);
     D.gelenIs = null;
     D.mesgul = false;
-    mufettisCiz($("#mufettis"), D.is!, D.secili, D.hata, parametreDegistir);
+    if (gosterilen === "freze") mufettisCiz($("#mufettis"), D.is!, D.secili, D.hata, parametreDegistir);
   }
 }
 
-const OYNAT_SVG = `<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 2.5v11l9-5.5z"/></svg>`;
-const DURAKLAT_SVG = `<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3.5 2.5h3v11h-3zM9.5 2.5h3v11h-3z"/></svg>`;
 
 function oynat(acik: boolean): void {
   if (acik && D.is && D.t >= D.is.sure.toplam) D.t = 0;
@@ -280,6 +286,8 @@ let onceki = performance.now();
 function dongu(simdi: number): void {
   const dt = Math.min((simdi - onceki) / 1000, 0.1);
   onceki = simdi;
+  torna.kare(dt);
+  montaj.kare(dt);
   if (D.oynuyor && D.is) {
     D.t += dt * D.hiz;
     if (D.t >= D.is.sure.toplam) {
@@ -293,12 +301,6 @@ function dongu(simdi: number): void {
 
 // --------------------------------------------------------------------- komut çubuğu
 
-interface Komut {
-  ad: string;
-  aciklama: string;
-  calistir: () => void;
-  dinamik?: boolean;
-}
 
 const ESANLAMLI: Record<string, string> = {
   cap: "D",
@@ -321,7 +323,59 @@ const ESANLAMLI: Record<string, string> = {
   q: "q",
 };
 
+/** Kabuk komutları (her ekranda): ekran geçişi, bağlı parametre ("L 9.5"), "patlat", "kesit". */
+function kabukKomutlari(sorgu: string): Komut[] {
+  const out: Komut[] = [];
+  const as = anahtarSayi(sorgu);
+  if (as && as.anahtar === "l") {
+    out.push({
+      ad: `L = ${as.deger}`,
+      aciklama: "kademeli_mil uç boyu · montaj bağıyla torna işi ve montaj yeniden hesaplanır",
+      calistir: () => void montaj.parametreAyarla("L", as.deger),
+      dinamik: true,
+    });
+  }
+  const sabit: Komut[] = [
+    ...ALANLAR.filter((a) => a.hazir).map((a) => ({
+      ad: a.ad,
+      aciklama: `çalışma alanı · ${a.tus}`,
+      calistir: () => ekranIste(a.kimlik as EkranAdi),
+    })),
+    {
+      ad: "Patlat",
+      aciklama: "montaj · E",
+      calistir: () => {
+        ekranIste("montaj");
+        void ekranHazir("montaj").then(() => montaj.patlat());
+      },
+    },
+    {
+      ad: "Kesit",
+      aciklama: "torna · S · 270° kesit / tam",
+      calistir: () => {
+        if (gosterilen === "torna") torna.kesitDegistir();
+        else {
+          ekranIste("torna");
+          void ekranHazir("torna").then(() => torna.kesitDegistir());
+        }
+      },
+    },
+  ];
+  const q = sorgu.trim().toLocaleLowerCase("tr");
+  return out.concat(sabit.filter((k) => !q || `${k.ad} ${k.aciklama}`.toLocaleLowerCase("tr").includes(q)));
+}
+
 function komutlar(sorgu: string): Komut[] {
+  const q = sorgu.trim().toLocaleLowerCase("tr");
+  const suz = (ks: Komut[]) =>
+    ks.filter((k) => k.dinamik || !q || `${k.ad} ${k.aciklama}`.toLocaleLowerCase("tr").includes(q));
+  const ekran =
+    gosterilen === "torna" ? suz(torna.komutlar(sorgu)) : gosterilen === "montaj" ? suz(montaj.komutlar()) : frezeKomutlari(sorgu);
+  const dinamik = ekran.filter((k) => k.dinamik);
+  return dinamik.concat(kabukKomutlari(sorgu), ekran.filter((k) => !k.dinamik));
+}
+
+function frezeKomutlari(sorgu: string): Komut[] {
   const is = D.is;
   if (!is) return [];
   const out: Komut[] = [];
@@ -366,7 +420,7 @@ function paletAc(): void {
   $("#perde").hidden = false;
   const g = $<HTMLInputElement>("#paletGirdi");
   g.value = "";
-  g.placeholder = "Komut yaz: çap 12 · paso 2 · ilerleme 900 · cep · sona git";
+  g.placeholder = "Komut yaz: torna · montaj · L 9.5 · paso 2 · patlat · kesit · sona git";
   paletDoldur();
   g.focus();
 }
@@ -427,15 +481,29 @@ document.addEventListener("keydown", (e) => {
     else paletAc();
     return;
   }
-  if (e.key === "Escape") {
-    if (paletAcik) paletKapat();
-    else satirUstunde(-1);
+  if (e.key === "Escape" && paletAcik) {
+    paletKapat();
     return;
   }
   if (paletAcik) return;
   const hedef = e.target as HTMLElement;
   if (hedef.matches("input, textarea, select") || hedef.isContentEditable) return;
-  if (e.key === " ") {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const alan = ALANLAR.find((a) => a.hazir && a.tus === e.key);
+  if (alan) {
+    ekranIste(alan.kimlik as EkranAdi);
+    return;
+  }
+  if (gosterilen === "torna") {
+    torna.tus(e, hedef);
+    return;
+  }
+  if (gosterilen === "montaj") {
+    montaj.tus(e, hedef);
+    return;
+  }
+  if (e.key === "Escape") satirUstunde(-1);
+  else if (e.key === " ") {
     if (hedef.matches("button")) return; // odaklı düğmenin kendi Boşluk davranışı
     e.preventDefault();
     oynat(!D.oynuyor);
@@ -451,25 +519,107 @@ document.addEventListener("keydown", (e) => {
 
 // --------------------------------------------------------------------- kurulum
 
+// --------------------------------------------------------------------- kabuk: ekranlar
+
+const torna = new TornaEkrani();
+const montaj = new MontajEkrani(torna);
+
+/** DOM'da gösterilen ekran ve yüklenip kancaya bildirilen ekran (yükleme bitince `gosterilen`e eşitlenir). */
+let gosterilen: EkranAdi = "freze";
+let aktif: EkranAdi = "freze";
+let gecis: Promise<void> = Promise.resolve();
+
+function hashEkran(): EkranAdi {
+  const m = /^#\/(freze|torna|montaj)\b/.exec(location.hash);
+  return m ? (m[1] as EkranAdi) : "freze";
+}
+
+/** Ekran geçişi adres üzerinden: #/ad (geri tuşu da çalışır). */
+function ekranIste(ad: EkranAdi): void {
+  if (hashEkran() === ad && location.hash.startsWith("#/")) return;
+  location.hash = `#/${ad}`;
+}
+
+/** `ad` ekranı açılıp yüklenince çözülür. */
+async function ekranHazir(ad: EkranAdi): Promise<void> {
+  for (let i = 0; i < 600 && !(aktif === ad && gosterilen === ad && ekranYuklendi(ad)); i++) {
+    await new Promise((r) => setTimeout(r, 50));
+  }
+}
+
+function ekranYuklendi(ad: EkranAdi): boolean {
+  if (ad === "torna") return torna.hazir;
+  if (ad === "montaj") return montaj.hazir;
+  return D.hazir && !D.mesgul;
+}
+
+function ekranAc(ad: EkranAdi): void {
+  if (ad === gosterilen) {
+    alanlariCiz();
+    return;
+  }
+  const onceki = gosterilen;
+  gosterilen = ad;
+  // eskiyi kapat (dinamik paneller boşalır: test kimlikleri tek kalır), yeniyi göster
+  if (onceki === "freze") frezeKapat();
+  else if (onceki === "torna") torna.kapat();
+  else montaj.kapat();
+  document.querySelectorAll<HTMLElement>("[data-ekran]").forEach((el) => (el.hidden = el.dataset.ekran !== ad));
+  alanlariCiz();
+  gecis = gecis.then(async () => {
+    if (gosterilen !== ad) return;
+    if (ad === "torna") await torna.ac();
+    else if (ad === "montaj") await montaj.ac();
+    else frezeAc();
+    if (gosterilen === ad) aktif = ad;
+  });
+}
+
+function frezeKapat(): void {
+  oynat(false);
+  satirUstunde(-1);
+  for (const s of ["#sol", "#mufettis", "#sekmeler", "#bolme"]) $(s).innerHTML = "";
+}
+
+function frezeAc(): void {
+  if (!D.is) return;
+  panelleriCiz();
+  sekmeSec(D.sekme);
+}
+
 function alanlariCiz(): void {
   $("#alanlar").innerHTML = ALANLAR.map(
     (a) =>
-      `<button role="tab" aria-selected="${a.kimlik === "freze"}" ${a.hazir ? "" : `disabled title="Sonraki adım: ${a.not}"`}>${a.ad}</button>`,
+      `<button role="tab" data-testid="sekme" data-sekme="${a.kimlik}" aria-selected="${a.kimlik === gosterilen}" ${
+        a.hazir ? `title="${a.ad} (${a.tus})"` : `disabled title="Sonraki adım: ${a.not}"`
+      }>${a.ad}${a.tus ? ` <kbd>${a.tus}</kbd>` : ""}</button>`,
   ).join("");
+  $("#alanlar")
+    .querySelectorAll<HTMLButtonElement>("button[data-sekme]")
+    .forEach((b) => b.addEventListener("click", () => ekranIste(b.dataset.sekme as EkranAdi)));
 }
 
+const tk = torna.kanca();
+const mk = montaj.kanca();
 const kanca: TezgahKanca = {
   get hazir() {
-    return D.hazir && !D.mesgul;
+    return D.hazir && !D.mesgul && hashEkran() === gosterilen && aktif === gosterilen && ekranYuklendi(aktif);
   },
-  hayaletKonum: () => sahne.hayaletKonum(),
-  dro: () => [...D.dro] as Nokta3,
-  zaman: () => D.t,
-  gcodeSatirSayisi: () => (D.gelenIs ?? D.is)?.gcode.length ?? 0,
-  toplamSure: () => (D.gelenIs ?? D.is)?.sure.toplam ?? 0,
+  ekran: () => aktif,
+  kesitAcik: tk.kesitAcik,
+  capModu: tk.capModu,
+  seciliIslem: tk.seciliIslem,
+  montajU: mk.montajU,
+  montajPoz: mk.montajPoz,
+  hayaletKonum: () => (aktif === "torna" ? tk.hayaletKonum() : sahne.hayaletKonum()),
+  dro: () => (aktif === "torna" ? tk.dro() : ([...D.dro] as Nokta3)),
+  zaman: () => (aktif === "torna" ? tk.zaman() : D.t),
+  gcodeSatirSayisi: () => (aktif === "torna" ? tk.gcodeSatirSayisi() : ((D.gelenIs ?? D.is)?.gcode.length ?? 0)),
+  toplamSure: () => (aktif === "torna" ? tk.toplamSure() : ((D.gelenIs ?? D.is)?.sure.toplam ?? 0)),
   yuzey: () => sahne.yuzey(),
 };
 window.__tezgah = kanca;
+window.addEventListener("hashchange", () => ekranAc(hashEkran()));
 
 async function basla(): Promise<void> {
   alanlariCiz();
@@ -477,6 +627,7 @@ async function basla(): Promise<void> {
   oynat(false);
   $("#oynat").addEventListener("click", () => oynat(!D.oynuyor));
   setTimeout(() => $("#ipucu").style.setProperty("opacity", "0"), 7000);
+  ekranAc(hashEkran());
   try {
     const isler = await isListesi();
     if (!isler.length) throw new Error("Sunucuda iş yok");

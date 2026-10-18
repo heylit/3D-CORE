@@ -51,6 +51,46 @@ EZ = (0.0, 0.0, 1.0)
 EZ_ALT = (0.0, 0.0, -1.0)
 
 
+# kademeli_mil işlemlerinin müfettişte değiştirilebilen kesme değerleri (sırayla alın, kaba, ince, kanal).
+# Vc [m/min] → G96 kesme hızı, f [mm/dev], n_max [dev/dk] → G96 devir sınırı,
+# n [dev/dk] → G97 sabit devir, a_p [mm]
+ISLEM_VARSAYILAN: tuple[dict[str, float], ...] = (
+    {"Vc": 200.0, "f": 0.2, "n_max": 3000.0},
+    {"a_p": 2.0, "f": 0.25, "Vc": 200.0, "n_max": 2500.0},
+    {"f": 0.1, "Vc": 250.0, "n_max": 3000.0},
+    {"f": 0.05, "n": 1200.0},
+)
+_ALIN_A_P = 1.0  # alın pasosu [mm] (müfettişte yok)
+
+
+def islem_parametre_dogrula(
+    islem_parametreleri: dict[int, dict[str, float]] | None,
+) -> list[dict[str, float]]:
+    """ISLEM_VARSAYILAN'ın üstüne verilenler.
+
+    Bilinmeyen işlem / anahtar, sonlu ve pozitif olmayan değer → CamError.
+    """
+    q = [dict(d) for d in ISLEM_VARSAYILAN]
+    for i, d in (islem_parametreleri or {}).items():
+        if not (isinstance(i, int) and 0 <= i < len(q)):
+            raise CamError(f"kademeli_mil işinde {i} numaralı işlem yok (0..{len(q) - 1})")
+        for k, v in d.items():
+            if k not in q[i]:
+                raise CamError(f"kademeli_mil işlem {i}: '{k}' parametresi yok (var olanlar: {sorted(q[i])})")
+            if not (isinstance(v, (int, float)) and math.isfinite(v) and v > 0):
+                raise CamError(f"kademeli_mil işlem {i}: {k} sonlu ve pozitif olmalı ({v!r})")
+            q[i][k] = float(v)
+    return q
+
+
+def _kesme(d: dict[str, float], a_p: float | None = None):
+    """Müfettiş değerlerinden SPEC 20 TurnCut: Vc varsa G96 (rpm = n_max sınırı), yoksa G97 n."""
+    from cam.lathe_ops import TurnCut
+
+    rpm = d["n_max"] if "Vc" in d else d["n"]
+    return TurnCut(feed=d["f"], rpm=rpm, css=d.get("Vc"), a_p=d.get("a_p", a_p))
+
+
 def parametre_dogrula(is_ad: str, parametreler: dict[str, float] | None) -> dict[str, float]:
     """Varsayılanların üstüne verilen değerler; bilinmeyen anahtar ya da aralık dışı → CamError."""
     p = dict(VARSAYILAN[is_ad])
@@ -124,13 +164,18 @@ def _takimlar() -> tuple[LatheTool, LatheTool, LatheTool]:
     return kaba, ince, kanal
 
 
-def kademeli_mil(parametreler: dict[str, float] | None = None) -> TornaIsi:
+def kademeli_mil(
+    parametreler: dict[str, float] | None = None,
+    islem_parametreleri: dict[int, dict[str, float]] | None = None,
+) -> TornaIsi:
     """Torna işi; parametreler None → VARSAYILAN. Aralık dışı → CamError.
+
+    islem_parametreleri: işlem sırası → {anahtar: değer}; ISLEM_VARSAYILAN'ın üstüne yazılır (müfettiş).
 
     Profil parçadan SPEC 28 ile (`cam.turn_profile`) çıkarılır; kaba ve ince profil kanalsız gövdeden,
     kanal SPEC 20 kanal işlemiyle. İşlemler: alın, kaba boyuna, ince profil, kanal.
     """
-    from cam.lathe_ops import TurnCut, face, finish, groove, rough
+    from cam.lathe_ops import face, finish, groove, rough
     from cam.turn_profile import turn_profile
     from tezgah.torna import TornaIsi, TornaIslem
 
@@ -145,30 +190,17 @@ def kademeli_mil(parametreler: dict[str, float] | None = None) -> TornaIsi:
     kaba, ince, kanal = _takimlar()
     z0, z1 = _kanal_z(L)
     r44 = KADEMELER[-1][0] / 2
-    c_alin = TurnCut(feed=0.2, rpm=3000.0, css=200.0, a_p=1.0)
-    c_kaba = TurnCut(feed=0.25, rpm=2500.0, css=200.0, a_p=2.0)
-    c_ince = TurnCut(feed=0.1, rpm=3000.0, css=250.0)
-    c_kanal = TurnCut(feed=0.05, rpm=1200.0)
+    q = islem_parametre_dogrula(islem_parametreleri)
     islemler = [
-        TornaIslem("alin", "Alın", face(stok, kaba, c_alin, 0.0), {"Vc": 200.0, "f": 0.2, "n_max": 3000.0}),
+        TornaIslem("alin", "Alın", face(stok, kaba, _kesme(q[0], _ALIN_A_P), 0.0), q[0]),
         TornaIslem(
             "kaba",
             "Kaba boyuna",
-            rough(profil, alinmis, kaba, c_kaba, allowance=0.2, name="kaba"),
-            {"a_p": 2.0, "f": 0.25, "Vc": 200.0, "n_max": 2500.0},
+            rough(profil, alinmis, kaba, _kesme(q[1]), allowance=0.2, name="kaba"),
+            q[1],
         ),
-        TornaIslem(
-            "ince",
-            "İnce profil",
-            finish(profil, alinmis, ince, c_ince),
-            {"f": 0.1, "Vc": 250.0, "n_max": 3000.0},
-        ),
-        TornaIslem(
-            "kanal",
-            "Kanal",
-            groove(alinmis, kanal, c_kanal, z0, z1, r44, r44 - KANAL_T),
-            {"f": 0.05, "n": 1200.0},
-        ),
+        TornaIslem("ince", "İnce profil", finish(profil, alinmis, ince, _kesme(q[2])), q[2]),
+        TornaIslem("kanal", "Kanal", groove(alinmis, kanal, _kesme(q[3]), z0, z1, r44, r44 - KANAL_T), q[3]),
     ]
     return TornaIsi(ad="kademeli_mil", kurulum=kurulum, malzeme="C45", islemler=islemler, parca=parca)
 

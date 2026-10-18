@@ -17,7 +17,7 @@ const YEDEK = ["#e3795d", "#55c08f", "#93a6ba", "#5cb8dc"];
 
 export const islemRengi = (isl: Islem): string => ISLEM_RENKLERI[isl.anahtar] ?? YEDEK[isl.i % YEDEK.length];
 
-const kacis = (s: string) =>
+export const kacis = (s: string) =>
   s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
 export function sayi(v: number, ondalik = 3): string {

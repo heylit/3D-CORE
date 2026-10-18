@@ -111,13 +111,19 @@ class Depo:
     """
 
     parametreler: dict[str, dict[str, float]] = field(default_factory=_varsayilan)
+    # torna işi adı → işlem sırası → {anahtar: değer} (müfettiş; ornekler_25.ISLEM_VARSAYILAN üstüne)
+    islem_parametreleri: dict[str, dict[int, dict[str, float]]] = field(default_factory=dict)
     _onbellek: dict = field(default_factory=dict, repr=False, compare=False)
 
     def sifirla(self) -> None:
         self.parametreler = _varsayilan()
+        self.islem_parametreleri = {}
 
     def _anahtar(self, tur: str, ad: str) -> tuple:
-        return (tur, ad, tuple(sorted((k, tuple(sorted(v.items()))) for k, v in self.parametreler.items())))
+        def dondur(d: dict) -> tuple:
+            return tuple(sorted((k, dondur(v) if isinstance(v, dict) else v) for k, v in d.items()))
+
+        return (tur, ad, dondur(self.parametreler), dondur(self.islem_parametreleri))
 
     def _bellek(self, tur: str, ad: str, hesap: Callable[[], object]):
         k = self._anahtar(tur, ad)
@@ -131,7 +137,9 @@ class Depo:
 
         if ad not in o.TORNA_ISLERI:
             raise KeyError(f"Bilinmeyen torna işi: '{ad}'")
-        return self._bellek("torna", ad, lambda: getattr(o, ad)(self.parametreler.get(ad)))
+        return self._bellek(
+            "torna", ad, lambda: getattr(o, ad)(self.parametreler.get(ad), self.islem_parametreleri.get(ad))
+        )
 
     def montaj(self, ad: str):
         """Güncel parametrelerle `MontajTanimi` (önbellekli). Bilinmeyen ad → KeyError."""
@@ -194,3 +202,25 @@ class Depo:
             return cift_hacmi(getattr(o, montaj_ad)(yeni), a, b)
 
         return oneri(v, self.parametreler[is_ad][anahtar], bag.min, bag.max)
+
+    def islem_ayarla(self, is_ad: str, islem: int, anahtar: str, deger: float) -> dict:
+        """Torna işinde bir işlemin kesme değerini ayarlar (müfettiş); {"is": Is, "sure_farki": s}.
+
+        Bilinmeyen iş → KeyError; bilinmeyen işlem / anahtar, geçersiz değer → CamError (değer değişmez).
+        """
+        from tezgah import ornekler_25 as o
+
+        if is_ad not in o.TORNA_ISLERI:
+            raise KeyError(f"Bilinmeyen torna işi: '{is_ad}'")
+        yeni = copy.deepcopy(self.islem_parametreleri)
+        yeni.setdefault(is_ad, {}).setdefault(islem, {})[anahtar] = deger
+        o.islem_parametre_dogrula(yeni[is_ad])
+        eski_sure = self.is_json(is_ad)["sure"]["toplam"]
+        onceki = self.islem_parametreleri
+        self.islem_parametreleri = yeni
+        try:
+            Is = self.is_json(is_ad)  # SPEC 20 reddederse (ör. çok büyük paso) eski değerler kalır
+        except Exception:
+            self.islem_parametreleri = onceki
+            raise
+        return {"is": Is, "sure_farki": Is["sure"]["toplam"] - eski_sure}

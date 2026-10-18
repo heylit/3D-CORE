@@ -22,12 +22,12 @@
             <circle cx="7" cy="7" r="5" />
             <path d="M11 11l4 4" />
           </svg>
-          <span>Komut yaz: “çap 12”, “paso 2”, “cep”, “sona git”</span><kbd>Ctrl K</kbd>
+          <span>Komut yaz: “torna”, “montaj”, “L 9.5”, “paso 2”, “patlat”, “kesit”</span><kbd>Ctrl K</kbd>
         </button>
       </header>
-      <aside class="sol" id="sol" aria-label="İş ve işlemler"></aside>
-      <section class="sahne" id="sahneKap" aria-label="3B sahne">
-        <div id="gorunum"></div>
+      <aside class="sol" id="sol" data-ekran="freze" aria-label="İş ve işlemler"></aside>
+      <section class="sahne" id="sahneKap" data-ekran="freze" aria-label="3B sahne">
+        <div id="gorunum" class="gorunum"></div>
         <div class="hud sol-ust" id="hudBaslik"></div>
         <div class="hud sag-ust" id="hudKatman"></div>
         <div class="hud sol-alt" id="hudDro"></div>
@@ -37,12 +37,12 @@
           <kbd>Ctrl K</kbd> komut
         </div>
       </section>
-      <aside class="sag" id="sag" aria-label="Müfettiş, G-code ve kanıtlar">
+      <aside class="sag" id="sag" data-ekran="freze" aria-label="Müfettiş, G-code ve kanıtlar">
         <div class="mufettis" id="mufettis"></div>
         <div class="sekmeler" role="tablist" id="sekmeler"></div>
         <div class="bolme" id="bolme"></div>
       </aside>
-      <footer class="serit">
+      <footer class="serit" data-ekran="freze">
         <div class="serit-kontrol">
           <div class="serit-satir">
             <button class="oynat" id="oynat" aria-label="Oynat (Boşluk)"></button>
@@ -51,6 +51,57 @@
           <div class="hiz" id="hiz" role="group" aria-label="Oynatma hızı"></div>
         </div>
         <div class="serit-kap" id="seritKap"><canvas id="seritTuval" data-testid="zaman-seridi" tabindex="0" aria-label="Zaman şeridi"></canvas></div>
+      </footer>
+
+      <!-- SPEC 25: torna -->
+      <aside class="sol" id="tSol" data-ekran="torna" aria-label="Torna işi ve işlemler" hidden></aside>
+      <section class="sahne" id="tSahneKap" data-ekran="torna" aria-label="Torna sahnesi" hidden>
+        <div id="tGorunum" class="gorunum"></div>
+        <div class="hud sol-ust" id="tHudBaslik"></div>
+        <div class="hud sag-ust" id="tHudKatman"></div>
+        <div class="hud sol-alt" id="tHudDro"></div>
+        <div class="hud sag-alt" id="tHudUyari"></div>
+        <div class="buyutec" id="tBuyutec" hidden></div>
+      </section>
+      <aside class="sag" id="tSag" data-ekran="torna" aria-label="Müfettiş, G-code ve kanıtlar" hidden>
+        <div class="mufettis" id="tMufettis"></div>
+        <div class="sekmeler" role="tablist" id="tSekmeler"></div>
+        <div class="bolme" id="tBolme"></div>
+      </aside>
+      <footer class="serit" data-ekran="torna" hidden>
+        <div class="serit-kontrol">
+          <div class="serit-satir">
+            <button class="oynat" id="tOynat" aria-label="Oynat (Boşluk)"></button>
+            <div class="saat" id="tSaat">0:00 <span>/ 0:00</span></div>
+          </div>
+          <div class="serit-not">Alt: devir n(t), taralı: n_max</div>
+        </div>
+        <div class="serit-kap cift">
+          <canvas id="tSeritTuval" data-testid="torna-seridi" tabindex="0" aria-label="Torna zaman şeridi"></canvas>
+          <canvas id="tDevirTuval" aria-label="Devir şeridi: iş mili devri n(t), taralı bölgeler n_max sınırı"></canvas>
+        </div>
+      </footer>
+
+      <!-- SPEC 25: montaj -->
+      <aside class="sol" id="mSol" data-ekran="montaj" aria-label="Montaj ağacı ve BOM" hidden></aside>
+      <section class="sahne" id="mSahneKap" data-ekran="montaj" aria-label="Montaj sahnesi" hidden>
+        <div id="mGorunum" class="gorunum"></div>
+        <div class="hud sol-ust" id="mHudBaslik"></div>
+        <div class="hud sag-ust" id="mHudKatman"></div>
+        <div class="hud sag-alt" id="mHudUyari"></div>
+      </section>
+      <aside class="sag" id="mSag" data-ekran="montaj" aria-label="Girişim, seçili parça ve kanıtlar" hidden></aside>
+      <footer class="serit" data-ekran="montaj" hidden>
+        <div class="serit-kontrol">
+          <div class="serit-satir">
+            <button class="oynat" id="mOynat" aria-label="Topla (Boşluk)"></button>
+            <div class="saat" id="mSaat">Adım 0 / 0</div>
+          </div>
+          <div class="serit-not"><kbd>E</kbd> patlat / topla</div>
+        </div>
+        <div class="serit-kap">
+          <canvas id="mSeritTuval" data-testid="montaj-seridi" tabindex="0" aria-label="Montaj sırası şeridi"></canvas>
+        </div>
       </footer>
     </div>
     <div class="perde" id="perde" hidden>

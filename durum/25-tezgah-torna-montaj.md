@@ -36,6 +36,8 @@ girmeden çalışamaz: SPEC 22 birleşince `main` bu dala merge edilir, torna te
   - `kademeli_mil`: kaba / ince / kanal alın yüzü alınmış ham (zmax = 0) üzerinde; profil SPEC 28 `turn_profile`
     dış çizgisinden, ham yarıçapına (25) ulaşan uç segmentler atılarak. Ø44 üzerinde Ø50 omzuna dayalı 3 × 1 kanal.
   - Bilinmeyen iş/anahtar bağı → `CamError` (sunucuda 422); bilinmeyen montaj / parça / girişim indisi → 404.
+  - Müfettiş: `POST /api/is/kademeli_mil/parametre {islem, anahtar, deger}` (SPEC 24 biçimi) → `{sema, is, sure_farki}`;
+    değiştirilebilen kesme değerleri `ornekler_25.ISLEM_VARSAYILAN` (Vc, f, n_max / n, a_p). "paso 2" komutu bunu kullanır.
   - `Depo`, parametre değerleriyle anahtarlanmış önbellek tutar (tanım, Is, Montaj): aynı değerde yeniden hesap yok.
 
 ## Açık sorular
