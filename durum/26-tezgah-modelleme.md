@@ -1,9 +1,11 @@
 # DURUM — SPEC 26 tezgah-modelleme
 
-Dal: `claude/project-thread-uo3o39` (SPEC taslağı) · Oturum: bulut
+Dal: `claude/project-thread-uo3o39` · Oturum: bulut
 
 ## Sıradaki adım
-SPEC onaylandı (2026-10-18 10:38 UTC). Sıradaki: 17 ve 24 `main`'e girince dogrulayici testleri (K1–K5 17'nin arayüz PR'ından sonra başlayabilir).
+İskelet push edildi (NotImplementedError). Sıradaki: dogrulayici oturumu testleri ayrı dalda yazar
+(`tests/geometry/test_extrude.py`, `tests/tezgah/test_ifade.py`, `test_modelleme.py`, `test_model_kopru.py`,
+`test_model_sunucu.py`, `tezgah/arayuz/tests/eskiz.test.ts`); bu dal test commit'ini cherry-pick eder, kodu ayrı commit'te yazar.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
@@ -11,7 +13,9 @@ SPEC onaylandı (2026-10-18 10:38 UTC). Sıradaki: 17 ve 24 `main`'e girince dog
 
 ## Son oturum
 **2026-10-18**
-- SPEC taslağı yazıldı (`specs/26-tezgah-modelleme.md`), yol haritasına Dalga 3 satırı eklendi.
+- SPEC yazıldı ve onaylandı (10:38). SPEC 17 (#39) ve 24 (#40) main'de.
+- İskelet: `geometry/extrude.py`, `tezgah/ifade.py`, `tezgah/modelleme.py`, `tezgah/model_kopru.py`,
+  `tezgah/sunucu.py` içinde /api/model uçları, `tezgah/arayuz/src/eskiz.ts`.
 
 ## Açık sorular
-_(yok; SPEC 2026-10-18 10:38 UTC onaylandı)_
+_(yok)_
