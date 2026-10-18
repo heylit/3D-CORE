@@ -18,6 +18,10 @@ Her eleman modülü şu fonksiyonları sağlar (sözleşme):
     volume(element, model) -> float                  (sadece katı elemanlar)
         Eleman hacmi [mm³]; düğüm gerilmesinin hacim ağırlığı (specs/13-calculix.md).
 
+    me(element, model, lumped=False) -> np.ndarray   (isteğe bağlı; modal analiz için)
+        Kütle matrisi [t], ke ile aynı boyut ve DOF sırası; tutarlı veya toplanmış (specs/45-modal.md).
+        Sağlamayan eleman tipi core.modal'da ModelError verir.
+
 ke ve dofs her elemanda zorunludur.
 
 Yeni eleman eklemek = bu klasöre bir dosya + aşağıdaki sözlüğe bir satır.
