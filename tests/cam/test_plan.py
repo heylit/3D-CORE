@@ -447,12 +447,17 @@ def test_sira():
     assert names == [f"{i + 1:02d}-{o.kind}-T{o.tool_id}" for i, o in enumerate(p.ops)]
     assert names[0] == "01-yuz_alma-T1" and names[-1] == "09-lamba-T2"
     assert all(o.setup == 0 for o in p.ops)
-    # alan işlemlerinin üst seviyesi azalmayan değil (kesme hareketlerinin en üst Z'si)
-    ust = []
-    for o in p.ops[:6]:
-        zs = [m.end[2] for m in o.op.moves if m.feed is not None]
-        ust.append(max(zs))
-    assert all(b <= a + 1e-9 for a, b in zip(ust, ust[1:], strict=False))
+    # alan işlemlerinin z_t'si bir öncekininkinden büyük değil; z_t özellikten okunur (yüz alma: stok üstü,
+    # açık bölge / cep: z_top). İlk paso derinliği a_p'ye bağlı olduğundan kesme hareketlerinden okunmaz.
+    F = ozellik_k8()
+
+    def z_t(o: PlannedOp) -> float:
+        tur, i = re.fullmatch(r"(faces|opens|pockets)\[(\d+)\]", o.feature).groups()
+        return STOK.zmax if tur == "faces" else getattr(F, tur)[int(i)].z_top
+
+    ust = [z_t(o) for o in p.ops[:6]]
+    assert ust == [22.0, 20.0, 20.0, 20.0, 12.0, 12.0]
+    assert all(b <= a for a, b in zip(ust, ust[1:], strict=False))
     # T1, T1, T1, T2, T2, T3, T11, T12, T2 → ilk takım + 5 geçiş
     assert p.tool_changes() == 6
     assert p.ops_for(0) == [o.op for o in p.ops]
