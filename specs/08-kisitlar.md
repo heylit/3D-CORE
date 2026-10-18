@@ -69,7 +69,8 @@ x ← x + α δx        (α = 1, ½, ¼, ... : |r| azalana kadar geri izleme, en
 En küçük normlu adım, eksik kısıtlı bir bileşeni **başlangıç konumundan en az hareketle** taşır; böylece
 çözüm başlangıca en yakın konumdur ve serbest kalan yönlerde bileşen yerinde durur.
 Durma: `max|r| ≤ tol` (varsayılan `1e-10`). `max_iter` (varsayılan 50) içinde inmezse veya adım küçüldüğü halde
-`|r|` artık azalmıyorsa (`‖Jᵀ r‖ ≈ 0`, `|r| > tol`) → **çelişkili kısıt**: `AssyError`; mesaj en büyük artığa
+`|r|` artık azalmıyorsa (`‖Jᵀ r‖ ≈ 0`, `|r| > tol`) önce durağan noktadan kaçış denenir (aşağıda);
+yine azalmıyorsa → **çelişkili kısıt**: `AssyError`; mesaj en büyük artığa
 sahip kısıtın sırasını ve türünü yazar.
 Kaynak: Nocedal–Wright, *Numerical Optimization*, Bölüm 10 (Gauss–Newton, doğrusal en küçük kareler).
 
@@ -85,7 +86,9 @@ Sayım çözülmüş konumda yapılır.
 - İki ucu da sabit bileşende olan kısıt → bilinmeyeni yok; sağlanmıyorsa çelişki → `AssyError`.
 - Desteklenmeyen kısıt/referans çifti (ör. CONCENTRIC PLANE–POINT) → `AssyError`.
 - Başlangıç tam yanlış daldaysa (ör. çakışık düzlemlerin normalleri zıt değil tam aynı yönde) `n_a + n_b`
-  artığının gradyeni sıfırdır, çözücü ilerleyemez → `AssyError` ("yerel minimum / çelişki"). Mesaj bunu da söyler.
+  artığının gradyeni sıfırdır (durağan nokta, `‖Jᵀ r‖ ≈ 0`, `r ≠ 0`). Çözücü serbest bileşenleri küçük sabit
+  bir dönmeyle (|ω| = 1e-3 rad) iter ve devam eder (en fazla 3 kez); montaj CAD'deki gibi doğru dalda kapanır.
+  Gerçek çelişkide itme işe yaramaz → `AssyError` ("yerel minimum / çelişki"). (Kullanıcı kararı, 2026-10-18.)
 - Önce `assembly.validate()` çağrılır (bilinmeyen bileşen vb. → `AssyError`).
 
 ## Dosyalar
@@ -126,7 +129,8 @@ Konum toleransı `1e-9` mm, yön toleransı `1e-9` (birimsiz), aksi yazmadıkça
 - [ ] K8 Zincir: A sabit, B → A, C → B; C'nin konumu kapalı formda (1e-9 mm)
 - [ ] K9 DOF sayımı: kısıtsız 6; PLANE çakışık 3; CONCENTRIC 2; CONCENTRIC + düzlem 1; 3 düzlem çifti 0;
   aynı kısıt iki kez yazılınca sayı değişmez (rank); iki serbest bileşen toplamı
-- [ ] K10 Çelişki → `AssyError`: aynı düzlem çiftine `D = 5` ve `D = 7`; iki sabit bileşen arasında sağlanmayan kısıt
+- [ ] K10 Çelişki → `AssyError`: aynı düzlem çiftine `D = 5` ve `D = 7`; iki sabit bileşen arasında sağlanmayan kısıt.
+  Tam yanlış dal (normaller aynı yönde) çelişki değildir: çözülür, normaller zıt olur
 - [ ] K11 Hata durumları → `AssyError`: sabit bileşen yok; desteklenmeyen çift; normlu mesafede `D = 0`; `validate` hataları
 - [ ] K12 `solve` girdiyi değiştirmez; sonuç `T`'leri rijit (`is_rigid`); zaten sağlanmış montajda 0 iterasyon ve `T` aynen (1e-12); `apply` yazıyor
 - [ ] K13 Değişmezlik: tüm montaj (sabit bileşen dahil) keyfi rijit `G` ile taşınınca çözüm `G·T` olur (1e-9)
