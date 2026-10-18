@@ -8,6 +8,13 @@ Dosya standart bir zip'tir:
     gecmis.json                Gecmis, kanonik JSON
 Yazım belirlenimci (aynı proje → aynı bayt) ve atomiktir (tmp + os.replace). Bölümlerin içeriği burada
 yorumlanmaz; yalnız kanonik JSON oldukları ve "sema" alanları denetlenir. Yalnız standart kitaplık kullanılır.
+
+Şema sürümü ve göç (B1, specs/37-ek-b1-proje-surumu.md): eski sürümlü dosya ya kayıtlı göç adımlarıyla güncele
+getirilerek açılır ya da hangi bölümün hangi sürümden getirilemediği yazılarak ProjeError ile reddedilir.
+Bölüm sahiplerinin yükümlülüğü: bir ekran bölüm biçimini değiştiren her PR'da o bölümün güncel sürümünü bir
+artıran `Goc` adımını `GOCLER`'e kaydeder ve `tests/fileio/goc/` altına eski sürümde yazılmış uydurma
+bir örnek `.3dc` ekleyip açıldığını test eder. Göç kaydı olmayan bölüm "sahipsiz" sayılır ve
+olduğu gibi korunur.
 """
 
 from __future__ import annotations
@@ -18,7 +25,7 @@ import json
 import os
 import re
 import zipfile
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -75,6 +82,46 @@ class Proje:
     onbellek: Mapping[str, Onbellek] = field(default_factory=dict)
     gecmis: Gecmis = field(default_factory=Gecmis)
     uyarilar: tuple[dict, ...] = ()  # SPEC 24 Kontrol biçimi; dosyaya yazılmaz
+    goc: Mapping[str, tuple[int, int]] = field(
+        default_factory=dict
+    )  # {bolum: (eski, yeni)}; dosyaya yazılmaz
+    kaynak_yol: str | None = None  # ac'ın açtığı dosya; yedek kuralı için (B1 §4)
+
+
+# ---------------------------------------------------------------- şema göçü (B1)
+
+
+@dataclass(frozen=True)
+class Goc:
+    """Bir göç adımı: `bolum` belgesini `kaynak` sürümünden `kaynak + 1`'e taşır; `bolum == ""` dosya düzeyi.
+
+    `uygula` saftır (girdiyi değiştirmez), çıktısının `sema`'sı tam `kaynak + 1`'dir; `aciklama` kullanıcıya
+    gösterilir.
+    """
+
+    bolum: str
+    kaynak: int
+    uygula: Callable[[dict], dict]
+    aciklama: str
+
+
+class GocKaydi:
+    """Göç adımlarının kaydı. Bir bölüm için en az bir adım kayıtlıysa o bölüm sahiplenilmiş sayılır."""
+
+    def kaydet(self, g: Goc) -> None:
+        """Adımı ekler; aynı (bolum, kaynak) ikinci kez, kaynak < 1 ya da boş açıklama → ProjeError."""
+        raise NotImplementedError("B1: GocKaydi.kaydet")
+
+    def guncel(self, bolum: str) -> int:
+        """S_g: bölüm için kayıtlı göçlerin en büyük hedefi; kayıt yoksa 1 (`""` için SEMA)."""
+        raise NotImplementedError("B1: GocKaydi.guncel")
+
+    def zincir(self, bolum: str, k: int) -> list[Goc]:
+        """k → guncel(bolum) adımları sırayla; boşluk ya da k > guncel → ProjeError."""
+        raise NotImplementedError("B1: GocKaydi.zincir")
+
+
+GOCLER = GocKaydi()  # varsayılan kayıt; ekranlar içe aktarılırken doldurur
 
 
 # ---------------------------------------------------------------- kanonik JSON
@@ -255,7 +302,11 @@ def _zip_yaz(dosya, girdiler: dict[str, bytes]) -> None:
 
 
 def kaydet(p: Proje, yol: str | Path) -> None:
-    """Belirlenimci, atomik yazım; uzantı .3dc değilse ya da bölüm geçersizse ProjeError (diske yazılmaz)."""
+    """Belirlenimci, atomik yazım; uzantı .3dc değilse ya da bölüm geçersizse ProjeError (diske yazılmaz).
+
+    B1 §4: `p.goc` doluysa ve `yol` `p.kaynak_yol` ise özgün dosya önce `.yedek` olarak kopyalanır; yedek
+    yazılamazsa kayıt yapılmaz.
+    """
     yol = Path(yol)
     if yol.suffix != UZANTI:
         raise ProjeError(f"proje dosyası {UZANTI} uzantılı olmalı: {yol.name}")
@@ -395,8 +446,11 @@ def _onbellegi_oku(z, adlar, b, uyarilar: list[dict]) -> dict[str, Onbellek]:
     return onbellek
 
 
-def ac(yol: str | Path) -> Proje:
-    """Dosyayı okur ve denetler; bozuk girdi → ProjeError (mesajda girdi adı)."""
+def ac(yol: str | Path, gocler: GocKaydi = GOCLER) -> Proje:
+    """Dosyayı okur ve denetler; bozuk girdi → ProjeError (mesajda girdi adı).
+
+    B1: denetimlerden sonra eski sürümlü dosya / bölüm / geçmiş `gocler` zinciriyle güncele getirilir.
+    """
     yol = Path(yol)
     try:
         z = zipfile.ZipFile(yol)
@@ -421,3 +475,11 @@ def ac(yol: str | Path) -> Proje:
     if not b["ad"].strip():
         raise ProjeError(f"{BILDIRIM}: proje adı boş")
     return Proje(b["ad"], bolumler, onbellek, gecmis, tuple(uyarilar))
+
+
+def incele(yol: str | Path, gocler: GocKaydi = GOCLER) -> dict:
+    """Dosyayı açmadan sürümlerini raporlar (göç fonksiyonu çağırmaz, dosyayı değiştirmez).
+
+    {"dosya": (D, D_g), "bolumler": {b: (S_b, S_g)}, "acilir": bool, "neden": str | None}
+    """
+    raise NotImplementedError("B1: incele")

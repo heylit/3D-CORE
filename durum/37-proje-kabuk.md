@@ -32,3 +32,10 @@ B1 (proje dosyası sürümü) iskeleti ve testleri yerelde ayrı tutuluyor; #70 
 
 ## Açık sorular
 _(yok)_
+
+## B1 — proje dosyası sürümü ve göç (Dalga 6, SPEC 37 eki)
+- Metin: `specs/37-ek-b1-proje-surumu.md` (onaylı, 2026-10-18 14:52). İskelet: `fileio/proje.py` içinde `Goc`,
+  `GocKaydi` (gövdeler NotImplementedError), `GOCLER`, `Proje.goc`, `Proje.kaynak_yol`, `ac(yol, gocler)`, `incele`.
+- Yorum (metindeki §3.3 + `guncel` "kayıt yoksa 1"): bir bölüm, `GocKaydi`'de en az bir adımı varsa sahiplenilmiş
+  sayılır; adımı olmayan bölüm sahipsizdir ve SPEC 37 hoşgörüsüyle olduğu gibi korunur (K6).
+- Sıradaki: ayrı test oturumunun testleri cherry-pick edilir, kod ayrı commit'te yazılır. PR #70 birleşince B1 ayrı PR.
