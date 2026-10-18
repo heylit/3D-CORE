@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from assy.bvh import Bvh
 from assy.model import AssyError, Node
 from assy.tree import validate, walk
 
@@ -133,9 +134,16 @@ def check(
     scope: str = "",
     across: bool = False,
     ignore: Iterable[tuple[str, str]] = (),
+    broadphase: str = "bvh",
 ) -> list[Clash]:
-    """scope altındaki yaprak çiftlerinde girişim / temas / dar boşluk listesi (walk sırasıyla)."""
+    """scope altındaki yaprak çiftlerinde girişim / temas / dar boşluk listesi (walk sırasıyla).
+
+    broadphase: aday çift araması, "bvh" (SPEC 53 sınır kutusu ağacı) veya "sweep"
+    (sort and sweep); sonuç aynı.
+    """
     _negatif_degil(clearance=clearance, tol_v=tol_v, tol_d=tol_d)
+    if broadphase not in ("bvh", "sweep"):
+        raise AssyError(f"broadphase 'bvh' veya 'sweep' olmalı ({broadphase!r})")
     yapraklar = _yapraklar(root, parts)
     dugumler = {y: n for y, n, _ in walk(root)}
     yollar = {y for y, _, _ in yapraklar}
@@ -159,7 +167,11 @@ def check(
         return tasinmis[i]
 
     sonuc = []
-    for ka, kb in _adaylar(kutular, clearance, tol_d):
+    if broadphase == "bvh":
+        adaylar = Bvh.build(kutular).pairs(clearance, tol_d)
+    else:
+        adaylar = _adaylar(kutular, clearance, tol_d)
+    for ka, kb in adaylar:
         a, b = yapraklar[secilen[ka][0]][0], yapraklar[secilen[kb][0]][0]
         if across and secilen[ka][1] == secilen[kb][1]:
             continue
