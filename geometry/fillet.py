@@ -59,17 +59,35 @@ def _dikey_kenarlar(kati) -> list:
 def _fillet(part: Part, r: float, kati, kenarlar: list, islem: str) -> Part:
     """kati'nın kenarlarını r ile yuvarlatır; OCCT hatası veya geçersiz sonuç → GeometryError."""
     if not kenarlar:
-        raise GeometryError(f"{islem}: yuvarlatılacak kenar yok")
+        raise GeometryError(
+            f"{part.name} / {islem}: yuvarlatılacak kenar yok — dışbükey kenarı olan bir parça seçin"
+        )
     try:
         sonuc = _yeni_part(kati.fillet(r, kenarlar), part.name, part.holes)
     except GeometryError:
         raise
     except Exception as e:  # OCCT istisnası
-        raise GeometryError(f"{islem}: fillet kurulamadı (r={r}): {e}") from e
+        raise GeometryError(
+            f"{part.name} / {islem}: fillet kurulamadı (r = {r:g} mm) — {_sinir_onerisi(kati, kenarlar, r)}"
+        ) from e
     dV = part.volume - sonuc.volume
     if dV <= DV_MIN:
-        raise GeometryError(f"{islem}: fillet malzeme kaldırmadı (r={r}, ΔV={dV})")
+        raise GeometryError(
+            f"{part.name} / {islem}: fillet malzeme kaldırmadı (r = {r:g} mm, ΔV = {dV:.3g} mm³) — "
+            "yarıçapı büyütün ya da başka kenar seçin"
+        )
     return sonuc
+
+
+def _sinir_onerisi(kati, kenarlar: list, r: float) -> str:
+    """OCCT'nin kabul ettiği en büyük yarıçapı arar (SPEC 54: öneride sınır); bulunamazsa genel öneri."""
+    try:
+        r_max = float(kati.max_fillet(kenarlar, tolerance=0.1, max_iterations=50))
+    except Exception:  # noqa: BLE001 — arama da başarısız olabilir; öneri yine verilir
+        r_max = 0.0
+    if 0.0 < r_max < r:
+        return f"yarıçapı {r_max:.2f} mm'nin altına indirin"
+    return f"yarıçapı {r / 2:g} mm ya da daha küçük deneyin"
 
 
 def fillet_vertical(part: Part, r: float) -> Part:

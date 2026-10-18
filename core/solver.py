@@ -39,7 +39,10 @@ def _cozumle(K_ff, b: np.ndarray) -> np.ndarray:
     B = K_ff[p][:, p].tocsc()
     K_ii = B.diagonal()
     if np.any(K_ii <= 0.0):
-        raise ModelError("K_ff tekil: rijitliği olmayan serbest DOF var (mekanizma)")
+        raise ModelError(
+            "FEM modeli: K_ff tekil, rijitliği olmayan serbest DOF var (mekanizma) — "
+            "eksik mesnet ekleyin ya da bağlanmamış düğümleri kaldırın"
+        )
     try:
         lu = spla.splu(
             B,
@@ -48,14 +51,23 @@ def _cozumle(K_ff, b: np.ndarray) -> np.ndarray:
             options={"SymmetricMode": True},
         )
     except RuntimeError as hata:
-        raise ModelError(f"K_ff tekil: mesnet eksik olabilir (mekanizma): {hata}") from None
+        raise ModelError(
+            "FEM modeli: K_ff tekil, mesnet eksik olabilir (mekanizma) — "
+            "her yönde rijit cisim hareketini engelleyecek mesnet ekleyin"
+        ) from hata
     d = lu.U.diagonal()
     if not np.array_equal(lu.perm_r, np.arange(n)) or np.any(d <= PIVOT_SINIRI * K_ii):
-        raise ModelError("K_ff tekil: mesnet eksik olabilir (mekanizma)")
+        raise ModelError(
+            "FEM modeli: K_ff tekil, mesnet eksik olabilir (mekanizma) — "
+            "her yönde rijit cisim hareketini engelleyecek mesnet ekleyin"
+        )
     u_f = np.empty(n)
     u_f[p] = lu.solve(np.asarray(b, dtype=float)[p])
     if not np.all(np.isfinite(u_f)):
-        raise ModelError("Çözüm sonlu değil: K_ff tekil (mekanizma)")
+        raise ModelError(
+            "FEM modeli: çözüm sonlu değil, K_ff tekil (mekanizma) — "
+            "mesnetleri ve malzeme değerlerini (E, A) denetleyin"
+        )
     return u_f
 
 
