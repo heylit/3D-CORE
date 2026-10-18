@@ -117,3 +117,24 @@ def strain(element: Element, model: Model, u: np.ndarray) -> np.ndarray:
 def stress(element: Element, model: Model, u: np.ndarray) -> np.ndarray:
     """σ = D B d  (6,) [MPa]."""
     return D(model.material(element.material)) @ strain(element, model, u)
+
+
+def me(element: Element, model: Model, lumped: bool = False) -> np.ndarray:
+    """Kütle matrisi (12 x 12) [t], DOF sırası ke ile aynı (specs/45-modal.md).
+
+    tutarlı:   ρV/20 · (1 + δ_ab) ⊗ I₃       toplanmış: ρV/4 · I₁₂
+    Hatalar ke ile aynı, ek olarak ρ ≤ 0 → ModelError.
+    """
+    V = volume(element, model)
+    rho = model.material(element.material).rho
+    if rho <= 0.0:
+        raise ModelError(f"Eleman {element.id}: kütle matrisi için ρ > 0 olmalı (ρ={rho})")
+    m = rho * V
+    if lumped:
+        return m / 4.0 * np.eye(12)
+    return np.kron(m / 20.0 * (np.ones((4, 4)) + np.eye(4)), np.eye(3))
+
+
+def kt(element: Element, model: Model, k: float) -> np.ndarray:
+    """Isıl iletkenlik matrisi kt = k V Bᵀ B (4 x 4), B sütunları ∇N_a (SPEC 56)."""
+    raise NotImplementedError("SPEC 56: tet4.kt")

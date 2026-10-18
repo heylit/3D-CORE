@@ -162,3 +162,42 @@ Geometrik değerlerde tolerans aksi yazılmadıkça mutlak `1e-9 mm` (alan için
 - Küresel / köşe radyüslü takım: bu SPEC sadece `ToolKind.FLAT` kabul eder, diğerleri `CamError`.
 - pyclipper ile çapraz kontrol: testler analitik çözümlerle yeterli; gerekirse ayrı karar (test bağımlılığı).
 - Sayısal sağlamlık için tam sayı (Clipper tarzı) aritmetik; `TOL` ile kayan nokta yeterli kabul edildi.
+
+## Ek A — Cep güvenliği (ikinci inceleme 2026-10-18, H1 ve H6; onaylandı: kullanıcı, 2026-10-18 09:24 kart + 09:27 yazılı onay)
+İkinci inceleme (`inceleme/2026-10-18-ikinci-inceleme.md`) `pocket`'in kabul ettiği yan pasoda sessizce
+kesilmemiş ada bıraktığını buldu. Kullanıcı düzeltmenin başlatılmasını seçti ("Şimdi düzelt"). Bu ek
+SPEC'i günceller; **"Kontur-paralel cep" bölümündeki `s ≤ D` kabulünü cep için geçersiz kılar.**
+
+**A1 — Cepte yan paso `s ≤ r`.** İnceleme köşedeki adayı gösterdi (60×40, D = 10: `s = 0,9D` → ≈ 1,3 mm²,
+`s = D` → ≈ 15,7 mm²). Bu oturumdaki deney daha geniş bir kusur buldu: **yaprak olmayan** bir halkanın
+çocuğu bölgenin yalnızca bir kısmını kaplıyorsa (L cebin kolları), kolların ortası hiç kesilmiyor.
+L cep (50×45, kollar 20 geniş), D = 6: `s = 0,6D` → ≈ 27 mm², `s = 0,7D` → ≈ 1,1 mm², hata yok.
+"Ek halka" kuralı yalnız yapraklarda çalıştığı için bu bölgeyi görmüyor; köşe formülü
+`s ≤ r(1 + sin(θ/2))` de bunu yakalamıyor (L'nin bütün köşeleri 90°, `s = 0,6D < 0,854D`).
+
+Kanıt (`s ≤ r` yeterli): `R_d` bir halkanın bölgesi, `δ(p) = dist(p, ∂R_d)`. `δ(p) < r` olan her nokta
+halka `∂R_d`'ye `r`'den yakın, yani kesilir. `δ(p) ≥ s` olan nokta çocuk bölgede (`R_d ⊖ B_s`), özyinelemeyle
+kesilir. `s ≤ r` ise `[r, s)` aralığı boştur; geriye nokta kalmaz. Köşe, dar boğaz ve yaprak durumları
+ayrıca gerekmez (yaprak "ek halka" kuralı `s ≤ r`'de hiç tetiklenmez ama zararsızdır, kalır).
+`r < s` için genel bir kanıt yok; sınamayla geçen bir kural da sessiz hata riskini taşır.
+- `pocket`: `s > r` (+ `TOL`) → `CamError`; mesaj `s`'yi, `r = D/2`'yi ve "cepte yan paso en fazla D/2" bilgisini verir.
+- `face` ve `Cut` değişmez: yüz almada `0 < s ≤ D` doğrudur (her sıra ±r şeridi keser, sıra aralığı ≤ s ≤ 2r).
+- `r < s ≤ D` cebi (kalan malzeme denetimi + gereken yerde ek halka) ayrı bir SPEC'tir (03b ile birlikte).
+- Karar (kullanıcı, 2026-10-18 09:24, proje sohbeti kartı "En fazla D/2"): sınır `s ≤ r`. Diğer seçenek
+  (D/2–D arası kabul, örneklemeyle kalan malzeme denetimi ve ek halka) reddedildi; ayrı SPEC'e kaldı.
+
+**A2 — Merkezden kesmeyen takımla düz dalma yok.** `Tool.center_cutting: bool` (arayüz PR'ı, varsayılan `True`)
+`False` ise `pocket` ve `contour` → `CamError` (ikisi de malzemeye düz dalar; rampa / helis 03b'de).
+`face` kabul eder: girişleri ham malzemenin dışındadır (`x_min − r − clearance`).
+Bu madde arayüz PR'ı birleşince uygulanır.
+
+Ek kabul kriterleri:
+- [ ] K17 Cep yan paso sınırı: `s = r` dikdörtgen, L ve adalı cepte kabul ve K14 kalan malzeme yok;
+  `s = r + 1e-6`, `0,8D`, `D` → `CamError` (dikdörtgen, L, daire) — `tests/cam/test_ops2d.py`
+- [ ] K18 Kalan malzeme özelliği: rastgele dışbükey/içbükey çokgenler ve L cepte `s ∈ {0,3D, 0,4D, 0,5D}` için
+  K14 ölçütü (köşe kalanları hariç her örnek nokta bir kesme hareketine `≤ r + 1e-9`) — `tests/cam/test_ops2d.py`
+- [ ] K19 `center_cutting=False` takımla `pocket` ve `contour` → `CamError`; `face` geçer — `tests/cam/test_ops2d.py`
+
+Geçersiz kalan mevcut beklentiler (testler ayrı oturumda güncellenir): `test_stepover_equal_D_allowed`
+(dikdörtgen cep `s = D`), `test_pocket_rectangle_full_coverage[0,8D]`, `test_pocket_circle_full_coverage`
+(`0,95D`), `test_pocket_no_gouge[L-4.0]` ve `[daire-5.7]` (`s > r = 3`). K14'teki `s` değerleri `≤ r` olur.

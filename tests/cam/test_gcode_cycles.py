@@ -413,3 +413,61 @@ def test_g83_clearance_from_custom_dialect_raises():
     d = dataclasses.replace(FANUC, peck_clearance=3.0)
     with pytest.raises(CamError):
         g83().to_toolpath(d)
+
+
+# ---------------------------------------------------------------- SPEC 04 Ek C: stock_top ve delik çevrimleri
+#
+# C2: stock_top verilirse DrillOp'un kanonik açılımında (G99'da delikler arası R düzlemi dahil) stock_top
+# altında XY G0 olamaz. G98'de delikler arası dönüş z0'da, R düzlemine iniş yalnız Z'dir.
+# C1: DrillOp z_kesme'ye girmez (R düzlemi tanımı gereği malzemenin üstünde).
+# C3: center_cutting=False takımla DrillOp → CamError (delme düz dalmadır).
+
+
+@pytest.mark.parametrize("dialect", [GRBL, FANUC], ids=["GRBL", "FANUC"])
+def test_g99_r_below_stock_top_raises(dialect):
+    """K17: G99, r = 2 < stock_top = 2.5 → delikler arası XY G0 Z2'de, malzeme içinden → CamError."""
+    with pytest.raises(CamError):
+        write([g81("G99")], dialect, stock_top=2.5)
+    with pytest.raises(CamError):
+        write([g83("G99", holes=list(HOLES3))], dialect, stock_top=2.5)
+
+
+@pytest.mark.parametrize("dialect", [GRBL, FANUC], ids=["GRBL", "FANUC"])
+@pytest.mark.parametrize("stock_top", [2.0, 0.0], ids=["r_esit", "r_ustte"])
+def test_g99_r_at_or_above_stock_top_allowed(dialect, stock_top):
+    """K17: G99, r ≥ stock_top → geçer; metin stock_top'suz yazılanla aynı (stock_top yalnız denetler)."""
+    assert write([g81("G99")], dialect, stock_top=stock_top) == write([g81("G99")], dialect)
+
+
+@pytest.mark.parametrize("dialect", [GRBL, FANUC], ids=["GRBL", "FANUC"])
+def test_g98_r_below_stock_top_allowed(dialect):
+    """K17: G98'de delikler arası dönüş z0 = 10'da; r = 2 < stock_top = 2.5 olsa da XY G0 malzemenin
+    üstünde (R düzlemine iniş yalnız Z) → geçer."""
+    assert write([g81("G98")], dialect, stock_top=2.5) == write([g81("G98")], dialect)
+
+
+def test_drill_not_in_cut_level():
+    """C1: DrillOp z_kesme'ye girmez: tek başına delik op'u varsayılan güvenli Z (z0) ile yazılır."""
+    for retract in ("G98", "G99"):
+        write([g81(retract)], GRBL)
+        write([g83(retract)], FANUC)
+
+
+@pytest.mark.parametrize("make", [g81, g83], ids=["G81", "G83"])
+def test_non_center_cutting_drill_raises(make):
+    """K18 / C3: center_cutting=False takımla (merkezden kesmeyen parmak freze; matkap tanım gereği
+    merkezden keser, Tool bunu kurarken reddeder) DrillOp → validate() ve write CamError."""
+    tool = Tool(4, "freze6_mk", ToolKind.FLAT, D=6.0, flute_length=20.0, center_cutting=False)
+    op = make(tool=tool)
+    with pytest.raises(CamError):
+        op.validate()
+    for dialect in (GRBL, FANUC):
+        with pytest.raises(CamError):
+            write([op], dialect)
+
+
+def test_center_cutting_flat_tool_drill_allowed():
+    """K18 karşıtı: center_cutting=True (varsayılan) parmak frezeyle DrillOp geçerli."""
+    op = g81(tool=Tool(4, "freze6", ToolKind.FLAT, D=6.0, flute_length=20.0))
+    op.validate()
+    write([op], GRBL)

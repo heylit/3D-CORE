@@ -10,8 +10,10 @@ Birimler: mm, mm², mm³.
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass, fields
 from pathlib import Path
+from types import MappingProxyType
 
 import numpy as np
 
@@ -162,10 +164,73 @@ class Hole:
         return hash(self._anahtar())
 
 
-class Part:
-    """Tek bir katı parça: build123d Shape (Solid / Compound) + ad + delik kayıtları."""
+@dataclass(frozen=True)
+class SectionEdge:
+    """Eksenden geçen yarı düzlem kesitinde bir kenar; koordinatlar (z, x) [mm]."""
 
-    def __init__(self, shape, name: str = "parca", holes=()) -> None:
+    kind: str  # "line" | "arc" | "curve"
+    points: np.ndarray  # line, arc: (2, 2) [p0, p1]; curve: (k, 2), k ≥ 2, kiriş sapması ≤ tol/4
+    center: np.ndarray | None = None  # arc: (2,)
+    ccw: bool = True  # arc: (z, x) düzleminde saat yönü tersi
+
+
+@dataclass(frozen=True)
+class SectionFace:
+    """Kesitte bir malzeme yüzü: dış halka CCW, iç halkalar CW; her halka uç uca sıralı kenarlar."""
+
+    outer: tuple[SectionEdge, ...]
+    holes: tuple[tuple[SectionEdge, ...], ...] = ()
+
+
+@dataclass(frozen=True)
+class AxialSection:
+    """Part.axial_section sonucu: eksen çerçevesi, kesit yüzleri ve sınıflanamayan yüzlerin listesi."""
+
+    origin: np.ndarray  # (3,) eksen noktası, parça koordinatı
+    axis: np.ndarray  # (3,) birim, +z (ön) yönü
+    xdir: np.ndarray  # (3,) birim, axis'e dik, kesit yarı düzleminin +x yönü
+    faces: tuple[SectionFace, ...]
+    off_axis_faces: tuple[int, ...]  # bu eksene göre dönel OLMAYAN yüzler (OCCT yüz sırası)
+    unknown_faces: tuple[int, ...]  # türü sınıflanamayan yüzler (B-spline vb.)
+
+
+@dataclass(frozen=True)
+class FaceRef:
+    """Yüzün kalıcı adı: üreten özellik + özellik içindeki ad (SPEC 18). str → "cep1:son".
+
+    OCCT yüz sırası yeniden hesapta değişebilir; özellik ağacı yüzleri bu adla bulur (Part.find).
+    """
+
+    feature: str  # boş değil; ':' ve '/' içermez
+    name: str  # boş değil; '/' içerebilir
+
+    def __post_init__(self) -> None:
+        if (
+            not isinstance(self.feature, str)
+            or not self.feature
+            or ":" in self.feature
+            or "/" in self.feature
+        ):
+            raise GeometryError(f"FaceRef: feature boş olamaz, ':' ve '/' içeremez ({self.feature!r})")
+        if not isinstance(self.name, str) or not self.name:
+            raise GeometryError(f"FaceRef: name boş olamaz ({self.name!r})")
+
+    def __str__(self) -> str:
+        return f"{self.feature}:{self.name}"
+
+    @classmethod
+    def parse(cls, s: str) -> FaceRef:
+        """ "cep1:son" → FaceRef("cep1", "son"); ilk ':'ten böler."""
+        feature, ayrac, name = str(s).partition(":")
+        if not ayrac:
+            raise GeometryError(f"FaceRef: 'özellik:ad' biçiminde olmalı ({s!r})")
+        return cls(feature, name)
+
+
+class Part:
+    """Tek bir katı parça: build123d Shape (Solid / Compound) + ad + delik kayıtları + yüz adları."""
+
+    def __init__(self, shape, name: str = "parca", holes=(), names=None) -> None:
         _require_occt()
         if shape is None or not shape.is_valid:
             raise GeometryError(f"Parça '{name}': geçersiz şekil")
@@ -177,11 +242,56 @@ class Part:
         self.shape = shape
         self.name = name
         self._holes = holes
+        self._names = MappingProxyType(self._yuz_adlari(names))
+
+    def _yuz_adlari(self, names) -> dict[FaceRef, tuple[int, ...]]:
+        """names doğrulaması: anahtar FaceRef; değer artan, tekrarsız, boş olmayan, aralık içi indeksler."""
+        if names is None:
+            return {}
+        if not isinstance(names, Mapping):
+            raise GeometryError(f"Parça '{self.name}': names FaceRef → indeks demeti eşlemesi olmalı")
+        n = len(self.shape.faces())
+        sonuc = {}
+        for ref, idx in names.items():
+            if not isinstance(ref, FaceRef):
+                raise GeometryError(f"Parça '{self.name}': names anahtarı FaceRef olmalı ({ref!r})")
+            idx = tuple(idx)
+            if (
+                not idx
+                or not all(isinstance(i, int) and not isinstance(i, bool) for i in idx)
+                or any(b <= a for a, b in zip(idx, idx[1:], strict=False))
+                or idx[0] < 0
+                or idx[-1] >= n
+            ):
+                raise GeometryError(
+                    f"Parça '{self.name}': '{ref}' indeksleri boş olmayan, artan, 0 ≤ i < {n} olmalı ({idx})"
+                )
+            sonuc[ref] = idx
+        return sonuc
 
     @property
     def holes(self) -> tuple[Hole, ...]:
         """Delik kayıtları, eklenme sırasıyla (değiştirilemez)."""
         return self._holes
+
+    @property
+    def names(self) -> Mapping[FaceRef, tuple[int, ...]]:
+        """Yüz adları: FaceRef → OCCT yüz indeksleri (PlanarFace.index ile aynı sıra), salt okunur."""
+        return self._names
+
+    def find(self, ref: FaceRef) -> tuple[int, ...]:
+        """Addan OCCT yüz indeksleri. Ad kayıtlı değilse GeometryError (tahmin yürütmez)."""
+        try:
+            return self._names[ref]
+        except KeyError:
+            raise GeometryError(f"referans bulunamadı: {ref}") from None
+
+    def face_refs(self, index: int) -> tuple[FaceRef, ...]:
+        """Ters arama: yüzün adları, ada göre sıralı; adsız yüz → (). Aralık dışı index → GeometryError."""
+        n = len(self.shape.faces())
+        if not 0 <= index < n:
+            raise GeometryError(f"Parça '{self.name}': yüz indeksi 0 ≤ i < {n} olmalı ({index})")
+        return tuple(sorted((r for r, idx in self._names.items() if index in idx), key=str))
 
     @property
     def volume(self) -> float:
@@ -216,6 +326,54 @@ class Part:
     def to_stl(self, path: str | Path, tolerance: float = 0.01) -> None:
         if not bd.export_stl(self.shape, str(path), tolerance=tolerance):
             raise GeometryError(f"STL yazılamadı: {path}")
+
+    # ---------- Boolean, taşıma, uzaklık (SPEC 09 arayüz eki) ----------
+
+    def moved(self, T: np.ndarray) -> Part:
+        """Rijit T (4x4) ile taşınmış yeni parça; ad aynı, delik kayıtları ve yüz adları da taşınır.
+
+        T rijit değilse GeometryError.
+        """
+        from geometry.boolean import moved
+
+        q = moved(self, T)
+        q._names = self._names  # topoloji aynı: yüz indeksleri değişmez
+        return q
+
+    def common(self, other: Part, tol_v: float = 1e-6) -> Part | None:
+        """Kesişim (A ∩ B). Hacmi ≤ tol_v ise None (temas veya ayrık). tol_v < 0 → GeometryError."""
+        from geometry.boolean import common
+
+        return common(self, other, tol_v)
+
+    def cut(self, other: Part) -> Part:
+        """Fark (A − B). Delik kayıtları korunur. Sonuç boşsa GeometryError."""
+        from geometry.boolean import cut
+
+        return cut(self, other)
+
+    def fuse(self, other: Part) -> Part:
+        """Birleşim (A ∪ B), tek parça; delik kayıtları A, B sırasıyla."""
+        from geometry.boolean import fuse
+
+        return fuse(self, other)
+
+    def distance(self, other: Part) -> tuple[float, np.ndarray, np.ndarray]:
+        """Sınırlar arası en küçük uzaklık d ve en yakın noktalar (p ∈ ∂A, q ∈ ∂B), mm."""
+        from geometry.boolean import distance
+
+        return distance(self, other)
+
+    # ---------- Torna kesiti (SPEC 28 arayüz eki) ----------
+
+    def axial_section(self, origin=(0.0, 0.0, 0.0), axis=(0.0, 0.0, 1.0), tol: float = 1e-3) -> AxialSection:
+        """Eksenden geçen x ≥ 0 yarı düzlem kesiti. axis="auto" → dönel yüzlerden eksen bulunur.
+
+        Sınıflama ve kesit; doğrulama ve uydurma yapmaz. Geçersiz eksen / bulunamayan eksen → GeometryError.
+        """
+        from geometry.revolve import axial_section
+
+        return axial_section(self, origin, axis, tol)
 
     # ---------- CAM / montaj sorguları (inceleme Y5) ----------
 
