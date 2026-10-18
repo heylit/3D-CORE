@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
 
+from atolye.dogrulama import profil_ozeti
 from cam.model import CamError, MachineProfile, Tool, Toolpath
 from cam.post import UYARI, read_program
 
@@ -246,11 +247,6 @@ def _ozet(b: bytes) -> str:
 
 def _kanonik(d: dict) -> str:
     return json.dumps(d, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
-
-
-def profil_ozeti(m: MachineProfile) -> str:
-    """SPEC 48 ile aynı hesap: `MachineProfile.to_dict()` kanonik JSON'unun sha256'sı."""
-    return _ozet(_kanonik(m.to_dict()).encode("utf-8"))
 
 
 def _yaz(yol: Path, b: bytes) -> None:

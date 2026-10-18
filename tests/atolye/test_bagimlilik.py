@@ -90,3 +90,48 @@ def test_dnc_tarayici_yakalar(tmp_path):
     assert sorted(_dnc_ihlalleri(p)) == sorted(
         ["cam.post._gizli", "cam.post.check", "numpy", "geometry.part", "atolye.is_foyu", "."]
     )
+
+
+# ---------------------------------------------------------------- SPEC 48 K10
+
+DOGRULAMA_IZINLI = ("cam.model", "cam.post", "atolye.is_foyu")
+
+
+def _ust_importlar(yol: Path) -> list[str]:
+    """Modülün mutlak import adları (göreli import '.'-önekli)."""
+    agac = ast.parse(yol.read_text(encoding="utf-8"), filename=str(yol))
+    out = []
+    for n in ast.walk(agac):
+        if isinstance(n, ast.Import):
+            out += [a.name for a in n.names]
+        elif isinstance(n, ast.ImportFrom):
+            out.append("." * n.level + (n.module or ""))
+    return out
+
+
+def _izinli(ad: str) -> bool:
+    import sys
+
+    if ad == "__future__" or ad.split(".")[0] in sys.stdlib_module_names:
+        return True
+    return any(ad == p or ad.startswith(p + ".") for p in DOGRULAMA_IZINLI)
+
+
+def test_dogrulama_yalniz_izinli_importlar():
+    """SPEC 48 K10: atolye/dogrulama.py yalnız stdlib, cam.model, cam.post ve atolye.is_foyu."""
+    yol = KOK / "atolye" / "dogrulama.py"
+    assert yol.is_file()
+    ihlal = [a for a in _ust_importlar(yol) if not _izinli(a)]
+    assert ihlal == []
+
+
+def test_dogrulama_tarayicisi():
+    assert _izinli("json") and _izinli("hashlib") and _izinli("html.parser") and _izinli("__future__")
+    assert (
+        _izinli("cam.model")
+        and _izinli("cam.post")
+        and _izinli("cam.post.machine")
+        and _izinli("atolye.is_foyu")
+    )
+    for ad in ("numpy", "cam.gcode", "cam.sim", "atolye.html", "atolye", "geometry", ".is_foyu", "tezgah"):
+        assert not _izinli(ad), ad

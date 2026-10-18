@@ -10,7 +10,7 @@ Kod hazır (K1–K7, K9 yeşil); PR #130 birleşince K8 Tezgah ucu Tezgah thread
 | Tarih | Geçen | Kalan | Not |
 |---|---|---|---|
 | 2026-10-18 | — | — | İskelet: gövdeler `NotImplementedError` |
-| 2026-10-18 | 156 (`tests/atolye`) | 0 | 2 atlama: SPEC 48 `profil_ozeti` yok; K8 Tezgah thread'inde |
+| 2026-10-18 | 156 (`tests/atolye`) | 0 | SPEC 48 birleşince `profil_ozeti` testleri de koşuyor; K8 Tezgah thread'inde |
 
 ## Son oturum
 **2026-10-18**
@@ -25,8 +25,8 @@ Kod hazır (K1–K7, K9 yeşil); PR #130 birleşince K8 Tezgah ucu Tezgah thread
 - Kod kararları (SPEC'te yok): Ö2 okunan yolun üretilen her hareketi sırayla içermesi (uç ≤ 0.5·10⁻ᵈ mm, merkez
   ≤ 1e-2 mm); bozuk satır öneklerin okunmasıyla ikili aramada bulunur. Sıra Ö1, Ö4, Ö5, Ö2 (Ö3 `gonder`'de).
   Ad verilmezse Sinumerik `PRG_<no>`, Heidenhain/GRBL `<no>`, Fanuc/Haas `O` + hane. Heidenhain `BEGIN/END PGM`
-  adı dosya adına çevrilir; Fanuc/Haas O satırı dosya adıyla aynı olmalı. `profil_ozeti` = `to_dict()` kanonik
-  JSON sha256 (SPEC 48 metniyle aynı; 48 birleşince ona bağlanır). Kayıt dosyası yoksa `kayitlari_oku` → `[]`.
+  adı dosya adına çevrilir; Fanuc/Haas O satırı dosya adıyla aynı olmalı. `profil.ozet` SPEC 48
+  `atolye.dogrulama.profil_ozeti` ile hesaplanır (48 main'de). Kayıt dosyası yoksa `kayitlari_oku` → `[]`.
 - `atolye/dnc_kurallari.json` paket verisi: `pyproject` package-data satırı DURUM thread'inin (editable kurulumda
   gerekmez).
 
