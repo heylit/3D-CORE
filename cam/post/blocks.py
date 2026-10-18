@@ -7,7 +7,7 @@ eksen veya ilerleme alanı `None` ise "değişmedi, yazma" demektir. Biçimleyic
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
@@ -77,7 +77,11 @@ class Linear:
 
 @dataclass(frozen=True)
 class Arc:
-    """G2 (`ccw=False`) / G3 (`ccw=True`); `i`, `j` başlangıca göre bağıl merkez, her zaman yazılır."""
+    """G2 (`ccw=False`) / G3 (`ccw=True`); `i`, `j` başlangıca göre bağıl merkez, her zaman yazılır.
+
+    `end`: yuvarlanmamış model bitişi (SPEC 31): bitişi yazılmayan, açıyla tanımlanan helis (Heidenhain
+    `CP IPA`) okunan bitişi bu noktaya yakın tutmak için kullanır. ISO biçimleyici kullanmaz; blok
+    eşitliğine katılmaz (yazılan metni belirlemez)."""
 
     x: float | None
     y: float | None
@@ -86,6 +90,7 @@ class Arc:
     j: float
     ccw: bool
     F: float | None
+    end: tuple[float, float, float] | None = field(default=None, compare=False)
 
 
 @dataclass(frozen=True)
