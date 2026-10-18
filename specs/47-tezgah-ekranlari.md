@@ -10,6 +10,7 @@
 > Tezgah kabuğu, köprü kuralları, `Is` şeması, ikili dizi biçimi, zaman şeridi, kanıt paneli ve ön yüz araç zinciri
 > SPEC 24'ten, torna ve montaj ekranları SPEC 25'ten gelir; burada tekrar edilmez.
 > Prototip yönü: https://claude.ai/artifact/2YA8RRJYuFSpRJyEFMEX8u (konsept; kabul ölçütü değildir).
+> **Ek: K10 olay zamanı** (kullanıcı, 2026-10-18 12:08 UTC önerisi, 2 dakika kuralıyla onaylı): dosya sonunda.
 
 ## Amaç
 Kütüphane olarak biten üç yeteneğe Tezgah'ta ekran vermek:
@@ -227,7 +228,7 @@ CokEksen = {
   tezgah: {ad, eksenler: [{ad, tur: "dogrusal" | "doner", min, max}], govdeler: [{ad, halka, sekil}]},
   wcs, L,                                           # takım boyu (pivot – uç)
   islemler: [{i, ad, takim, t0, t1, k0, k1, cerceve: Frame sözlüğü | null, yonelim: Orientation | null}],
-  olaylar: [MachineEvent sözlüğü],                  # SPEC 44 check(), (kind, k, a, b) başına ilk t
+  olaylar: [MachineEvent sözlüğü + zaman],          # SPEC 44 check(), (kind, k, a, b) başına ilk t; zaman [s]: Ek K10
   sim: {removed_volume, rest_volume | null, gouge_volume | null, total_time, collisions: [Collision]} | null,
   sapma: {tol_p, tol_a, e_p_max, e_a_max},          # SPEC 42
   kontroller: [Kontrol]
@@ -447,8 +448,8 @@ OCCT gerektirenler `@pytest.mark.occt`, gmsh gerektirenler `pytest.importorskip(
 - [ ] **K10 Olaylar:** `olaylar` `check(model, setup, ops, L, tcp = True, clearance)` çıktısıyla aynı sırada ve
   değerde; `kubbe_5eksen` + `ac_besik_dar`'da en az bir `eksen_siniri` olayı ve `eksen_siniri` kontrolü `hata`;
   `kubbe_carpisma`'da en az bir `tezgah_carpma` (olaydaki `a`, `b` gövde adları örnekteki gövdeler) ve kontrol
-  `hata`; `kubbe_5eksen` + `ac_besik`'te ikisi de `tamam`. Her olayın `t`'si `noktalar` süre dizisinde `k` ve `k+1`
-  arasında. (`test_cok_eksen.py::test_olaylar`)
+  `hata`; `kubbe_5eksen` + `ac_besik`'te ikisi de `tamam`. Her olayın `zaman`'ı `noktalar` süre dizisinde
+  `zaman[k-1] ≤ e["zaman"] ≤ zaman[k]` (Ek: K10 olay zamanı). (`test_cok_eksen.py::test_olaylar`)
 - [ ] **K11 Sapma:** `sapma` ikilisindeki her segment değeri `deviation(kin, wcs, L, q0, q1, p0, p1, a0, a1, 0.5)`
   ile `float32` birebir; `linearize` sonrası `e_p_max ≤ tol_p` ve `e_a_max ≤ tol_a`, kontrol `tamam`;
   `linearize` atlanmış (ham `finish5`) yolda aynı ölçü `tol_p`'yi aşar ve kontrol `hata`. `TCP kapalı` noktaları
@@ -509,7 +510,7 @@ OCCT gerektirenler `@pytest.mark.occt`, gmsh gerektirenler `pytest.importorskip(
   planlanamayan satırı ve kodları görünür; "Ne olurdu?"da T1 kapatılınca fark rozetleri sunucu `fark`'ıyla aynı;
   `plan_blogu` "Freze ekranında aç" freze ekranını o işle açar ve G-code satır sayısı sunucuyla aynı. `5` ile çok
   eksen açılır; şerit sonunda `window.__tezgah.cok_eksen` ile okunan eklem değerleri son `q` ile (ε içinde) aynı;
-  bir `eksen_siniri` olayına tıklanınca saat olayın `t`'sine gider; `V` görünümü değiştirir ve takım ucunun ekrandaki
+  bir `eksen_siniri` olayına tıklanınca saat olayın `zaman`'ına (`e.zaman`, saniye) gider; `V` görünümü değiştirir ve takım ucunun ekrandaki
   dünya konumu iki görünümde K9 ε'u içinde aynı. `6` ile analiz açılır; `x = 200` yüzüne tıklanıp çekme yazılınca
   ve "Çöz" denince kanıt panelinde `denge` `tamam`, renk ölçeği uçları sunucunun min/max'ı; sonda çizilince grafik
   noktaları sunucu ikilisiyle aynı. 400 px ve 1440 px'te ekran görüntüsü, yatay kaydırma yok.
@@ -569,3 +570,20 @@ Ortak kriterler (K1, K21, K22, K24) her alt PR'da o ekranın kısmıyla kapanır
 4. **Çok eksende G-code:** postprosesör yokken eklem tablosu mu (öneri), yoksa ekran postprosesör SPEC'ini mi bekler?
 5. **Analitik sapma eşiği:** `%10` `uyari` eşiği ve yakınsama `%5` eşiği uygun mu (öneri: evet; ikisi de yalnız
    uyarı, ölçüt değil)?
+
+## Ek: K10 olay zamanı (2026-10-18)
+> Onay: koordinatörün 12:08 UTC önerisi ("SPEC 47b, çok eksen ekranı (K10)"), kullanıcının 11:14 UTC kuralıyla
+> ("beni bekleyen bir şey varsa 2dkdan fazla geçerse öneriyi kabul et") kabul edildi.
+
+**Sorun:** K10 olayların SPEC 44 `check()` çıktısıyla birebir aynı olmasını, K24 ise olayın zamanının saniye
+cinsinden şeride düşmesini istiyor. SPEC 44 `MachineEvent.t` saniye değil, hareketin içindeki orandır (0–1).
+
+**Karar:**
+- `olaylar`'daki her olaya ek bir alan girer: `zaman` [s] `= zaman[k-1] + t·(zaman[k] − zaman[k-1])`.
+  - `k`: SPEC 05 genel adım indisi; adım `k`, nokta `k-1`'den nokta `k`'ye giden harekettir (`1 ≤ k ≤ n-1`).
+  - `t`: SPEC 44 `MachineEvent`'in hareket içindeki parametresi (0–1).
+  - `zaman[]`: `noktalar` ikilisindeki kümülatif süre dizisi.
+- SPEC 44 alanları değişmez; `zaman` dışındaki alanlar `check()` çıktısıyla birebir aynıdır (K10'un "aynı sırada ve
+  değerde" koşulu bu alanlar için geçerlidir).
+- K10 zaman koşulu: `zaman[k-1] ≤ e["zaman"] ≤ zaman[k]`.
+- K24'te olaya tıklanınca şerit `e.zaman`'a gider; K23'teki "olay → şerit zamanı eşlemesi" bu alanı kullanır.
