@@ -669,6 +669,21 @@ def test_l_pocket_arm_middle_not_left_uncut():
     assert np.all(dist <= r + 1e-9)
 
 
+@pytest.mark.parametrize("w", [30.0, 40.0], ids=["30x12", "40x12"])
+def test_narrow_rectangle_pocket_s_equal_r(w):
+    """Ek A / K14: dar dikdörtgen cep (15, 10)'dan w × 12, D = 6, s = 3 = r: hata yok ve K14 ölçütü
+    (köşe kalanları hariç her erişilebilir nokta bir kesme hareketine ≤ r + 1e-9). Yükseklik 12 = 2D:
+    ilk halka (w − 6) × 6'lık dikdörtgen, bir sonraki s = 3 ofseti sıfır kalınlıklı (y = 16 doğrusu)."""
+    pts = [(15.0, 10.0), (15.0 + w, 10.0), (15.0 + w, 22.0), (15.0, 22.0)]
+    region = Region(Profile.rectangle(15.0, 10.0, w, 12.0))
+    tp = pocket(region, make_tool(), make_cut(z_top=0.0, z_bottom=-2.0, a_p=5.0, stepover=r))
+    tp.validate()
+    ref = RefBolge(("poly", pts))
+    P = grid(15.0, 15.0 + w, 10.0, 22.0, 61, 25)
+    P = P[reachable(ref, P)]
+    assert_covered(tp, P, -2.0)
+
+
 # ------------------------------------------- K18: kalan malzeme özelliği (rastgele bölgeler)
 
 
