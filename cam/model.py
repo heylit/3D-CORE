@@ -81,7 +81,10 @@ def _sonlu(nerede: str, **degerler) -> None:
     """Her değer (sayı veya sayı dizisi) sonlu olmalı; nan / inf → CamError. Sessiz hata yok."""
     for ad, v in degerler.items():
         if not np.all(np.isfinite(np.asarray(v, dtype=float))):
-            raise CamError(f"{nerede}: {ad} sonlu olmalı ({ad}={v})")
+            raise CamError(
+                f"{nerede}: {ad} sonlu olmalı ({ad}={v})"
+                f" — {ad} için sonlu bir sayı girin (nan ya da sonsuz olmasın)"
+            )
 
 
 def _vektor3(nerede: str, ad: str, v) -> tuple[float, float, float]:
@@ -89,9 +92,13 @@ def _vektor3(nerede: str, ad: str, v) -> tuple[float, float, float]:
     try:
         t = tuple(float(x) for x in v)
     except (TypeError, ValueError) as e:
-        raise CamError(f"{nerede}: {ad} 3 sayı olmalı ({v!r})") from e
+        raise CamError(
+            f"{nerede}: {ad} 3 sayı olmalı ({v!r}) — {ad} için (x, y, z) biçiminde üç sayı girin"
+        ) from e
     if len(t) != 3:
-        raise CamError(f"{nerede}: {ad} 3 bileşenli olmalı ({v!r})")
+        raise CamError(
+            f"{nerede}: {ad} 3 bileşenli olmalı ({v!r}) — {ad} için tam olarak üç bileşen (x, y, z) girin"
+        )
     _sonlu(nerede, **{ad: t})
     return t
 
@@ -100,7 +107,10 @@ def _birim3(nerede: str, ad: str, v) -> tuple[float, float, float]:
     """Birim 3 vektör (| |v| − 1 | ≤ UNIT_TOL); sessiz normalleştirme yok."""
     t = _vektor3(nerede, ad, v)
     if abs(math.sqrt(sum(x * x for x in t)) - 1) > UNIT_TOL:
-        raise CamError(f"{nerede}: {ad} birim vektör olmalı ({t})")
+        raise CamError(
+            f"{nerede}: {ad} birim vektör olmalı ({t})"
+            f" — {ad} vektörünü uzunluğu 1 olacak şekilde normalleştirip girin"
+        )
     return t
 
 
@@ -109,7 +119,10 @@ def _alanlar(nerede: str, d: dict, zorunlu: set[str], istege_bagli: set[str]) ->
     eksik = zorunlu - d.keys()
     fazla = d.keys() - zorunlu - istege_bagli
     if eksik or fazla:
-        raise CamError(f"{nerede}: eksik alan {sorted(eksik)}, bilinmeyen alan {sorted(fazla)}")
+        raise CamError(
+            f"{nerede}: eksik alan {sorted(eksik)}, bilinmeyen alan {sorted(fazla)}"
+            " — eksik alanları ekleyin, bilinmeyen alanları silin ya da adlarını düzeltin"
+        )
 
 
 # ---------------------------------------------------------------- kesme verisi, tutucu
@@ -128,16 +141,25 @@ class CuttingData:
     def __post_init__(self) -> None:
         _sonlu("Kesme verisi", Vc=self.Vc)
         if self.Vc <= 0:
-            raise CamError(f"Kesme verisi: Vc pozitif olmalı (Vc={self.Vc})")
+            raise CamError(
+                f"Kesme verisi: Vc pozitif olmalı (Vc={self.Vc})"
+                " — Vc için 0'dan büyük bir kesme hızı (m/dk) girin"
+            )
         if (self.fz is None) == (self.fn is None):
-            raise CamError(f"Kesme verisi: fz ve fn'den tam olarak biri verilmeli ({self.fz=}, {self.fn=})")
+            raise CamError(
+                f"Kesme verisi: fz ve fn'den tam olarak biri verilmeli ({self.fz=}, {self.fn=})"
+                " — frezede yalnız fz, tornada yalnız fn değerini verin"
+            )
         for ad in ("fz", "fn", "ap", "ae"):
             v = getattr(self, ad)
             if v is None:
                 continue
             _sonlu("Kesme verisi", **{ad: v})
             if v <= 0:
-                raise CamError(f"Kesme verisi: {ad} pozitif olmalı ({ad}={v})")
+                raise CamError(
+                    f"Kesme verisi: {ad} pozitif olmalı ({ad}={v})"
+                    f" — {ad} için 0'dan büyük bir değer girin ya da alanı boş bırakın"
+                )
 
     def to_dict(self) -> dict:
         return {"Vc": self.Vc, "fz": self.fz, "fn": self.fn, "ap": self.ap, "ae": self.ae}
@@ -169,20 +191,36 @@ class ToolHolder:
         nerede = f"Tutucu '{self.name}'"
         _sonlu(nerede, gauge_length=self.gauge_length)
         if self.gauge_length <= 0:
-            raise CamError(f"{nerede}: ölçü boyu pozitif olmalı ({self.gauge_length})")
+            raise CamError(
+                f"{nerede}: ölçü boyu pozitif olmalı ({self.gauge_length})"
+                " — ölçü boyu için 0'dan büyük bir değer (mm) girin"
+            )
         if len(self.profile) < 2:
-            raise CamError(f"{nerede}: profil en az 2 nokta olmalı")
+            raise CamError(
+                f"{nerede}: profil en az 2 nokta olmalı — profile en az iki (z, r) noktası ekleyin"
+            )
         P = np.array(self.profile)
         _sonlu(nerede, profile=P)
         z, r = P[:, 0], P[:, 1]
         if z[0] != 0:
-            raise CamError(f"{nerede}: profil z = 0'dan (ağız) başlamalı (z0={z[0]})")
+            raise CamError(
+                f"{nerede}: profil z = 0'dan (ağız) başlamalı (z0={z[0]})"
+                " — ilk profil noktasını z = 0 (tutucu ağzı) olarak verin"
+            )
         if np.any(np.diff(z) < 0):
-            raise CamError(f"{nerede}: profilde z azalmamalı")
+            raise CamError(
+                f"{nerede}: profilde z azalmamalı — profil noktalarını z'ye göre artan sırada verin"
+            )
         if z[-1] > self.gauge_length:
-            raise CamError(f"{nerede}: profil ölçü boyunu aşıyor (z={z[-1]} > {self.gauge_length})")
+            raise CamError(
+                f"{nerede}: profil ölçü boyunu aşıyor (z={z[-1]} > {self.gauge_length})"
+                f" — son z değerini ölçü boyuna ({self.gauge_length}) indirin ya da ölçü boyunu artırın"
+            )
         if np.any(r <= 0):
-            raise CamError(f"{nerede}: profil yarıçapları pozitif olmalı")
+            raise CamError(
+                f"{nerede}: profil yarıçapları pozitif olmalı"
+                " — tüm profil noktalarında r için 0'dan büyük bir yarıçap girin"
+            )
 
     def to_dict(self) -> dict:
         profile = [list(p) for p in self.profile]
@@ -227,38 +265,68 @@ class Tool:
         nerede = f"Takım '{self.name}'"
         _sonlu(nerede, D=self.D, flute_length=self.flute_length, corner_r=self.corner_r)
         if self.D <= 0:
-            raise CamError(f"{nerede}: D pozitif olmalı (D={self.D})")
+            raise CamError(f"{nerede}: D pozitif olmalı (D={self.D}) — D için 0'dan büyük bir çap girin")
         if self.flute_length <= 0:
-            raise CamError(f"{nerede}: kesici boy pozitif olmalı ({self.flute_length})")
+            raise CamError(
+                f"{nerede}: kesici boy pozitif olmalı ({self.flute_length})"
+                " — kesici boy (flute_length) için 0'dan büyük bir değer girin"
+            )
         if self.kind is ToolKind.BALL:
             self.corner_r = self.D / 2
         if not 0 <= self.corner_r <= self.D / 2:
-            raise CamError(f"{nerede}: köşe radyüsü 0..D/2 olmalı ({self.corner_r})")
+            raise CamError(
+                f"{nerede}: köşe radyüsü 0..D/2 olmalı ({self.corner_r})"
+                f" — köşe radyüsünü 0 ile D/2 = {self.D / 2} arasında seçin"
+            )
         if self.flutes is not None and (isinstance(self.flutes, bool) or not isinstance(self.flutes, int)):
-            raise CamError(f"{nerede}: diş sayısı tam sayı olmalı ({self.flutes!r})")
+            raise CamError(
+                f"{nerede}: diş sayısı tam sayı olmalı ({self.flutes!r})"
+                " — diş sayısını tam sayı olarak girin ya da boş bırakın"
+            )
         if self.flutes is not None and self.flutes < 1:
-            raise CamError(f"{nerede}: diş sayısı en az 1 olmalı ({self.flutes})")
+            raise CamError(
+                f"{nerede}: diş sayısı en az 1 olmalı ({self.flutes})"
+                " — diş sayısı için 1 ya da daha büyük bir tam sayı girin"
+            )
         if self.shank_d is not None:
             _sonlu(nerede, shank_d=self.shank_d)
             if self.shank_d <= 0:
-                raise CamError(f"{nerede}: sap çapı pozitif olmalı ({self.shank_d})")
+                raise CamError(
+                    f"{nerede}: sap çapı pozitif olmalı ({self.shank_d})"
+                    " — sap çapı için 0'dan büyük bir değer girin ya da boş bırakın"
+                )
         if self.stickout is not None:
             _sonlu(nerede, stickout=self.stickout)
             if self.stickout < self.flute_length:
-                raise CamError(f"{nerede}: taşma boyu kesici boydan kısa olamaz ({self.stickout})")
+                raise CamError(
+                    f"{nerede}: taşma boyu kesici boydan kısa olamaz ({self.stickout})"
+                    f" — taşma boyunu en az kesici boy ({self.flute_length}) kadar verin"
+                )
         if not isinstance(self.center_cutting, bool):
-            raise CamError(f"{nerede}: center_cutting bool olmalı ({self.center_cutting!r})")
+            raise CamError(
+                f"{nerede}: center_cutting bool olmalı ({self.center_cutting!r})"
+                " — center_cutting için true ya da false girin"
+            )
         if self.kind is ToolKind.DRILL and not self.center_cutting:
-            raise CamError(f"{nerede}: matkap merkezden keser; center_cutting=False olamaz")
+            raise CamError(
+                f"{nerede}: matkap merkezden keser; center_cutting=False olamaz"
+                " — matkapta center_cutting değerini true bırakın ya da başka takım türü seçin"
+            )
         for malzeme, c in self.cutting.items():
             if c.fz is None:
-                raise CamError(f"{nerede}: '{malzeme}' kesme verisinde fz (mm/diş) olmalı")
+                raise CamError(
+                    f"{nerede}: '{malzeme}' kesme verisinde fz (mm/diş) olmalı"
+                    " — frezede bu malzeme için fz (mm/diş) girin, fn kullanmayın"
+                )
         self._uc_acisi(nerede)
         self._kilavuz(nerede)
         if self.ramp_angle_max is not None:
             _sonlu(nerede, ramp_angle_max=self.ramp_angle_max)
             if not 0 < self.ramp_angle_max <= 90:
-                raise CamError(f"{nerede}: en büyük rampa açısı 0 < α ≤ 90 olmalı ({self.ramp_angle_max})")
+                raise CamError(
+                    f"{nerede}: en büyük rampa açısı 0 < α ≤ 90 olmalı ({self.ramp_angle_max})"
+                    " — rampa açısını 0'dan büyük ve en çok 90 derece seçin"
+                )
 
     def _uc_acisi(self, nerede: str) -> None:
         """Konik uçlu takımlar (CONE, SPOT, CHAMFER): 0 < φ < 180, köşe radyüsü yok,
@@ -266,41 +334,77 @@ class Tool:
         _sonlu(nerede, tip_d=self.tip_d)
         if self.kind is ToolKind.CHAMFER:
             if not 0 <= self.tip_d < self.D:
-                raise CamError(f"{nerede}: havşa uç çapı 0 ≤ tip_d < D olmalı ({self.tip_d})")
+                raise CamError(
+                    f"{nerede}: havşa uç çapı 0 ≤ tip_d < D olmalı ({self.tip_d})"
+                    f" — havşa uç çapını 0 ile D = {self.D} arasında (D hariç) seçin"
+                )
         elif self.tip_d != 0:
-            raise CamError(f"{nerede}: uç çapı (tip_d) yalnız havşa takımında verilir ({self.tip_d})")
+            raise CamError(
+                f"{nerede}: uç çapı (tip_d) yalnız havşa takımında verilir ({self.tip_d})"
+                " — uç çapını 0 bırakın ya da takım türünü havşa yapın"
+            )
         konik = self.kind in (ToolKind.CONE, ToolKind.SPOT, ToolKind.CHAMFER)
         if self.tip_angle is None:
             if konik:
-                raise CamError(f"{nerede}: {self.kind.value} takımda uç açısı (tip_angle) zorunlu")
+                raise CamError(
+                    f"{nerede}: {self.kind.value} takımda uç açısı (tip_angle) zorunlu"
+                    " — uç açısı için 0 ile 180 arasında bir derece girin"
+                )
             return
         if not konik and self.kind is not ToolKind.DRILL:
-            raise CamError(f"{nerede}: uç açısı yalnız konik, punta, havşa takımında ve matkapta verilir")
+            raise CamError(
+                f"{nerede}: uç açısı yalnız konik, punta, havşa takımında ve matkapta verilir"
+                " — uç açısını boş bırakın ya da konik, punta, havşa veya matkap türü seçin"
+            )
         _sonlu(nerede, tip_angle=self.tip_angle)
         if not 0 < self.tip_angle < 180:
-            raise CamError(f"{nerede}: uç açısı 0..180 derece arasında olmalı ({self.tip_angle})")
+            raise CamError(
+                f"{nerede}: uç açısı 0..180 derece arasında olmalı ({self.tip_angle})"
+                " — uç açısını 0'dan büyük ve 180'den küçük bir derece seçin"
+            )
         if konik:
             if self.corner_r != 0:
-                raise CamError(f"{nerede}: {self.kind.value} takımda köşe radyüsü 0 olmalı ({self.corner_r})")
+                raise CamError(
+                    f"{nerede}: {self.kind.value} takımda köşe radyüsü 0 olmalı ({self.corner_r})"
+                    " — konik uçlu takımda köşe radyüsünü 0 girin"
+                )
             h_c = (self.D - self.tip_d) / 2 / math.tan(math.radians(self.tip_angle) / 2)
             if h_c > self.flute_length + GEO_TOL:  # tan yuvarlaması: h_c = L tam eşitlikte kabul
-                raise CamError(f"{nerede}: koni yüksekliği kesici boydan büyük ({h_c} > {self.flute_length})")
+                raise CamError(
+                    f"{nerede}: koni yüksekliği kesici boydan büyük ({h_c} > {self.flute_length})"
+                    f" — kesici boyu en az {h_c:.4g} mm yapın ya da uç açısını büyütün"
+                )
 
     def _kilavuz(self, nerede: str) -> None:
         """Kılavuz: pitch > 0 ve lead > 0 zorunlu, köşe radyüsü yok, giriş pahı lead·pitch < kesici boy."""
         if self.kind is not ToolKind.TAP:
             if self.pitch is not None or self.lead is not None:
-                raise CamError(f"{nerede}: diş adımı (pitch) ve giriş pahı (lead) yalnız kılavuzda verilir")
+                raise CamError(
+                    f"{nerede}: diş adımı (pitch) ve giriş pahı (lead) yalnız kılavuzda verilir"
+                    " — pitch ve lead alanlarını boş bırakın ya da takım türünü kılavuz yapın"
+                )
             return
         if self.pitch is None or self.lead is None:
-            raise CamError(f"{nerede}: kılavuzda diş adımı (pitch) ve giriş pahı (lead) zorunlu")
+            raise CamError(
+                f"{nerede}: kılavuzda diş adımı (pitch) ve giriş pahı (lead) zorunlu"
+                " — kılavuz için pitch (mm) ve lead (diş sayısı) değerlerini girin"
+            )
         _sonlu(nerede, pitch=self.pitch, lead=self.lead)
         if self.pitch <= 0 or self.lead <= 0:
-            raise CamError(f"{nerede}: diş adımı ve giriş pahı pozitif olmalı ({self.pitch}, {self.lead})")
+            raise CamError(
+                f"{nerede}: diş adımı ve giriş pahı pozitif olmalı ({self.pitch}, {self.lead})"
+                " — diş adımı ve giriş pahı için 0'dan büyük değerler girin"
+            )
         if self.corner_r != 0:
-            raise CamError(f"{nerede}: kılavuzda köşe radyüsü 0 olmalı ({self.corner_r})")
+            raise CamError(
+                f"{nerede}: kılavuzda köşe radyüsü 0 olmalı ({self.corner_r})"
+                " — kılavuzda köşe radyüsünü 0 girin"
+            )
         if not self.lead * self.pitch < self.flute_length:
-            raise CamError(f"{nerede}: giriş pahı boyu (lead·pitch) kesici boydan kısa olmalı")
+            raise CamError(
+                f"{nerede}: giriş pahı boyu (lead·pitch) kesici boydan kısa olmalı"
+                f" — lead·pitch değerini {self.flute_length} altına indirin ya da kesici boyu artırın"
+            )
 
     @property
     def shank(self) -> float:
@@ -380,9 +484,12 @@ class LatheHolder:
         self.polygon = tuple((float(z), float(x)) for z, x in self.polygon)
         _sonlu(nerede, half_width=self.half_width)
         if self.half_width <= 0:
-            raise CamError(f"{nerede}: yarı kalınlık pozitif olmalı ({self.half_width})")
+            raise CamError(
+                f"{nerede}: yarı kalınlık pozitif olmalı ({self.half_width})"
+                " — yarı kalınlık için 0'dan büyük bir değer (mm) girin"
+            )
         if len(self.polygon) < 3:
-            raise CamError(f"{nerede}: çokgen en az 3 nokta olmalı")
+            raise CamError(f"{nerede}: çokgen en az 3 nokta olmalı — çokgene en az üç (z, x) noktası ekleyin")
         P = np.array(self.polygon)
         _sonlu(nerede, polygon=P)
         # Ardışık kenarların vektörel çarpımı: saat yönü tersi dışbükey çokgende hepsi ≥ 0, alan > 0.
@@ -392,9 +499,14 @@ class LatheHolder:
             np.sum(P[:, 0] * np.roll(P, -1, axis=0)[:, 1] - P[:, 1] * np.roll(P, -1, axis=0)[:, 0])
         )
         if alan <= 0:
-            raise CamError(f"{nerede}: çokgen saat yönü tersi ve alanı pozitif olmalı (alan={alan})")
+            raise CamError(
+                f"{nerede}: çokgen saat yönü tersi ve alanı pozitif olmalı (alan={alan})"
+                " — çokgen noktalarını saat yönü tersine sıralayın, hepsi aynı doğruda olmasın"
+            )
         if np.any(cross < 0):
-            raise CamError(f"{nerede}: çokgen dışbükey olmalı")
+            raise CamError(
+                f"{nerede}: çokgen dışbükey olmalı — içe dönük köşeleri kaldırıp dışbükey bir çokgen verin"
+            )
 
     def to_dict(self) -> dict:
         return {"name": self.name, "polygon": [list(p) for p in self.polygon], "half_width": self.half_width}
@@ -431,31 +543,64 @@ class LatheTool:
         nerede = f"Torna takımı '{self.name}'"
         _sonlu(nerede, nose_r=self.nose_r, kappa_r=self.kappa_r, eps_r=self.eps_r, width=self.width)
         if self.nose_r < 0:
-            raise CamError(f"{nerede}: burun yarıçapı negatif olamaz ({self.nose_r})")
+            raise CamError(
+                f"{nerede}: burun yarıçapı negatif olamaz ({self.nose_r})"
+                " — burun yarıçapı için 0 ya da daha büyük bir değer girin"
+            )
         if self.kind in (LatheToolKind.TURN, LatheToolKind.BORE) and self.nose_r <= 0:
-            raise CamError(f"{nerede}: tornalama ucunda burun yarıçapı pozitif olmalı ({self.nose_r})")
+            raise CamError(
+                f"{nerede}: tornalama ucunda burun yarıçapı pozitif olmalı ({self.nose_r})"
+                " — tornalama ucunda 0'dan büyük bir burun yarıçapı girin"
+            )
         if isinstance(self.tip, bool) or not isinstance(self.tip, int) or not 0 <= self.tip <= 9:
-            raise CamError(f"{nerede}: uç numarası 0..9 tam sayı olmalı ({self.tip!r})")
+            raise CamError(
+                f"{nerede}: uç numarası 0..9 tam sayı olmalı ({self.tip!r})"
+                " — uç numarası için 0 ile 9 arasında bir tam sayı girin"
+            )
         if not (0 < self.kappa_r < 180 and 0 < self.eps_r < 180):
-            raise CamError(f"{nerede}: açılar 0..180 arasında olmalı (κr={self.kappa_r}, εr={self.eps_r})")
+            raise CamError(
+                f"{nerede}: açılar 0..180 arasında olmalı (κr={self.kappa_r}, εr={self.eps_r})"
+                " — κr ve εr için 0 ile 180 derece arasında (sınırlar hariç) açılar girin"
+            )
         if self.kappa_r + self.eps_r > 180:
-            raise CamError(f"{nerede}: κr + εr ≤ 180 olmalı ({self.kappa_r} + {self.eps_r})")
+            raise CamError(
+                f"{nerede}: κr + εr ≤ 180 olmalı ({self.kappa_r} + {self.eps_r})"
+                " — κr ile εr toplamı en çok 180 derece olacak şekilde açıları küçültün"
+            )
         if self.kind is LatheToolKind.GROOVE:
             if self.width <= 0:
-                raise CamError(f"{nerede}: kanal ucunda genişlik pozitif olmalı ({self.width})")
+                raise CamError(
+                    f"{nerede}: kanal ucunda genişlik pozitif olmalı ({self.width})"
+                    " — kanal ucu genişliği için 0'dan büyük bir değer girin"
+                )
             if self.nose_r > self.width / 2:
-                raise CamError(f"{nerede}: burun yarıçapı genişliğin yarısını aşamaz ({self.nose_r})")
+                raise CamError(
+                    f"{nerede}: burun yarıçapı genişliğin yarısını aşamaz ({self.nose_r})"
+                    f" — burun yarıçapını en çok genişlik/2 = {self.width / 2} seçin"
+                )
         elif self.width != 0:
-            raise CamError(f"{nerede}: genişlik sadece kanal ucunda verilir ({self.width})")
+            raise CamError(
+                f"{nerede}: genişlik sadece kanal ucunda verilir ({self.width})"
+                " — genişliği 0 bırakın ya da takım türünü kanal yapın"
+            )
         for malzeme, c in self.cutting.items():
             if c.fn is None:
-                raise CamError(f"{nerede}: '{malzeme}' kesme verisinde fn (mm/dev) olmalı")
+                raise CamError(
+                    f"{nerede}: '{malzeme}' kesme verisinde fn (mm/dev) olmalı"
+                    " — tornada bu malzeme için fn (mm/dev) girin, fz kullanmayın"
+                )
         if self.edge_len is not None:
             _sonlu(nerede, edge_len=self.edge_len)
             if self.edge_len <= 0:
-                raise CamError(f"{nerede}: kesici kenar boyu pozitif olmalı ({self.edge_len})")
+                raise CamError(
+                    f"{nerede}: kesici kenar boyu pozitif olmalı ({self.edge_len})"
+                    " — kesici kenar boyu için 0'dan büyük bir değer girin ya da boş bırakın"
+                )
         if self.holder is not None and not isinstance(self.holder, LatheHolder):
-            raise CamError(f"{nerede}: tutucu LatheHolder olmalı ({type(self.holder).__name__})")
+            raise CamError(
+                f"{nerede}: tutucu LatheHolder olmalı ({type(self.holder).__name__})"
+                " — tutucu olarak bir torna tutucusu tanımı verin ya da boş bırakın"
+            )
 
     def to_dict(self) -> dict:
         return {
@@ -490,7 +635,10 @@ def tool_from_dict(d: dict) -> Tool | LatheTool:
         return Tool.from_dict(d)
     if kind in {k.value for k in LatheToolKind}:
         return LatheTool.from_dict(d)
-    raise CamError(f"Bilinmeyen takım türü: {kind!r}")
+    raise CamError(
+        f"Takım: bilinmeyen takım türü {kind!r}"
+        " — kind için bir freze ya da torna takım türü girin (ör. duz, tornalama)"
+    )
 
 
 @dataclass
@@ -501,17 +649,25 @@ class ToolLibrary:
         ids = [t.id for t in self.tools]
         dup = {i for i in ids if ids.count(i) > 1}
         if dup:
-            raise CamError(f"Takım kütüphanesi: yinelenen id {sorted(dup)}")
+            raise CamError(
+                f"Takım kütüphanesi: yinelenen id {sorted(dup)} — her takıma kütüphanede farklı bir id verin"
+            )
 
     def get(self, id: int) -> Tool | LatheTool:
         for t in self.tools:
             if t.id == id:
                 return t
-        raise CamError(f"Takım kütüphanesi: T{id} yok")
+        raise CamError(
+            f"Takım kütüphanesi: T{id} yok"
+            f" — önce T{id} takımını kütüphaneye ekleyin ya da var olan bir id kullanın"
+        )
 
     def add(self, tool: Tool | LatheTool) -> None:
         if any(t.id == tool.id for t in self.tools):
-            raise CamError(f"Takım kütüphanesi: T{tool.id} zaten var")
+            raise CamError(
+                f"Takım kütüphanesi: T{tool.id} zaten var"
+                " — yeni takıma kütüphanede kullanılmayan bir id verin"
+            )
         self.tools.append(tool)
 
     def to_dict(self) -> dict:
@@ -542,7 +698,10 @@ class Stock:
     def __post_init__(self) -> None:
         _sonlu("Ham malzeme", sinirlar=[self.xmin, self.ymin, self.zmin, self.xmax, self.ymax, self.zmax])
         if not (self.xmax > self.xmin and self.ymax > self.ymin and self.zmax > self.zmin):
-            raise CamError(f"Ham malzeme: her eksende max > min olmalı ({self})")
+            raise CamError(
+                f"Ham malzeme: her eksende max > min olmalı ({self})"
+                " — her eksende max değerini min değerinden büyük girin"
+            )
 
     @property
     def size(self) -> np.ndarray:
@@ -575,11 +734,19 @@ class CylinderStock:
     def __post_init__(self) -> None:
         _sonlu("Silindir ham malzeme", D=self.D, zmin=self.zmin, zmax=self.zmax, d=self.d)
         if self.D <= 0:
-            raise CamError(f"Silindir ham malzeme: D pozitif olmalı (D={self.D})")
+            raise CamError(
+                f"Silindir ham malzeme: D pozitif olmalı (D={self.D}) — D için 0'dan büyük bir dış çap girin"
+            )
         if self.zmax <= self.zmin:
-            raise CamError(f"Silindir ham malzeme: zmax > zmin olmalı ({self.zmin}, {self.zmax})")
+            raise CamError(
+                f"Silindir ham malzeme: zmax > zmin olmalı ({self.zmin}, {self.zmax})"
+                " — zmax değerini zmin değerinden büyük girin"
+            )
         if not 0 <= self.d < self.D:
-            raise CamError(f"Silindir ham malzeme: 0 ≤ d < D olmalı (d={self.d}, D={self.D})")
+            raise CamError(
+                f"Silindir ham malzeme: 0 ≤ d < D olmalı (d={self.d}, D={self.D})"
+                f" — iç çapı 0 ile D = {self.D} arasında (D hariç) seçin"
+            )
 
     @property
     def length(self) -> float:
@@ -609,7 +776,10 @@ def _stock_from_dict(d: dict) -> Stock | CylinderStock:
         return CylinderStock.from_dict(d)
     if d.get("type") == "kutu":
         return Stock.from_dict(d)
-    raise CamError(f"Bilinmeyen ham malzeme türü: {d.get('type')!r}")
+    raise CamError(
+        f"Ham malzeme: bilinmeyen ham malzeme türü {d.get('type')!r}"
+        " — type için 'kutu' ya da 'silindir' girin"
+    )
 
 
 @dataclass
@@ -621,10 +791,16 @@ class Wcs:
 
     def __post_init__(self) -> None:
         if self.code not in WCS_CODES:
-            raise CamError(f"İş sıfırı kodu G54..G59 olmalı ({self.code!r})")
+            raise CamError(
+                f"İş sıfırı: kod G54..G59 olmalı ({self.code!r})"
+                " — kod için G54, G55, G56, G57, G58 ya da G59 girin"
+            )
         self.origin = tuple(float(v) for v in self.origin)
         if len(self.origin) != 3:
-            raise CamError(f"İş sıfırı: origin 3 bileşenli olmalı ({self.origin})")
+            raise CamError(
+                f"İş sıfırı: origin 3 bileşenli olmalı ({self.origin})"
+                " — origin için (x, y, z) biçiminde üç sayı girin"
+            )
         _sonlu(f"İş sıfırı {self.code}", origin=self.origin)
 
     def to_machine(self, p) -> np.ndarray:
@@ -690,15 +866,27 @@ class Frame:
         try:
             rows = tuple(_vektor3("İş düzlemi", "R", r) for r in self.R)
         except TypeError as e:
-            raise CamError(f"İş düzlemi: R 3x3 olmalı ({self.R!r})") from e
+            raise CamError(
+                f"İş düzlemi: R 3x3 olmalı ({self.R!r})"
+                " — R için her satırı üç sayı olan üç satırlı bir matris girin"
+            ) from e
         if len(rows) != 3:
-            raise CamError(f"İş düzlemi: R 3x3 olmalı ({self.R!r})")
+            raise CamError(
+                f"İş düzlemi: R 3x3 olmalı ({self.R!r})"
+                " — R için her satırı üç sayı olan üç satırlı bir matris girin"
+            )
         self.R = rows
         M = np.array(rows)
         if np.max(np.abs(M.T @ M - np.eye(3))) > UNIT_TOL:
-            raise CamError("İş düzlemi: R dik (ortonormal) olmalı")
+            raise CamError(
+                "İş düzlemi: R dik (ortonormal) olmalı"
+                " — R'nin satırlarını birbirine dik birim vektörler olarak girin"
+            )
         if np.linalg.det(M) <= 0:
-            raise CamError("İş düzlemi: det R > 0 olmalı (yansıma yok)")
+            raise CamError(
+                "İş düzlemi: det R > 0 olmalı (yansıma yok)"
+                " — sağ el sistemi için eksenlerden birinin yönünü ters çevirin"
+            )
 
     def to_world(self, p) -> np.ndarray:
         """Yerel nokta → WCS: origin + R·p (p (3,) veya (n, 3))."""
@@ -746,22 +934,37 @@ class PathMeta:
     def __post_init__(self) -> None:
         nerede = "Yol bilgisi"
         if self.strategy not in STRATEGIES:
-            raise CamError(f"{nerede}: strateji {', '.join(STRATEGIES)} olmalı ({self.strategy!r})")
+            raise CamError(
+                f"{nerede}: strateji {', '.join(STRATEGIES)} olmalı ({self.strategy!r})"
+                " — strateji için listedeki değerlerden birini girin"
+            )
         if self.axis_mode not in AXIS_MODES:
-            raise CamError(f"{nerede}: eksen modu {', '.join(AXIS_MODES)} olmalı ({self.axis_mode!r})")
+            raise CamError(
+                f"{nerede}: eksen modu {', '.join(AXIS_MODES)} olmalı ({self.axis_mode!r})"
+                " — eksen modu için listedeki değerlerden birini girin"
+            )
         _sonlu(nerede, allowance=self.allowance)
         if self.allowance < 0:
-            raise CamError(f"{nerede}: pay negatif olamaz ({self.allowance})")
+            raise CamError(
+                f"{nerede}: pay negatif olamaz ({self.allowance})"
+                " — pay için 0 ya da pozitif bir değer (mm) girin"
+            )
         if self.allowance_z is not None:
             _sonlu(nerede, allowance_z=self.allowance_z)
             if self.allowance_z < 0:
-                raise CamError(f"{nerede}: taban payı negatif olamaz ({self.allowance_z})")
+                raise CamError(
+                    f"{nerede}: taban payı negatif olamaz ({self.allowance_z})"
+                    " — taban payı için 0 ya da pozitif bir değer girin ya da boş bırakın"
+                )
         for ad in ("ap", "ae"):
             v = getattr(self, ad)
             if v is not None:
                 _sonlu(nerede, **{ad: v})
                 if v <= 0:
-                    raise CamError(f"{nerede}: {ad} pozitif olmalı ({v})")
+                    raise CamError(
+                        f"{nerede}: {ad} pozitif olmalı ({v})"
+                        f" — {ad} için 0'dan büyük bir değer girin ya da boş bırakın"
+                    )
 
     def to_dict(self) -> dict:
         return {
@@ -855,9 +1058,15 @@ class Toolpath:
 
     def __post_init__(self) -> None:
         if self.frame is not None and not isinstance(self.frame, Frame):
-            raise CamError(f"Takım yolu '{self.name}': frame Frame olmalı ({type(self.frame).__name__})")
+            raise CamError(
+                f"Takım yolu '{self.name}': frame Frame olmalı ({type(self.frame).__name__})"
+                " — frame alanına bir iş düzlemi verin ya da boş bırakın"
+            )
         if self.meta is not None and not isinstance(self.meta, PathMeta):
-            raise CamError(f"Takım yolu '{self.name}': meta PathMeta olmalı ({type(self.meta).__name__})")
+            raise CamError(
+                f"Takım yolu '{self.name}': meta PathMeta olmalı ({type(self.meta).__name__})"
+                " — meta alanına bir yol bilgisi verin ya da boş bırakın"
+            )
         self.start = tuple(float(v) for v in self.start)
         self.plane = Plane(self.plane)
         self.feed_mode = FeedMode(self.feed_mode)
@@ -873,75 +1082,134 @@ class Toolpath:
         nerede = f"Takım yolu '{self.name}'"
         _sonlu(nerede, start=self.start, rpm=self.rpm)
         if self.rpm <= 0:
-            raise CamError(f"{nerede}: devir pozitif olmalı (rpm={self.rpm})")
+            raise CamError(
+                f"{nerede}: devir pozitif olmalı (rpm={self.rpm})"
+                " — devir (rpm) için 0'dan büyük bir değer girin"
+            )
         if self.css is not None:
             _sonlu(nerede, css=self.css)
             if self.css <= 0:
-                raise CamError(f"{nerede}: sabit kesme hızı pozitif olmalı (css={self.css})")
+                raise CamError(
+                    f"{nerede}: sabit kesme hızı pozitif olmalı (css={self.css})"
+                    " — sabit kesme hızı için 0'dan büyük bir değer girin ya da boş bırakın"
+                )
         torna = isinstance(self.tool, LatheTool)
         self._koordinat(nerede, torna)
         if torna and self.plane is not Plane.ZX:
-            raise CamError(f"{nerede}: torna yolu ZX (G18) düzleminde olmalı")
+            raise CamError(
+                f"{nerede}: torna yolu ZX (G18) düzleminde olmalı — torna yolunda düzlemi ZX (G18) seçin"
+            )
         if torna and self.start[1] != 0:
-            raise CamError(f"{nerede}: torna yolunda başlangıç y = 0 olmalı (y={self.start[1]})")
+            raise CamError(
+                f"{nerede}: torna yolunda başlangıç y = 0 olmalı (y={self.start[1]})"
+                " — torna yolunun başlangıç noktasında y = 0 verin"
+            )
         p0 = np.array(self.start)
         for i, m in enumerate(self.moves):
             p1 = np.array(m.end, dtype=float)
-            _sonlu(f"Hareket {i} ({m.type.value})", end=p1)
+            _sonlu(f"{nerede}: Hareket {i} ({m.type.value})", end=p1)
             if m.center is not None:
-                _sonlu(f"Hareket {i} ({m.type.value})", center=m.center)
+                _sonlu(f"{nerede}: Hareket {i} ({m.type.value})", center=m.center)
             if m.feed is not None:
-                _sonlu(f"Hareket {i} ({m.type.value})", feed=m.feed)
+                _sonlu(f"{nerede}: Hareket {i} ({m.type.value})", feed=m.feed)
             if torna and p1[1] != 0:
-                raise CamError(f"Hareket {i}: torna yolunda y = 0 olmalı (y={p1[1]})")
+                raise CamError(
+                    f"{nerede}: Hareket {i}: torna yolunda y = 0 olmalı (y={p1[1]})"
+                    " — torna yolunda her hareketin bitişinde y = 0 verin"
+                )
             if m.c is not None:
-                _sonlu(f"Hareket {i} ({m.type.value})", c=m.c)
+                _sonlu(f"{nerede}: Hareket {i} ({m.type.value})", c=m.c)
                 if torna or self.coord != "kartezyen":
-                    raise CamError(f"Hareket {i}: C açısı yalnız kartezyen freze yolunda verilir")
+                    raise CamError(
+                        f"{nerede}: Hareket {i}: C açısı yalnız kartezyen freze yolunda verilir"
+                        " — C açısını kaldırın ya da yolu kartezyen freze yolu yapın"
+                    )
             if m.axis is not None:
-                _birim3(f"Hareket {i} ({m.type.value})", "axis", m.axis)
+                _birim3(f"{nerede}: Hareket {i} ({m.type.value})", "axis", m.axis)
                 if torna:
-                    raise CamError(f"Hareket {i}: torna yolunda takım ekseni (axis) verilemez")
+                    raise CamError(
+                        f"{nerede}: Hareket {i}: torna yolunda takım ekseni (axis) verilemez"
+                        " — torna yolunda takım eksenini boş bırakın"
+                    )
                 if m.type in ARCS and max(abs(a - b) for a, b in zip(m.axis, Z_AXIS, strict=True)) > UNIT_TOL:
-                    raise CamError(f"Hareket {i}: yayda takım ekseni +z olmalı (eş zamanlı 5 eksen yay yok)")
+                    raise CamError(
+                        f"{nerede}: Hareket {i}: yayda takım ekseni +z olmalı (eş zamanlı 5 eksen yay yok)"
+                        " — yayda takım eksenini (0, 0, 1) verin ya da yayı doğrusal hareketlere bölün"
+                    )
             if m.type is not MoveType.RAPID and (m.feed is None or m.feed <= 0):
-                raise CamError(f"Hareket {i} ({m.type.value}): ilerleme pozitif olmalı (feed={m.feed})")
+                raise CamError(
+                    f"{nerede}: Hareket {i} ({m.type.value}): ilerleme pozitif olmalı (feed={m.feed})"
+                    " — G1, G2 ve G3 hareketlerinde 0'dan büyük bir ilerleme girin"
+                )
             if m.type in ARCS:
                 if m.center is None:
-                    raise CamError(f"Hareket {i} ({m.type.value}): yay merkezi yok")
+                    raise CamError(
+                        f"{nerede}: Hareket {i} ({m.type.value}): yay merkezi yok"
+                        " — yaya merkez noktası (center) girin ya da doğrusal hareket kullanın"
+                    )
                 c = _center_uv(self.plane, m.center)
                 r0 = float(np.hypot(*(self._uv(p0) - c)))
                 r1 = float(np.hypot(*(self._uv(p1) - c)))
                 if r0 < R_MIN:
-                    raise CamError(f"Hareket {i}: yay yarıçapı sıfır")
+                    raise CamError(
+                        f"{nerede}: Hareket {i}: yay yarıçapı sıfır"
+                        " — merkezi başlangıç noktasından farklı verin ya da doğrusal hareket kullanın"
+                    )
                 if abs(r0 - r1) > ARC_TOL:
-                    raise CamError(f"Hareket {i}: yay yarıçapları tutmuyor (r0={r0}, r1={r1})")
+                    raise CamError(
+                        f"{nerede}: Hareket {i}: yay yarıçapları tutmuyor (r0={r0}, r1={r1})"
+                        f" — merkezi başlangıç ve bitişe eşit uzaklıkta verin (fark en çok {ARC_TOL} mm)"
+                    )
             p0 = p1
         self._meta(nerede, torna)
 
     def _koordinat(self, nerede: str, torna: bool) -> None:
         """Koordinat modu (SPEC 49): polar / silindirik yalnız XY'de, WCS'de, freze takımıyla, eksensiz."""
         if self.coord not in COORD_MODES:
-            raise CamError(f"{nerede}: koordinat modu {', '.join(COORD_MODES)} olmalı ({self.coord!r})")
+            raise CamError(
+                f"{nerede}: koordinat modu {', '.join(COORD_MODES)} olmalı ({self.coord!r})"
+                " — koordinat modu için kartezyen, polar ya da silindirik girin"
+            )
         if self.coord == "silindirik":
             if self.cyl_r is None:
-                raise CamError(f"{nerede}: silindirik yolda cyl_r zorunlu")
+                raise CamError(
+                    f"{nerede}: silindirik yolda cyl_r zorunlu"
+                    " — silindirik yolda cyl_r için referans yarıçapı (mm) girin"
+                )
             _sonlu(nerede, cyl_r=self.cyl_r)
             if self.cyl_r <= 0:
-                raise CamError(f"{nerede}: cyl_r pozitif olmalı ({self.cyl_r})")
+                raise CamError(
+                    f"{nerede}: cyl_r pozitif olmalı ({self.cyl_r})"
+                    " — cyl_r için 0'dan büyük bir yarıçap girin"
+                )
         elif self.cyl_r is not None:
-            raise CamError(f"{nerede}: cyl_r yalnız silindirik yolda verilir")
+            raise CamError(
+                f"{nerede}: cyl_r yalnız silindirik yolda verilir"
+                " — cyl_r alanını boş bırakın ya da koordinat modunu silindirik yapın"
+            )
         if self.station is not None and (not _tam_sayi(self.station) or self.station < 1):
-            raise CamError(f"{nerede}: taret istasyonu ≥ 1 tam sayı olmalı ({self.station!r})")
+            raise CamError(
+                f"{nerede}: taret istasyonu ≥ 1 tam sayı olmalı ({self.station!r})"
+                " — taret istasyonu için 1 ya da daha büyük bir tam sayı girin"
+            )
         if self.coord == "kartezyen":
             return
         if torna or self.plane is not Plane.XY or self.frame is not None:
-            raise CamError(f"{nerede}: {self.coord} yol freze takımıyla, XY düzleminde ve frame'siz olmalı")
+            raise CamError(
+                f"{nerede}: {self.coord} yol freze takımıyla, XY düzleminde ve frame'siz olmalı"
+                " — bu yolu freze takımıyla, XY düzleminde ve frame vermeden kurun"
+            )
         for i, m in enumerate(self.moves):
             if m.axis is not None:
-                raise CamError(f"Hareket {i}: {self.coord} yolda takım ekseni (axis) verilemez")
+                raise CamError(
+                    f"{nerede}: Hareket {i}: {self.coord} yolda takım ekseni (axis) verilemez"
+                    " — takım eksenini boş bırakın ya da kartezyen yol kullanın"
+                )
             if self.coord == "silindirik" and m.type in ARCS:
-                raise CamError(f"Hareket {i}: silindirik yolda yay yok (açılmış düzlemde yay ileride)")
+                raise CamError(
+                    f"{nerede}: Hareket {i}: silindirik yolda yay yok (açılmış düzlemde yay ileride)"
+                    " — silindirik yolda yayları doğrusal hareketlere bölün"
+                )
 
     def _meta(self, nerede: str, torna: bool) -> None:
         """Yol bilgisinin yolla tutarlılığı: eksen modu ↔ takım / koordinat modu / takım ekseni."""
@@ -949,15 +1217,27 @@ class Toolpath:
             return
         mod = self.meta.axis_mode
         if (mod == "torna") != torna:
-            raise CamError(f"{nerede}: axis_mode 'torna' ancak ve ancak torna takımında")
+            raise CamError(
+                f"{nerede}: axis_mode 'torna' ancak ve ancak torna takımında"
+                " — torna takımında axis_mode 'torna', freze takımında başka bir mod seçin"
+            )
         for c in ("polar", "silindirik"):
             if (mod == c) != (self.coord == c):
-                raise CamError(f"{nerede}: axis_mode {mod!r} ile koordinat modu {self.coord!r} uyuşmuyor")
+                raise CamError(
+                    f"{nerede}: axis_mode {mod!r} ile koordinat modu {self.coord!r} uyuşmuyor"
+                    " — axis_mode değerini koordinat moduyla aynı seçin (polar ya da silindirik)"
+                )
         eksenli = any(m.axis is not None for m in self.moves)
         if mod == "5" and not eksenli:
-            raise CamError(f"{nerede}: axis_mode '5' iken en az bir harekette takım ekseni olmalı")
+            raise CamError(
+                f"{nerede}: axis_mode '5' iken en az bir harekette takım ekseni olmalı"
+                " — en az bir harekete takım ekseni verin ya da axis_mode değerini '3' yapın"
+            )
         if mod == "3" and eksenli:
-            raise CamError(f"{nerede}: axis_mode '3' iken takım ekseni verilemez")
+            raise CamError(
+                f"{nerede}: axis_mode '3' iken takım ekseni verilemez"
+                " — takım eksenlerini kaldırın ya da axis_mode değerini '3+2' veya '5' yapın"
+            )
 
     def points(self) -> np.ndarray:
         """Başlangıç + her hareketin bitiş noktası, (n+1, 3)."""
@@ -1093,17 +1373,26 @@ class RotaryAxis:
     def __post_init__(self) -> None:
         nerede = f"Döner eksen '{self.name}'"
         if self.name not in ROTARY_NAMES:
-            raise CamError(f"{nerede}: ad A, B veya C olmalı")
+            raise CamError(f"{nerede}: ad A, B veya C olmalı — döner eksen adı için A, B ya da C girin")
         if self.carrier not in CARRIERS:
-            raise CamError(f"{nerede}: taşıyıcı 'masa' veya 'kafa' olmalı ({self.carrier!r})")
+            raise CamError(
+                f"{nerede}: taşıyıcı 'masa' veya 'kafa' olmalı ({self.carrier!r})"
+                " — taşıyıcı için 'masa' ya da 'kafa' girin"
+            )
         self.u = _birim3(nerede, "u", self.u)
         self.pivot = _vektor3(nerede, "pivot", self.pivot)
         if (self.min is None) != (self.max is None):
-            raise CamError(f"{nerede}: min ve max ikisi birden verilmeli ya da ikisi de None olmalı")
+            raise CamError(
+                f"{nerede}: min ve max ikisi birden verilmeli ya da ikisi de None olmalı"
+                " — sürekli eksende ikisini de boş bırakın, sınırlı eksende ikisini de girin"
+            )
         if self.min is not None:
             _sonlu(nerede, min=self.min, max=self.max)
             if not self.min < self.max:
-                raise CamError(f"{nerede}: min < max olmalı ({self.min}, {self.max})")
+                raise CamError(
+                    f"{nerede}: min < max olmalı ({self.min}, {self.max})"
+                    " — max değerini min değerinden büyük girin"
+                )
 
     def to_dict(self) -> dict:
         return {
@@ -1137,16 +1426,28 @@ class Kinematics:
     def __post_init__(self) -> None:
         self.rotary = tuple(self.rotary)
         if not all(isinstance(a, RotaryAxis) for a in self.rotary):
-            raise CamError("Kinematik: döner eksenler RotaryAxis olmalı")
+            raise CamError(
+                "Kinematik: döner eksenler RotaryAxis olmalı"
+                " — rotary listesine yalnız döner eksen tanımları koyun"
+            )
         if len(self.rotary) > 2:
-            raise CamError(f"Kinematik: en çok 2 döner eksen ({len(self.rotary)})")
+            raise CamError(
+                f"Kinematik: en çok 2 döner eksen ({len(self.rotary)})"
+                " — en çok iki döner eksen tanımlayın, fazlasını kaldırın"
+            )
         names = [a.name for a in self.rotary]
         if len(set(names)) != len(names):
-            raise CamError(f"Kinematik: döner eksen adları tekil olmalı ({names})")
+            raise CamError(
+                f"Kinematik: döner eksen adları tekil olmalı ({names})"
+                " — her döner eksene farklı bir ad (A, B ya da C) verin"
+            )
         if len(self.rotary) == 2:
             u1, u2 = (np.array(a.u) for a in self.rotary)
             if np.linalg.norm(np.cross(u1, u2)) <= UNIT_TOL:
-                raise CamError("Kinematik: iki döner eksen paralel olamaz")
+                raise CamError(
+                    "Kinematik: iki döner eksen paralel olamaz"
+                    " — döner eksenlerin u yönlerini birbirine paralel olmayacak şekilde girin"
+                )
         self.spindle = _birim3("Kinematik", "spindle", self.spindle)
         self.gauge = _vektor3("Kinematik", "gauge", self.gauge)
 
@@ -1177,7 +1478,10 @@ class AxisLimits:
     def validate(self, nerede: str = "Eksen kursu") -> None:
         _sonlu(nerede, min=self.min, max=self.max)
         if not self.min < self.max:
-            raise CamError(f"{nerede}: min < max olmalı ({self.min}, {self.max})")
+            raise CamError(
+                f"{nerede}: min < max olmalı ({self.min}, {self.max})"
+                " — max değerini min değerinden büyük girin"
+            )
 
     def to_dict(self) -> dict:
         return {"min": self.min, "max": self.max}
@@ -1206,19 +1510,25 @@ MULTIAXIS_DIALECTS = {
 
 def _bool(nerede: str, ad: str, v) -> None:
     if not isinstance(v, bool):
-        raise CamError(f"{nerede}: {ad} bool olmalı ({v!r})")
+        raise CamError(f"{nerede}: {ad} bool olmalı ({v!r}) — {ad} için true ya da false girin")
 
 
 def _pozitif_ya_da_yok(nerede: str, ad: str, v) -> None:
     if v is not None:
         _sonlu(nerede, **{ad: v})
         if v <= 0:
-            raise CamError(f"{nerede}: {ad} pozitif olmalı ({v})")
+            raise CamError(
+                f"{nerede}: {ad} pozitif olmalı ({v})"
+                f" — {ad} için 0'dan büyük bir değer girin ya da boş bırakın"
+            )
 
 
 def _metin_ya_da_yok(nerede: str, ad: str, v) -> None:
     if v is not None and (not isinstance(v, str) or not v):
-        raise CamError(f"{nerede}: {ad} boş olmayan metin ya da None olmalı ({v!r})")
+        raise CamError(
+            f"{nerede}: {ad} boş olmayan metin ya da None olmalı ({v!r})"
+            f" — {ad} için boş olmayan bir metin girin ya da boş bırakın"
+        )
 
 
 @dataclass(frozen=True)
@@ -1236,7 +1546,10 @@ class CAxis:
         _bool(nerede, "continuous", self.continuous)
         _sonlu(nerede, index_step=self.index_step)
         if self.index_step <= 0:
-            raise CamError(f"{nerede}: index_step pozitif olmalı ({self.index_step})")
+            raise CamError(
+                f"{nerede}: index_step pozitif olmalı ({self.index_step})"
+                " — index_step için 0'dan büyük bir adım (derece) girin"
+            )
         _pozitif_ya_da_yok(nerede, "rpm_max", self.rpm_max)
         _metin_ya_da_yok(nerede, "m_on", self.m_on)
         _metin_ya_da_yok(nerede, "m_off", self.m_off)
@@ -1267,10 +1580,16 @@ class TurretStation:
     def __post_init__(self) -> None:
         nerede = f"Taret istasyonu {self.no!r}"
         if not _tam_sayi(self.no) or self.no < 1:
-            raise CamError(f"{nerede}: no ≥ 1 tam sayı olmalı")
+            raise CamError(
+                f"{nerede}: no ≥ 1 tam sayı olmalı"
+                " — istasyon numarası için 1 ya da daha büyük bir tam sayı girin"
+            )
         _bool(nerede, "live", self.live)
         if self.direction not in TURRET_DIRECTIONS:
-            raise CamError(f"{nerede}: yön {', '.join(TURRET_DIRECTIONS)} olmalı ({self.direction!r})")
+            raise CamError(
+                f"{nerede}: yön {', '.join(TURRET_DIRECTIONS)} olmalı ({self.direction!r})"
+                " — yön için 'radyal' ya da 'eksenel' girin"
+            )
 
     def to_dict(self) -> dict:
         return {"no": self.no, "live": self.live, "direction": self.direction}
@@ -1292,19 +1611,28 @@ class Turret:
     def __post_init__(self) -> None:
         nerede = f"Taret '{self.name}'"
         if not isinstance(self.name, str) or not self.name:
-            raise CamError(f"{nerede}: ad boş olmayan metin olmalı")
+            raise CamError(f"{nerede}: ad boş olmayan metin olmalı — tarete boş olmayan bir ad verin")
         if not isinstance(self.stations, tuple) or any(
             not isinstance(st, TurretStation) for st in self.stations
         ):
-            raise CamError(f"{nerede}: stations TurretStation demeti olmalı")
+            raise CamError(
+                f"{nerede}: stations TurretStation demeti olmalı"
+                " — stations alanına yalnız taret istasyonları koyun"
+            )
         if not self.stations:
-            raise CamError(f"{nerede}: en az bir istasyon olmalı")
+            raise CamError(f"{nerede}: en az bir istasyon olmalı — tarete en az bir istasyon ekleyin")
         nolar = [st.no for st in self.stations]
         if len(set(nolar)) != len(nolar):
-            raise CamError(f"{nerede}: istasyon numaraları tekil olmalı ({nolar})")
+            raise CamError(
+                f"{nerede}: istasyon numaraları tekil olmalı ({nolar})"
+                " — her istasyona farklı bir numara verin"
+            )
         _pozitif_ya_da_yok(nerede, "live_rpm_max", self.live_rpm_max)
         if any(st.live for st in self.stations) and self.live_rpm_max is None:
-            raise CamError(f"{nerede}: canlı istasyon varken live_rpm_max zorunlu")
+            raise CamError(
+                f"{nerede}: canlı istasyon varken live_rpm_max zorunlu"
+                " — canlı takım devir sınırı (live_rpm_max) için 0'dan büyük bir değer girin"
+            )
 
     def to_dict(self) -> dict:
         return {
@@ -1318,7 +1646,9 @@ class Turret:
         _alanlar("Taret", d, {"name", "stations"}, {"live_rpm_max"})
         d = dict(d)
         if not isinstance(d["stations"], list):
-            raise CamError("Taret: stations liste olmalı")
+            raise CamError(
+                "Taret: stations liste olmalı — stations alanını istasyonlardan oluşan bir liste olarak verin"
+            )
         d["stations"] = tuple(TurretStation.from_dict(st) for st in d["stations"])
         return cls(**d)
 
@@ -1336,13 +1666,22 @@ class MultiAxisPost:
     def __post_init__(self) -> None:
         nerede = "5 eksen post"
         if self.tcp not in TCP_MODES:
-            raise CamError(f"{nerede}: tcp {', '.join(TCP_MODES)} olmalı ({self.tcp!r})")
+            raise CamError(
+                f"{nerede}: tcp {', '.join(TCP_MODES)} olmalı ({self.tcp!r})"
+                " — tcp için listedeki modlardan birini seçin"
+            )
         if self.swivel not in SWIVEL_MODES:
-            raise CamError(f"{nerede}: swivel {', '.join(SWIVEL_MODES)} olmalı ({self.swivel!r})")
+            raise CamError(
+                f"{nerede}: swivel {', '.join(SWIVEL_MODES)} olmalı ({self.swivel!r})"
+                " — swivel için listedeki modlardan birini seçin"
+            )
         _bool(nerede, "vector", self.vector)
         _metin_ya_da_yok(nerede, "swivel_data", self.swivel_data)
         if self.swivel_data is not None and self.swivel != "cycle800":
-            raise CamError(f"{nerede}: swivel_data yalnız cycle800'de verilir")
+            raise CamError(
+                f"{nerede}: swivel_data yalnız cycle800'de verilir"
+                " — swivel_data alanını boş bırakın ya da swivel değerini cycle800 yapın"
+            )
 
     def to_dict(self) -> dict:
         return {
@@ -1397,68 +1736,122 @@ class MachineProfile:
     def validate(self) -> None:
         nerede = f"Tezgâh profili '{self.name}'"
         if not isinstance(self.name, str) or not _NAME_RE.fullmatch(self.name):
-            raise CamError(f"{nerede}: ad ASCII [A-Z0-9 _-], 1–32 karakter olmalı")
+            raise CamError(
+                f"{nerede}: ad ASCII [A-Z0-9 _-], 1–32 karakter olmalı"
+                " — adı büyük harf, rakam, boşluk, _ ve - ile 1–32 karakter olarak yazın"
+            )
         if self.controller not in CONTROLLERS:
-            raise CamError(f"{nerede}: bilinmeyen dil {self.controller!r} ({', '.join(CONTROLLERS)})")
+            raise CamError(
+                f"{nerede}: bilinmeyen dil {self.controller!r} ({', '.join(CONTROLLERS)})"
+                " — controller için listedeki dillerden birini seçin"
+            )
         if self.kind == "lathe":
             self._torna(nerede)
         elif self.kind == "millturn":
             self._torna_freze(nerede)
         elif self.kind != "mill":
-            raise CamError(f"{nerede}: tür 'mill', 'lathe' veya 'millturn' olmalı ({self.kind!r})")
+            raise CamError(
+                f"{nerede}: tür 'mill', 'lathe' veya 'millturn' olmalı ({self.kind!r})"
+                " — tür için 'mill', 'lathe' ya da 'millturn' girin"
+            )
         self._ek4(nerede)
         for ad in ("x", "y", "z"):
             lim = getattr(self, ad)
             if lim is not None:
                 if not isinstance(lim, AxisLimits):
-                    raise CamError(f"{nerede}: {ad} AxisLimits olmalı")
+                    raise CamError(
+                        f"{nerede}: {ad} AxisLimits olmalı"
+                        f" — {ad} kursunu min ve max değerleriyle verin ya da boş bırakın"
+                    )
                 lim.validate(f"{nerede}: {ad} kursu")
         _sonlu(nerede, rpm_min=self.rpm_min, rpm_max=self.rpm_max, feed_max=self.feed_max)
         if not 0 <= self.rpm_min < self.rpm_max:
-            raise CamError(f"{nerede}: 0 ≤ rpm_min < rpm_max olmalı ({self.rpm_min}, {self.rpm_max})")
+            raise CamError(
+                f"{nerede}: 0 ≤ rpm_min < rpm_max olmalı ({self.rpm_min}, {self.rpm_max})"
+                " — rpm_min değerini 0 ya da daha büyük ve rpm_max değerinden küçük girin"
+            )
         if self.feed_max <= 0:
-            raise CamError(f"{nerede}: feed_max pozitif olmalı ({self.feed_max})")
+            raise CamError(
+                f"{nerede}: feed_max pozitif olmalı ({self.feed_max})"
+                " — feed_max için 0'dan büyük bir ilerleme (mm/dk) girin"
+            )
         if self.rapid is not None:
             r = _vektor3(nerede, "rapid", self.rapid)
             if min(r) <= 0:
-                raise CamError(f"{nerede}: hızlı ilerleme bileşenleri pozitif olmalı ({r})")
+                raise CamError(
+                    f"{nerede}: hızlı ilerleme bileşenleri pozitif olmalı ({r})"
+                    " — rapid için üç eksende de 0'dan büyük hızlar (mm/dk) girin"
+                )
         if self.tool_slots is not None and (not _tam_sayi(self.tool_slots) or self.tool_slots < 1):
-            raise CamError(f"{nerede}: tool_slots ≥ 1 tam sayı olmalı ({self.tool_slots!r})")
+            raise CamError(
+                f"{nerede}: tool_slots ≥ 1 tam sayı olmalı ({self.tool_slots!r})"
+                " — tool_slots için 1 ya da daha büyük bir tam sayı girin ya da boş bırakın"
+            )
         if self.tool_change_z is not None:
             _sonlu(nerede, tool_change_z=self.tool_change_z)
             if self.z is None:
-                raise CamError(f"{nerede}: Z kursu yokken tool_change_z denetlenemez")
+                raise CamError(
+                    f"{nerede}: Z kursu yokken tool_change_z denetlenemez"
+                    " — Z kursunu (z) girin ya da tool_change_z alanını boş bırakın"
+                )
             if not self.z.min <= self.tool_change_z <= self.z.max:
-                raise CamError(f"{nerede}: tool_change_z Z kursu dışında ({self.tool_change_z})")
+                raise CamError(
+                    f"{nerede}: tool_change_z Z kursu dışında ({self.tool_change_z})"
+                    f" — tool_change_z değerini {self.z.min} ile {self.z.max} arasında seçin"
+                )
         self._program_no(nerede)
         if self.decimals not in (3, 4) or isinstance(self.decimals, bool):
-            raise CamError(f"{nerede}: decimals 3 veya 4 olmalı ({self.decimals!r})")
+            raise CamError(
+                f"{nerede}: decimals 3 veya 4 olmalı ({self.decimals!r}) — decimals için 3 ya da 4 girin"
+            )
         if not isinstance(self.verified, bool):
-            raise CamError(f"{nerede}: verified bool olmalı ({self.verified!r})")
+            raise CamError(
+                f"{nerede}: verified bool olmalı ({self.verified!r}) — verified için true ya da false girin"
+            )
         if self.presets is not None:
             if self.controller != "heidenhain":
-                raise CamError(f"{nerede}: presets yalnız Heidenhain'de verilir")
+                raise CamError(
+                    f"{nerede}: presets yalnız Heidenhain'de verilir"
+                    " — presets alanını boş bırakın ya da dili heidenhain yapın"
+                )
             if any(not _tam_sayi(n) or n < 1 for n in self.presets.values()):
-                raise CamError(f"{nerede}: preset numaraları ≥ 1 tam sayı olmalı ({self.presets})")
+                raise CamError(
+                    f"{nerede}: preset numaraları ≥ 1 tam sayı olmalı ({self.presets})"
+                    " — preset numaraları için 1 ya da daha büyük tam sayılar girin"
+                )
         if self.kinematics is not None and not isinstance(self.kinematics, Kinematics):
-            raise CamError(f"{nerede}: kinematics Kinematics olmalı")
+            raise CamError(
+                f"{nerede}: kinematics Kinematics olmalı"
+                " — kinematics alanına bir kinematik tanımı verin ya da boş bırakın"
+            )
         for ad in ("spindle_power_kw", "spindle_torque_nm"):
             v = getattr(self, ad)
             if v is not None:
                 _sonlu(nerede, **{ad: v})
                 if v <= 0:
-                    raise CamError(f"{nerede}: {ad} pozitif olmalı ({v})")
+                    raise CamError(
+                        f"{nerede}: {ad} pozitif olmalı ({v})"
+                        f" — {ad} için 0'dan büyük bir değer girin ya da boş bırakın"
+                    )
 
     def _torna(self, nerede: str) -> None:
         """Torna profili (SPEC 40 E1): yalnız Fanuc; Y, takım değiştirme Z, kinematik, preset yok;
         X (çap) ve Z kursu birlikte ya da hiç."""
         if self.controller != "fanuc":
-            raise CamError(f"{nerede}: torna profili yalnız fanuc dilinde ({self.controller!r})")
+            raise CamError(
+                f"{nerede}: torna profili yalnız fanuc dilinde ({self.controller!r})"
+                " — torna profilinde dili (controller) fanuc seçin"
+            )
         for ad in ("y", "tool_change_z", "kinematics", "presets"):
             if getattr(self, ad) is not None:
-                raise CamError(f"{nerede}: torna profilinde {ad} verilmez")
+                raise CamError(
+                    f"{nerede}: torna profilinde {ad} verilmez — torna profilinde {ad} alanını boş bırakın"
+                )
         if (self.x is None) != (self.z is None):
-            raise CamError(f"{nerede}: tornada X ve Z kursu birlikte verilir ya da hiç verilmez")
+            raise CamError(
+                f"{nerede}: tornada X ve Z kursu birlikte verilir ya da hiç verilmez"
+                " — X ve Z kursunu ikisini birden girin ya da ikisini de boş bırakın"
+            )
 
     def _torna_freze(self, nerede: str) -> None:
         """Torna-freze profili (CAM Ek 4): fanuc / sinumerik; Y serbest; kinematikte yalnız kafada B ekseni;
@@ -1466,54 +1859,92 @@ class MachineProfile:
         if self.controller not in MILLTURN_CONTROLLERS:
             raise CamError(
                 f"{nerede}: torna-freze dili {', '.join(MILLTURN_CONTROLLERS)} olmalı ({self.controller!r})"
+                " — torna-freze profilinde dili fanuc ya da sinumerik seçin"
             )
         if (self.x is None) != (self.z is None):
-            raise CamError(f"{nerede}: torna-frezede X ve Z kursu birlikte verilir ya da hiç verilmez")
+            raise CamError(
+                f"{nerede}: torna-frezede X ve Z kursu birlikte verilir ya da hiç verilmez"
+                " — X ve Z kursunu ikisini birden girin ya da ikisini de boş bırakın"
+            )
         if self.kinematics is not None and isinstance(self.kinematics, Kinematics):
             for a in self.kinematics.rotary:
                 if a.name != "B" or a.carrier != "kafa":
                     raise CamError(
                         f"{nerede}: torna-frezede yalnız kafada B ekseni olabilir ({a.name}, {a.carrier})"
+                        " — kinematikte yalnız taşıyıcısı kafa olan B eksenini bırakın"
                     )
         if self.c_axis is None:
-            raise CamError(f"{nerede}: torna-frezede C ekseni (c_axis) zorunlu")
+            raise CamError(
+                f"{nerede}: torna-frezede C ekseni (c_axis) zorunlu"
+                " — torna-freze profiline bir C ekseni (c_axis) tanımı ekleyin"
+            )
         if not self.turrets:
-            raise CamError(f"{nerede}: torna-frezede en az bir taret zorunlu")
+            raise CamError(
+                f"{nerede}: torna-frezede en az bir taret zorunlu"
+                " — torna-freze profiline en az bir taret ekleyin"
+            )
         if not any(st.live for t in self.turrets if isinstance(t, Turret) for st in t.stations):
-            raise CamError(f"{nerede}: torna-frezede en az bir canlı takım istasyonu zorunlu")
+            raise CamError(
+                f"{nerede}: torna-frezede en az bir canlı takım istasyonu zorunlu"
+                " — taretlerden en az bir istasyonu canlı (live = true) yapın"
+            )
 
     def _ek4(self, nerede: str) -> None:
         """C ekseni, taret ve 5 eksen post seçenekleri: tip, türe göre izin, dil uyumu."""
         if self.c_axis is not None and not isinstance(self.c_axis, CAxis):
-            raise CamError(f"{nerede}: c_axis CAxis olmalı")
+            raise CamError(
+                f"{nerede}: c_axis CAxis olmalı — c_axis alanına bir C ekseni tanımı verin ya da boş bırakın"
+            )
         if not isinstance(self.turrets, tuple) or any(not isinstance(t, Turret) for t in self.turrets):
-            raise CamError(f"{nerede}: turrets Turret demeti olmalı")
+            raise CamError(
+                f"{nerede}: turrets Turret demeti olmalı — turrets alanına yalnız taret tanımları koyun"
+            )
         if self.kind == "mill" and (self.c_axis is not None or self.turrets):
-            raise CamError(f"{nerede}: freze profilinde C ekseni ve taret verilmez")
+            raise CamError(
+                f"{nerede}: freze profilinde C ekseni ve taret verilmez"
+                " — C eksenini ve taretleri kaldırın ya da türü 'millturn' yapın"
+            )
         if self.multiaxis is None:
             return
         if not isinstance(self.multiaxis, MultiAxisPost):
-            raise CamError(f"{nerede}: multiaxis MultiAxisPost olmalı")
+            raise CamError(
+                f"{nerede}: multiaxis MultiAxisPost olmalı"
+                " — multiaxis alanına bir 5 eksen post tanımı verin ya da boş bırakın"
+            )
         doner = self.kinematics is not None and len(self.kinematics.rotary) >= 1
         if not (doner or self.kind == "millturn"):
-            raise CamError(f"{nerede}: multiaxis yalnız döner eksenli ya da torna-freze profilinde verilir")
+            raise CamError(
+                f"{nerede}: multiaxis yalnız döner eksenli ya da torna-freze profilinde verilir"
+                " — multiaxis alanını kaldırın ya da kinematiğe döner eksen ekleyin"
+            )
         tcp_izin, swivel_izin = MULTIAXIS_DIALECTS[self.controller]
         if self.multiaxis.tcp not in tcp_izin or self.multiaxis.swivel not in swivel_izin:
             raise CamError(
                 f"{nerede}: {self.controller} dilinde tcp={self.multiaxis.tcp!r}, "
                 f"swivel={self.multiaxis.swivel!r} desteklenmez"
+                f" — {self.controller} için tcp olarak {', '.join(tcp_izin)}, "
+                f"swivel olarak {', '.join(swivel_izin)} değerlerinden birini seçin"
             )
 
     def _program_no(self, nerede: str) -> None:
         rng = tuple(self.program_no_range)
         if len(rng) != 2 or not all(_tam_sayi(n) for n in rng):
-            raise CamError(f"{nerede}: program_no_range iki tam sayı olmalı ({self.program_no_range!r})")
+            raise CamError(
+                f"{nerede}: program_no_range iki tam sayı olmalı ({self.program_no_range!r})"
+                " — program_no_range için [en küçük, en büyük] iki tam sayı girin"
+            )
         lo, hi = rng
         if not 1 <= lo <= hi:
-            raise CamError(f"{nerede}: 1 ≤ program_no_range[0] ≤ program_no_range[1] olmalı ({rng})")
+            raise CamError(
+                f"{nerede}: 1 ≤ program_no_range[0] ≤ program_no_range[1] olmalı ({rng})"
+                " — aralığı 1 ya da daha büyük bir sayıyla başlatın ve ilk değeri ikinciden büyük vermeyin"
+            )
         sinir = PROGRAM_NO_MAX.get(self.controller)
         if sinir is not None and hi > sinir:
-            raise CamError(f"{nerede}: {self.controller} program numarası en çok {sinir} ({hi})")
+            raise CamError(
+                f"{nerede}: {self.controller} program numarası en çok {sinir} ({hi})"
+                f" — program numarası aralığının üst sınırını en çok {sinir} girin"
+            )
 
     def to_dict(self) -> dict:
         def lim(a: AxisLimits | None) -> dict | None:
@@ -1563,7 +1994,10 @@ class MachineProfile:
             d["c_axis"] = CAxis.from_dict(d["c_axis"])
         if "turrets" in d:
             if not isinstance(d["turrets"], list):
-                raise CamError("Tezgâh profili: turrets liste olmalı")
+                raise CamError(
+                    "Tezgâh profili: turrets liste olmalı"
+                    " — turrets alanını taretlerden oluşan bir liste olarak verin"
+                )
             d["turrets"] = tuple(Turret.from_dict(t) for t in d["turrets"])
         if d.get("multiaxis") is not None:
             d["multiaxis"] = MultiAxisPost.from_dict(d["multiaxis"])
@@ -1600,19 +2034,30 @@ class EntryMode:
         try:
             self.kind = EntryKind(self.kind)
         except ValueError as e:
-            raise CamError(f"{nerede}: bilinmeyen tür {self.kind!r}") from e
+            raise CamError(
+                f"{nerede}: bilinmeyen tür {self.kind!r} — tür için 'dalma', 'rampa' ya da 'helis' girin"
+            ) from e
         _sonlu(nerede, angle=self.angle)
         if not 0 < self.angle < 90:
-            raise CamError(f"{nerede}: açı 0 < α < 90 olmalı ({self.angle})")
+            raise CamError(
+                f"{nerede}: açı 0 < α < 90 olmalı ({self.angle})"
+                " — açı için 0 ile 90 derece arasında (sınırlar hariç) bir değer girin"
+            )
         for ad, tur in (("radius", EntryKind.HELIX), ("length", EntryKind.RAMP)):
             v = getattr(self, ad)
             if v is None:
                 continue
             if self.kind is not tur:
-                raise CamError(f"{nerede}: {ad} yalnız {tur.value} girişinde verilir")
+                raise CamError(
+                    f"{nerede}: {ad} yalnız {tur.value} girişinde verilir"
+                    f" — {ad} alanını boş bırakın ya da giriş türünü {tur.value} yapın"
+                )
             _sonlu(nerede, **{ad: v})
             if v <= 0:
-                raise CamError(f"{nerede}: {ad} pozitif olmalı ({v})")
+                raise CamError(
+                    f"{nerede}: {ad} pozitif olmalı ({v})"
+                    f" — {ad} için 0'dan büyük bir değer (mm) girin ya da boş bırakın"
+                )
 
     def to_dict(self) -> dict:
         return {"kind": self.kind.value, "angle": self.angle, "radius": self.radius, "length": self.length}
@@ -1647,22 +2092,43 @@ class Fixture:
     def __post_init__(self) -> None:
         nerede = f"Bağlama '{self.name}'"
         if not isinstance(self.name, str) or not _FIXTURE_NAME_RE.fullmatch(self.name):
-            raise CamError(f"{nerede}: ad [A-Za-z0-9 _/-], 1–64 karakter olmalı")
+            raise CamError(
+                f"{nerede}: ad [A-Za-z0-9 _/-], 1–64 karakter olmalı"
+                " — adı harf, rakam, boşluk, _, / ve - ile 1–64 karakter olarak yazın"
+            )
         if not isinstance(self.part_ref, str) or not self.part_ref:
-            raise CamError(f"{nerede}: part_ref boş olmayan metin olmalı ({self.part_ref!r})")
+            raise CamError(
+                f"{nerede}: part_ref boş olmayan metin olmalı ({self.part_ref!r})"
+                " — part_ref için gövdenin anahtarını (montaj bileşeni ya da dosya) girin"
+            )
         if not isinstance(self.frame, Frame):
-            raise CamError(f"{nerede}: frame bir Frame olmalı")
+            raise CamError(
+                f"{nerede}: frame bir Frame olmalı"
+                " — frame alanına bir iş düzlemi tanımı verin ya da boş bırakın"
+            )
         if self.kind not in FIXTURE_KINDS:
-            raise CamError(f"{nerede}: tür {', '.join(FIXTURE_KINDS)} olmalı ({self.kind!r})")
+            raise CamError(
+                f"{nerede}: tür {', '.join(FIXTURE_KINDS)} olmalı ({self.kind!r})"
+                " — tür için mengene, ayna, pabuc ya da ozel girin"
+            )
         try:
             params = tuple((ad, float(v)) for ad, v in self.params)
         except (TypeError, ValueError) as e:
-            raise CamError(f"{nerede}: params (ad, değer) çiftleri olmalı") from e
+            raise CamError(
+                f"{nerede}: params (ad, değer) çiftleri olmalı"
+                " — params alanını ad → sayı eşlemesi olarak verin"
+            ) from e
         adlar = [ad for ad, _ in params]
         if any(not isinstance(ad, str) or not ad for ad in adlar):
-            raise CamError(f"{nerede}: params adları boş olmayan metin olmalı")
+            raise CamError(
+                f"{nerede}: params adları boş olmayan metin olmalı"
+                " — params adlarını boş olmayan metin olarak verin"
+            )
         if adlar != sorted(adlar) or len(set(adlar)) != len(adlar):
-            raise CamError(f"{nerede}: params ada göre sıralı ve tekil olmalı ({adlar})")
+            raise CamError(
+                f"{nerede}: params ada göre sıralı ve tekil olmalı ({adlar})"
+                " — params adlarını sıralayın ve her adı bir kez kullanın"
+            )
         _sonlu(nerede, params=[v for _, v in params])
         object.__setattr__(self, "params", params)
 
@@ -1684,6 +2150,8 @@ class Fixture:
         if "params" in d:
             p = d["params"]
             if not isinstance(p, dict):
-                raise CamError("Bağlama: params sözlük olmalı")
+                raise CamError(
+                    "Bağlama: params sözlük olmalı — params alanını ad → sayı sözlüğü olarak verin"
+                )
             d["params"] = tuple(sorted(p.items()))
         return cls(**d)

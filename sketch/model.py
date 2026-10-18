@@ -36,14 +36,17 @@ class SketchError(ValueError):
 def _vec(v, n: int, ad: str) -> np.ndarray:
     a = np.array(v, dtype=float).reshape(-1)
     if a.shape != (n,) or not np.all(np.isfinite(a)):
-        raise SketchError(f"{ad}: sonlu ({n},) vektör bekleniyor ({v})")
+        raise SketchError(
+            f"{ad}: sonlu ({n},) vektör bekleniyor ({v})"
+            f" — {n} bileşenli, sonlu sayılardan oluşan bir vektör girin"
+        )
     a.flags.writeable = False
     return a
 
 
 def _sonlu(x: float, ad: str) -> float:
     if isinstance(x, bool) or not isinstance(x, (int, float)) or not math.isfinite(x):
-        raise SketchError(f"{ad}: sonlu sayı bekleniyor ({x!r})")
+        raise SketchError(f"{ad}: sonlu sayı bekleniyor ({x!r}) — bu alana sonlu bir sayı girin")
     return float(x)
 
 
@@ -60,9 +63,12 @@ class Plane:
         if abs(np.linalg.norm(n) - 1.0) > TOL or abs(np.linalg.norm(x) - 1.0) > TOL:
             raise SketchError(
                 f"Düzlem: normal ve xdir birim olmalı (|n|={np.linalg.norm(n)}, |x|={np.linalg.norm(x)})"
+                " — normal ve xdir vektörlerini boyu 1 olacak şekilde normalleştirin"
             )
         if abs(float(n @ x)) > TOL:
-            raise SketchError(f"Düzlem: normal · xdir = 0 olmalı ({float(n @ x)})")
+            raise SketchError(
+                f"Düzlem: normal · xdir = 0 olmalı ({float(n @ x)}) — xdir'i normale dik olacak şekilde seçin"
+            )
         object.__setattr__(self, "origin", o)
         object.__setattr__(self, "normal", n)
         object.__setattr__(self, "xdir", x)
@@ -81,7 +87,10 @@ class Plane:
         d = _vec(p, 3, "p") - self.origin
         h = float(d @ self.normal)
         if abs(h) > TOL:
-            raise SketchError(f"Nokta düzlemde değil (uzaklık {h} mm)")
+            raise SketchError(
+                f"Düzlem: Nokta düzlemde değil (uzaklık {h} mm)"
+                f" — noktayı düzleme {TOL} mm'den yakın olacak şekilde seçin"
+            )
         return np.array([d @ self.xdir, d @ self.ydir])
 
     @classmethod
@@ -234,15 +243,22 @@ class Sketch:
             return "L"
         if isinstance(e, (Circle, Arc)):
             return "C"
-        raise SketchError(f"Bilinmeyen kimlik: {ident!r}")
+        raise SketchError(
+            f"Bilinmeyen kimlik: {ident!r} — eskizde tanımlı bir nokta ya da öğe kimliği kullanın"
+        )
 
     def validate(self) -> None:
         """Kimlikler, öğe tanımları ve kısıt imzaları tutarlı değilse SketchError."""
         if not isinstance(self.plane, Plane):
-            raise SketchError("plane bir Plane olmalı")
+            raise SketchError(
+                "Eskiz: plane bir Plane olmalı — eskize origin, normal ve xdir ile tanımlı bir düzlem verin"
+            )
         ortak = set(self.points) & set(self.entities)
         if ortak:
-            raise SketchError(f"Kimlik hem nokta hem öğe: {sorted(ortak)}")
+            raise SketchError(
+                f"Kimlik hem nokta hem öğe: {sorted(ortak)}"
+                " — nokta ve öğelere birbirinden farklı kimlikler verin"
+            )
         for k, p in self.points.items():
             _sonlu(p.x, f"nokta {k}.x")
             _sonlu(p.y, f"nokta {k}.y")
@@ -253,7 +269,9 @@ class Sketch:
 
     def _nokta(self, ident: str, sahip: str) -> None:
         if ident not in self.points:
-            raise SketchError(f"{sahip}: bilinmeyen nokta {ident!r}")
+            raise SketchError(
+                f"{sahip}: bilinmeyen nokta {ident!r} — eskizin noktalarında tanımlı bir kimlik kullanın"
+            )
 
     def _oge(self, k: str, e: Entity) -> None:
         if isinstance(e, Line):
@@ -261,43 +279,71 @@ class Sketch:
         elif isinstance(e, Circle):
             ids = (e.center,)
             if _sonlu(e.r, f"daire {k}.r") <= 0:
-                raise SketchError(f"Daire {k}: r > 0 olmalı ({e.r})")
+                raise SketchError(
+                    f"Daire {k}: r > 0 olmalı ({e.r}) — yarıçap için 0'dan büyük bir değer girin"
+                )
         elif isinstance(e, Arc):
             ids = (e.center, e.start, e.end)
         else:
-            raise SketchError(f"Öğe {k}: bilinmeyen tür {type(e).__name__}")
+            raise SketchError(
+                f"Öğe {k}: bilinmeyen tür {type(e).__name__} — öğe olarak doğru, daire ya da yay kullanın"
+            )
         for p in ids:
             self._nokta(p, f"öğe {k}")
         if len(set(ids)) != len(ids):
-            raise SketchError(f"Öğe {k}: nokta kimlikleri farklı olmalı ({ids})")
+            raise SketchError(
+                f"Öğe {k}: nokta kimlikleri farklı olmalı ({ids}) — öğenin her ucu için ayrı bir nokta seçin"
+            )
 
     def _kisit(self, i: int, c: Constraint) -> None:
         try:
             imza = tuple(self.kind(r) for r in c.refs)
         except SketchError as err:
-            raise SketchError(f"Kısıt {i} ({c.type}): {err}", (i,)) from None
+            # iç mesaj öneriyi zaten taşır (… — …)
+            raise SketchError(f"Kısıt {i} ({c.type}): {err}", (i,)) from err
         kurallar = SIGNATURES[c.type]
         if imza not in kurallar:
-            raise SketchError(f"Kısıt {i} ({c.type}): desteklenmeyen referans çifti {imza}", (i,))
+            raise SketchError(
+                f"Kısıt {i} ({c.type}): desteklenmeyen referans çifti {imza}"
+                " — bu kısıt türünün kabul ettiği referans türlerini seçin",
+                (i,),
+            )
         if len(set(c.refs)) != len(c.refs):
-            raise SketchError(f"Kısıt {i} ({c.type}): aynı referans iki kez", (i,))
+            raise SketchError(
+                f"Kısıt {i} ({c.type}): aynı referans iki kez — kısıta iki farklı referans seçin", (i,)
+            )
         kural = kurallar[imza]
         if kural is None:
             if c.value is not None:
-                raise SketchError(f"Kısıt {i} ({c.type}): değer almaz ({c.value})", (i,))
+                raise SketchError(
+                    f"Kısıt {i} ({c.type}): değer almaz ({c.value}) — bu kısıtın değerini boş bırakın", (i,)
+                )
         else:
             if c.value is None:
-                raise SketchError(f"Kısıt {i} ({c.type}): değer gerekli", (i,))
+                raise SketchError(
+                    f"Kısıt {i} ({c.type}): değer gerekli — kısıta sayısal bir değer girin", (i,)
+                )
             v = _sonlu(c.value, f"kısıt {i} değeri")
             if kural == "pos" and v <= 0:
                 hint = " (COINCIDENT kullanın)" if c.type == CT.DISTANCE else ""
-                raise SketchError(f"Kısıt {i} ({c.type}): değer > 0 olmalı ({v}){hint}", (i,))
+                raise SketchError(
+                    f"Kısıt {i} ({c.type}): değer > 0 olmalı ({v}){hint} — kısıt değerini 0'dan büyük girin",
+                    (i,),
+                )
             if kural == "angle" and not -180.0 < v <= 180.0:
-                raise SketchError(f"Kısıt {i} ({c.type}): açı (−180, 180] aralığında olmalı ({v})", (i,))
+                raise SketchError(
+                    f"Kısıt {i} ({c.type}): açı (−180, 180] aralığında olmalı ({v})"
+                    " — açıyı −180'den büyük, 180'e eşit ya da küçük girin",
+                    (i,),
+                )
         if c.side not in (-1, 0, 1):
-            raise SketchError(f"Kısıt {i}: side −1, 0 ya da 1 olmalı ({c.side})", (i,))
+            raise SketchError(
+                f"Kısıt {i}: side −1, 0 ya da 1 olmalı ({c.side}) — taraf için −1, 0 ya da 1 seçin", (i,)
+            )
         if c.internal and not (c.type == CT.TANGENT and imza == ("C", "C")):
-            raise SketchError(f"Kısıt {i}: internal yalnızca daire–daire TANGENT'inde", (i,))
+            raise SketchError(
+                f"Kısıt {i}: internal yalnızca daire–daire TANGENT'inde — internal bayrağını kaldırın", (i,)
+            )
 
     # --- JSON köprüsü (SPEC 26) ---
 
@@ -332,7 +378,10 @@ class Sketch:
     @classmethod
     def from_dict(cls, d: dict) -> Sketch:
         if d.get("sema") != SEMA:
-            raise SketchError(f"Desteklenmeyen eskiz şeması: {d.get('sema')!r}")
+            raise SketchError(
+                f"Desteklenmeyen eskiz şeması: {d.get('sema')!r}"
+                f" — dosyayı şema {SEMA} sürümüyle yeniden kaydedin"
+            )
 
         def oge(k: str, e: dict) -> Entity:
             tur, c = e["tur"], bool(e.get("construction", False))
@@ -342,7 +391,7 @@ class Sketch:
                 return Circle(e["center"], e["r"], c)
             if tur == "arc":
                 return Arc(e["center"], e["start"], e["end"], c)
-            raise SketchError(f"Öğe {k}: bilinmeyen tür {tur!r}")
+            raise SketchError(f"Öğe {k}: bilinmeyen tür {tur!r} — tür olarak line, circle ya da arc kullanın")
 
         s = cls(
             plane=Plane.from_dict(d["plane"]),
@@ -365,7 +414,9 @@ class Sketch:
 def _src(src: str) -> None:
     # Özellik ağacı (SPEC 18) yan yüzleri `yan:<src>` diye adlandırır; kimlik metin olmalı.
     if not isinstance(src, str):
-        raise SketchError(f"src: eskiz öğe kimliği (str) bekleniyor ({src!r})")
+        raise SketchError(
+            f"src: eskiz öğe kimliği (str) bekleniyor ({src!r}) — kaynak olarak öğe kimliğini metin verin"
+        )
 
 
 @dataclass(frozen=True)
@@ -404,7 +455,9 @@ class SegArc:
         object.__setattr__(self, "start", _vec(self.start, 2, "start"))
         object.__setattr__(self, "end", _vec(self.end, 2, "end"))
         if _sonlu(self.r, "r") <= 0:
-            raise SketchError(f"SegArc: r > 0 olmalı ({self.r})")
+            raise SketchError(
+                f"SegArc: r > 0 olmalı ({self.r}) — yay yarıçapı için 0'dan büyük bir değer girin"
+            )
         _src(self.src)
 
 
