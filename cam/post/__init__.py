@@ -1,7 +1,8 @@
 """
 Postprosesör katmanı (SPEC 30): tezgâh profili, tezgâh sınır denetimi, blok planı ve ISO biçimleyici.
 SPEC 31 aynı planı Siemens Sinumerik ve Heidenhain Klartext'e biçimler (`format_sinumerik`,
-`format_heidenhain`; okuyucular `read_sinumerik`, `read_heidenhain`).
+`format_heidenhain`; okuyucular `read_sinumerik`, `read_heidenhain`). SPEC 51 5 eksen çıkışı: `post5`,
+`swivel_angles`, `read_program5`.
 
 - `post(ops, machine, ...)` = `check_machine` + `plan` + `format(..., dialect_for(machine))`; programın başına
   `(POST <AD> <DIL>)` ve doğrulanmamış profilde `(DOGRULANMAMIS PROFIL - ILK PARCADA KURU CALISTIRIN)`.
@@ -38,7 +39,9 @@ from cam.post.format_iso import HAAS, _guvenli_z, format, plan
 from cam.post.format_sinumerik import SINUMERIK, format_sinumerik
 from cam.post.lathe import check_lathe, post_lathe
 from cam.post.machine import builtin_machines, load_machine, save_machine
+from cam.post.multiaxis import post5, swivel_angles
 from cam.post.read_heidenhain import read_heidenhain
+from cam.post.read_multiaxis import read_program5
 from cam.post.read_sinumerik import read_sinumerik
 
 __all__ = [
@@ -71,11 +74,14 @@ __all__ = [
     "machine_extents",
     "plan",
     "post",
+    "post5",
     "post_lathe",
     "read_heidenhain",
     "read_program",
+    "read_program5",
     "read_sinumerik",
     "save_machine",
+    "swivel_angles",
 ]
 
 
