@@ -1,6 +1,7 @@
 # SPEC 37 — Tek proje dosyası (`.3dc`) ve uygulama kabuğu: geri al, komut paleti, ekranlar arası iplik
 
-> **Durum: TASLAK** (kullanıcı onayı bekliyor). Onaylanmadan kod, test ve arayüz PR'ı açılmaz.
+> **Durum: ONAYLANDI** (kullanıcı, 2026-10-18 11:13 UTC, Dalga 5 toplu yazılı onayı: "… 37 … metinlerini önerilerle
+> … onaylıyorum"). Açık soruların hepsi önerilen seçenekle kapandı (aşağıda "Kararlar").
 > Dalga 5, hat H13 (`/mnt/project-files/yol-haritasi/dalga-5-onerisi.md`; kullanıcı 2026-10-18 10:51 UTC Dalga 5'i
 > tam kapsamla seçti). Tezgah kabuğu, köprü kuralları, `Kontrol` biçimi ve ön yüz araç zinciri SPEC 24'ten; torna /
 > montaj ipliği SPEC 25'ten; model geçmişi SPEC 26'dan gelir, burada tekrar edilmez.
@@ -218,7 +219,7 @@ interface Komut {
 Ayrıca: `api.ts`'te değiştiren her isteğe `X-Tezgah-Etiket` başlığı eklenebilmesi ve değişiklik sonrası abonelik
 (`degisiklikSonrasi(cb)`); sekme rozeti (`rozet(ekran, metin | null)`); `Ctrl K`, `Ctrl Z`, `Ctrl Shift Z`, `Ctrl Y`,
 `Ctrl S`, `Ctrl Shift S`, `Ctrl O` tuşlarının yalnız kabuğa ait olması (SPEC 24'ün komut çubuğu ve SPEC 26'nın geri
-alı bu SPEC'te kabuğun paletine ve geçmişine devredilir; davranışları korunur, bkz. Açık soru 1).
+alı bu SPEC'te kabuğun paletine ve geçmişine devredilir; davranışları korunur, bkz. Karar 1).
 
 ## Arayüz
 
@@ -379,7 +380,7 @@ montajı (başlangıçta `L = 20`, girişim var), SPEC 24'ün flanş freze işi;
 - **Bağımlılık (kod):** A3 (ekran kaydı), 24, 25; 26 birleşmişse `model` bölümü örnek projeye eklenir (yoksa K14
   yine geçer). `fileio/proje.py` (K1–K8) hiçbir şeye bağlı değildir ve onaydan hemen sonra yazılabilir.
 - **Devamı:** SPEC 47 (H14) ekranları kayda girerken `bolum`, `bagimli`, `ozet` bildirir ve kendiliğinden projeye,
-  geri ala ve palete katılır. Kurtarma dosyası ve dallanan geçmiş Dalga 6'ya bırakılır (Açık soru 3).
+  geri ala ve palete katılır. Kurtarma dosyası ve dallanan geçmiş Dalga 6'ya bırakılır (Karar 3).
 
 ## Kapsam dışı
 - Dallanan (ağaç) geçmiş, geçmişte arama, adlı sürümler; geçmiş doğrusaldır.
@@ -389,14 +390,11 @@ montajı (başlangıçta `L = 20`, girişim var), SPEC 24'ün flanş freze işi;
 - Parçalar arası referans, SPEC 26 modelinin özellik ağacına dönüşmesi (SPEC 18).
 - Gerçek şirket parçaları (gizlilik kuralı): örnek proje uydurma geometridir.
 
-## Açık sorular (onayda karara bağlanır)
-1. **Tek geri al yığını.** SPEC 26 `Ctrl Z`'yi modelin geçmiş şeridinde konum değiştirmek olarak tanımlıyor, SPEC 24
-   `Ctrl K`'yı kendi komut çubuğu olarak. **Önerilen:** iki tuş da kabuğa geçer; model ekranındaki değişiklik projenin
-   geri alındığı yığına girer (geri alınca şerit yine bir adım geri gider, SPEC 26 K12'nin gözlenen davranışı aynı),
-   SPEC 24'ün komutları palete `komutlar()` ile taşınır. Alternatif: ekran başına ayrı yığın.
-2. **Dosya açma / kaydetme yolu.** **Önerilen:** sunucu tarafı yol (`~/3D-CORE projeleri/` varsayılan klasör + son
-   açılanlar listesi) ve yedek olarak tarayıcıdan indir / yükle. Alternatif: yalnız tarayıcı indir / yükle.
-3. **Otomatik kurtarma dosyası** (her değişiklikte `<ad>.3dc.kurtarma`, temiz kayıtta silinir). **Önerilen:** Dalga 6;
-   bu SPEC'te yok. Alternatif: bu SPEC'e K18 olarak eklemek.
-4. **Geçmiş sınırı 200 kayıt, önbellek belleği 256 MiB, dosyada yalnız güncel durumun önbelleği.** **Önerilen:** bu
-   değerler. Alternatif: geçmiş dosyaya yazılmaz (yalnız oturum boyunca).
+## Kararlar (kullanıcı, 2026-10-18 11:13 UTC, "önerilerle")
+1. **Tek geri al yığını:** `Ctrl Z` ve `Ctrl K` kabuğa geçer; SPEC 26'nın model ekranındaki değişiklikleri projenin
+   geri al yığınına girer (geri alınca şerit yine bir adım geri gider, SPEC 26 K12'nin gözlenen davranışı aynı),
+   SPEC 24'ün komutları palete `komutlar()` ile taşınır.
+2. **Dosya yolu:** sunucu tarafı yol (`~/3D-CORE projeleri/` varsayılan klasör + son açılanlar listesi) ve yedek
+   olarak tarayıcıdan indir / yükle.
+3. **Otomatik kurtarma dosyası:** Dalga 6; bu SPEC'te yok.
+4. **Sınırlar:** geçmiş 200 kayıt ve dosyaya yazılır, önbellek belleği 256 MiB, dosyada yalnız güncel durumun önbelleği.

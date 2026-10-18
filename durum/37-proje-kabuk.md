@@ -3,8 +3,8 @@
 Dal: `claude/spec-37-proje-kabuk-trviuv` · Oturum: bulut
 
 ## Sıradaki adım
-SPEC metni kullanıcı onayı bekliyor (açık sorular 1–4). Onaydan sonra `NotImplementedError` iskeleti
-(`fileio/proje.py` hemen; `tezgah/ekranlar/kabuk.py` ve `kabuk.ts` A3 dalının üstüne).
+SPEC onaylandı (2026-10-18 11:13). `fileio/proje.py` iskeleti push edildi; bağımsız test thread'inin test
+commit'i bekleniyor. `tezgah/ekranlar/kabuk.py` ve `kabuk.ts` iskeleti A3 dalı açılınca onun üstüne.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
@@ -19,5 +19,8 @@ SPEC metni kullanıcı onayı bekliyor (açık sorular 1–4). Onaydan sonra `No
 - A3'ten beklenen kayıt arayüzü SPEC'in "A3'ten beklenen kayıt arayüzü" bölümünde; koordinatöre iletildi.
 - `*/model.py` değişikliği gerekmiyor.
 
+- SPEC metni önerilerle onaylandı (Dalga 5 toplu yazılı onay, 11:13); torna işleri ayrı `torna_isleri` bölümünde (A3 sürüm 2).
+- `fileio/proje.py` NotImplementedError iskeleti.
+
 ## Açık sorular
-SPEC'in "Açık sorular" bölümü (1 tek geri al yığını, 2 dosya yolu, 3 kurtarma dosyası, 4 sınırlar).
+_(yok)_
