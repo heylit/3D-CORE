@@ -3,13 +3,19 @@
 Dal: `claude/project-thread-eioc8y` · Oturum: bulut thread "FEM ağ ve gerilme analizi (12–13)"
 
 ## Sıradaki adım
-Ayrı oturumda testler (bu dalın üstünde), sonra burada cherry-pick ve kod.
+PR #61 CI ve birleştirme.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
 |---|---|---|---|
+| 2026-10-18 | 87 | 0 | SPEC 12 testleri yeşil; main'deki SPEC 13 delikli plaka ve CalculiX braket testleri de bu ağla yeşil (18/18). |
 
 ## Son oturum
+**2026-10-18 — kod**
+- Testler ayrı oturumda yazıldı (dal `claude/project-thread-bs353f`, commit `04e62cd`, burada cherry-pick `33033f7`); kod testlere dokunmadan ayrı commit'te.
+- `tet_mesh`: STEP → gmsh OCC, `Ball`/`Min` alanları, tek iş parçacığı Delaunay, düğümler 1..n, sol el elemanlar çevrilir.
+- `secim`: sınır üçgenleri `np.unique` ile tek kullanılan yüzler; `yukler`: (düğüm, dof) başına tek `Load`.
+
 **2026-10-18 — onay ve iskelet**
 - SPEC 12 ve 13 metinleri kullanıcı onaylı (10:38 UTC, proje sohbetinde yazılı).
 - `mesh/gmsh_ag.py`, `mesh/secim.py`, `mesh/yukler.py`: `NotImplementedError` iskeletleri; `mesh/__init__.py` dışa açılan adlar.
