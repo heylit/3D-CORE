@@ -74,7 +74,7 @@ def test_ikinci_baglama_ters_cevrilmis():
     """İkinci bağlamanın finiş profili ters çevrilmiş parçanın kalan ucudur: Ø20 var, Ø16 yok."""
     plans = plan_auto_turn(MIL, torna_lib(), MALZEME, SECENEK, stock=STOK, grip=20.0)
     ikinci = plans[1].outer.finish
-    xs = [p[1] for s in ikinci.segments for p in (s.start, s.end)]
+    xs = [p[1] for s in ikinci.segments for p in (s.p0, s.p1)]
     assert max(xs) <= 15.0 + 1e-9
     assert any(abs(x - 10.0) < 1e-9 for x in xs)  # Ø20 ucu
     assert not any(abs(x - 8.0) < 1e-9 for x in xs)  # Ø16 ucu birinci bağlamada kaldı
