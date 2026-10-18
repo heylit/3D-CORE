@@ -95,6 +95,8 @@ class Ref:
         self.kind = RefKind(self.kind)
         self.origin = tuple(float(v) for v in self.origin)
         d = np.asarray(self.direction, dtype=float)
+        if not (np.all(np.isfinite(self.origin)) and np.all(np.isfinite(d))):
+            raise AssyError(f"Referans ({self.component}): origin ve yön sonlu olmalı")
         n = float(np.linalg.norm(d))
         if n < 1e-12:
             raise AssyError(f"Referans ({self.component}): yön vektörü sıfır olamaz")
@@ -116,17 +118,45 @@ class Component:
 
 @dataclass
 class Mate:
+    """İki referans arasında kısıt.
+
+    flip: yönlü referansın yönü ters alınır (b'nin; b NOKTA ise a'nın). Varsayılan (False) davranış:
+        PLANE–PLANE normaller zıt (yüz yüze), flip → aynı yön;
+        POINT–PLANE DISTANCE nokta normalin tarafında, flip → öbür tarafta;
+        ANGLE θ yönler arasında, flip → 180° − θ.
+    Yönün sonucu değiştirmediği kısıtlarda (eksen–eksen, nokta–nokta, nokta–eksen, nokta–düzlem
+    çakışık) flip = True hatadır: etkisiz bayrak sessizce yutulmaz.
+    """
+
     kind: MateKind
     a: Ref
     b: Ref
     value: float = 0.0            # DISTANCE: mm, ANGLE: derece
+    flip: bool = False
 
     def __post_init__(self) -> None:
         self.kind = MateKind(self.kind)
+        if not math.isfinite(self.value):
+            raise AssyError(f"Kısıt değeri sonlu olmalı ({self.value})")
+        if not isinstance(self.flip, bool):
+            raise AssyError(f"flip bool olmalı ({self.flip!r})")
+        if self.flip and not self._flip_etkili():
+            raise AssyError(
+                f"flip bu kısıtta etkisiz: {self.kind.name} {self.a.kind.name}–{self.b.kind.name}"
+            )
         if self.kind is MateKind.DISTANCE and self.value < 0:
             raise AssyError(f"Mesafe kısıtı negatif olamaz ({self.value})")
         if self.kind is MateKind.ANGLE and not 0 <= self.value <= 180:
             raise AssyError(f"Açı kısıtı 0–180 derece olmalı ({self.value})")
+
+    def _flip_etkili(self) -> bool:
+        """Yön tersine çevrilince artığın değiştiği kısıtlar (bkz. sınıf açıklaması)."""
+        cift = {self.a.kind, self.b.kind}
+        if self.kind is MateKind.ANGLE:
+            return True
+        if cift == {RefKind.PLANE}:
+            return self.kind in (MateKind.COINCIDENT, MateKind.DISTANCE)
+        return cift == {RefKind.POINT, RefKind.PLANE} and self.kind is MateKind.DISTANCE
 
 
 @dataclass
@@ -171,7 +201,7 @@ class Assembly:
                 for c in self.components
             ],
             "mates": [
-                {"kind": m.kind.value, "a": ref(m.a), "b": ref(m.b), "value": m.value}
+                {"kind": m.kind.value, "a": ref(m.a), "b": ref(m.b), "value": m.value, "flip": m.flip}
                 for m in self.mates
             ],
         }
@@ -189,7 +219,10 @@ class Assembly:
                 for c in d.get("components", [])
             ],
             mates=[
-                Mate(kind=m["kind"], a=ref(m["a"]), b=ref(m["b"]), value=m.get("value", 0.0))
+                Mate(
+                    kind=m["kind"], a=ref(m["a"]), b=ref(m["b"]), value=m.get("value", 0.0),
+                    flip=m.get("flip", False),
+                )
                 for m in d.get("mates", [])
             ],
         )

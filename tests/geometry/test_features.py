@@ -12,8 +12,10 @@ import math
 import numpy as np
 import pytest
 
-from geometry.features import block, chamfer_top, cylinder, hole, pocket
-from geometry.part import GeometryError, Part
+pytest.importorskip("build123d", reason='build123d kurulu değil (pip install -e ".[cad]")')
+
+from geometry.features import block, chamfer_top, cylinder, hole, pocket  # noqa: E402
+from geometry.part import GeometryError, Part  # noqa: E402
 
 pytestmark = pytest.mark.occt
 

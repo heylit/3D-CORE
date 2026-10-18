@@ -9,6 +9,8 @@ Yazıcıyla aynı `ModalState`'i kullanır: satırda olmayan kelime durumdan dol
 - Yay doğrulama: |r0 − r1| > arc_tol -> CamError; aksi halde merkez kirişin orta dikmesine
   izdüşürülür: c' = m + ((c − m)·u) u.
 - G81/G83 kanonik açılıma çevrilir (cycles.hole_moves).
+- G43 H<n> (takım boyu telafisi) yola yansımaz ama denetlenir: H olmadan G43, G43 olmadan H
+  veya etkin takımdan farklı H -> CamError (yanlış telafi takımı malzemeye sokar).
 Hata mesajları 'satır <n>' içerir (metindeki 1 tabanlı satır sırası).
 Kaynak: Smid, CNC Programming Handbook, Bölüm 4–6, 21–22, 29; LinuxCNC G-code referansı.
 """
@@ -27,7 +29,7 @@ from cam.model import R_MIN, CamError, Move, MoveType, Tool, Toolpath
 _WORD = re.compile(r"([A-Z])([+-]?(?:\d+\.?\d*|\.\d+))")
 _COMMENT = re.compile(r"\([^()]*\)")
 
-LETTERS = set("GMXYZIJRQFSTNO")
+LETTERS = set("GMXYZIJRQFSTNOH")
 G_MOTION = {0: "G0", 1: "G1", 2: "G2", 3: "G3", 80: "G80", 81: "G81", 83: "G83"}
 G_NOOP = {17, 21, 40, 49, 54, 94}           # baş satırda gelen, yola etkisi olmayan kodlar
 G_REFUSED = {
@@ -93,6 +95,7 @@ class _Reader:
         motion = self.g_codes(gs)
         self.m_codes(ms)
         self.words(w)
+        self.length_offset(43 in gs, w)
         if motion == "G80":
             if any(k in w for k in "XYZIJRQ"):
                 raise CamError("G80 satırında eksen / çevrim kelimesi olamaz")
@@ -119,6 +122,8 @@ class _Reader:
                 motion = G_MOTION[g]
             elif g in (90, 91):
                 self.state.distance = f"G{g}"
+            elif g == 43:
+                pass                                 # length_offset() denetler
             elif g in (98, 99):
                 self.state.retract = f"G{g}"
             elif g in G_REFUSED:
@@ -147,6 +152,13 @@ class _Reader:
         if "S" in w and w["S"] != self.state.rpm:
             self.state.rpm = w["S"]
             self.pending = True
+
+    def length_offset(self, g43: bool, w: dict[str, float]) -> None:
+        """G43 H<n>: H, etkin takımın numarası olmalı."""
+        if g43 != ("H" in w):
+            raise CamError("G43 ve H kelimesi birlikte verilmeli")
+        if g43 and w["H"] != self.state.tool:
+            raise CamError(f"G43 H{w['H']:g}: etkin takım T{self.state.tool} ile uyuşmuyor")
 
     # --- hareketler -------------------------------------------------------------------
     def execute(self, w: dict[str, float]) -> None:

@@ -84,6 +84,15 @@ def assert_no_zero_length(tp: Toolpath) -> None:
     assert np.all(seg > 1e-9), seg
 
 
+def with_retract(tp: Toolpath, safe_z: float) -> Toolpath:
+    """SPEC 04 Ek B: yazıcı program sonunda güvenli Z'nin altındaysa `G0 Z<safe_z>` ekler;
+    okununca bu, yolun son hareketidir."""
+    x, y, z = tp.points()[-1]
+    if z >= safe_z:
+        return tp
+    return Toolpath(tp.name, tp.tool, tp.start, [*tp.moves, Move(G0, (x, y, safe_z))], tp.rpm)
+
+
 def assert_same_path(got: Toolpath, exp: Toolpath, tol: float = EPS) -> None:
     assert [m.type for m in got.moves] == [m.type for m in exp.moves]
     np.testing.assert_allclose(got.points(), exp.points(), rtol=0, atol=tol)
@@ -218,10 +227,10 @@ def test_g83_peck_count_formula(q, n):
 FANUC_G81 = """\
 %
 O0001
-N10 G21 G90 G17 G94 G40 G49 G80
+N10 G21 G90 G17 G94 G40 G49 G80 G54
 N20 T3 M6
 N30 S2000 M3
-N40 G0 X0. Y0. Z10.
+N40 G0 G43 X0. Y0. Z10. H3
 N50 G98 G81 X10. Y10. Z-5. R2. F100.
 N60 X20.
 N70 Y20.
@@ -283,15 +292,15 @@ def test_grbl_writes_expanded_cycle_text():
 @pytest.mark.parametrize("retract", ["G98", "G99"])
 def test_both_dialects_read_back_to_canonical(make, retract):
     """K12: aynı DrillOp, Fanuc (çevrim) ve GRBL (açılmış) yazılıp okununca aynı yol (≤ ε) ve
-    `DrillOp.to_toolpath()` ile aynı."""
+    `DrillOp.to_toolpath()` ile aynı (Ek B: G99'da sondaki geri çekme dahil)."""
     op = make(retract)
     tools = {3: op.tool}
     (pf,) = read(write([op], FANUC), tools, FANUC)
     (pg,) = read(write([op], GRBL), tools, GRBL)
     pf.validate()
     pg.validate()
-    assert_same_path(pf, op.to_toolpath(FANUC))
-    assert_same_path(pg, op.to_toolpath(GRBL))
+    assert_same_path(pf, with_retract(op.to_toolpath(FANUC), op.start[2]))
+    assert_same_path(pg, with_retract(op.to_toolpath(GRBL), op.start[2]))
     assert_same_path(pf, pg)
     assert pf.name == pg.name == "T3-1"
     assert pf.rpm == pg.rpm == 2000
@@ -318,7 +327,7 @@ def test_drill_then_toolpath_same_tool_merges():
     exp = op.to_toolpath(FANUC)
     exp = Toolpath("bek", op.tool, exp.start, rpm=2000.0,
                    moves=[*exp.moves, Move(G0, tp2.start), *tp2.moves])
-    assert_same_path(got, exp)
+    assert_same_path(got, with_retract(exp, 10.0))
 
 
 # ---------------------------------------------------------------- K13: DrillOp.validate
