@@ -3,14 +3,15 @@
 Dal: `claude/project-thread-k667wt` · Oturum: bulut
 
 ## Sıradaki adım
-İskelet B0 (6077d13, PR #116) üstünde push edildi; ayrı oturum testleri yazacak. Sonra test commit'i cherry-pick,
-kod ayrı commit'te.
+Kod yazıldı, 125 SPEC 49 testi yeşil. GitHub'da pytest + kapi yeşil olunca PR #126 birleşir. Sonra: tezgâhta kuru
+çalıştırma (SPEC 48) ile Fanuc / MAPPS M kodları (M13 / M15) ve G12.1 X çap doğrulanır.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
 |---|---|---|---|
 | 2026-10-18 | — | — | Yalnız SPEC metni; kod ve test yok |
 | 2026-10-18 | — | — | İskelet (`NotImplementedError`); test yok |
+| 2026-10-18 | 125 | 0 | Testler 0d8aba2 (ayrı oturum), kod ayrı commit'te |
 
 ## Son oturum
 **2026-10-18**
@@ -30,6 +31,20 @@ kod ayrı commit'te.
     `post.millturn.post_mt / read_mt`.
 - G-code yazıcısı (`cam/gcode/writer.py`) polar / silindirik / `Move.c` için hâlâ `CamError` veriyor; SPEC 49 bunları
   `cam/post/millturn.py`'de yazar, ortak yazıcıya dokunmaz.
+
+- Kod (test oturumundan sonra, testlere dokunulmadı):
+  - `cam/millturn/istasyon.py` (yeni, paketin içinde): torna-freze profil, istasyon (var / canlı / yön), canlı devir,
+    Y kursu, polar ve silindirik denetimi; simülasyon ve post ortak kullanır.
+  - Alın cebinde `Cut.stepover` verilmezse takım çapının yarısı (SPEC 03 cebi stepover ister).
+  - Kaçık delik girişi takım merkezindeki yüzeyden (x = √(R² − e²)), yaklaşma takım izdüşümündeki en yüksek yüzeyin
+    üstünden.
+  - Simülasyon: torna 22 ile, sonra `RadialMap` → `TriDexel`, freze 43 `simulate5` (`initial`); ayna halkası freze
+    hareketlerinde takım silindiri örnekleriyle ayrıca denetlenir (`ayna_carpma`). Adım ve işlem numaraları programın
+    tamamına göre.
+  - Post: Fanuc'ta X her zaman çap, Sinumerik DIAMOF ile yarıçap; her yol `OP` yorumuyla takım / istasyon bilgisi
+    taşır, okuyucu yolları bundan kurar. Canlı takım durdurma Fanuc `M15`, Sinumerik `M2=5` (taslak, Karar 1).
+  - Yollar arası bağlantı hareketi üretilmez: `tool_change` (x, z) verilmezse güvenli nokta yazılmaz; çarpışma
+    simülasyonda görünür (43 bağlantı adımı).
 
 ## Açık sorular
 _(yok)_
