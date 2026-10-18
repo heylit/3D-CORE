@@ -9,17 +9,21 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "pytest-html>=4", "ruff>=0.5"]
+dev = ["pytest>=8", "pytest-html>=4", "ruff>=0.5", "httpx>=0.27"]
 viz = ["matplotlib>=3.8", "pyvista>=0.43"]
 mesh = ["gmsh>=4.11"]
 cad = ["build123d>=0.7"]
+web = ["fastapi>=0.110", "uvicorn>=0.29"]  # SPEC 24 Tezgah
+
+[project.scripts]
+tezgah = "tezgah.__main__:main"
 
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["core*", "geometry*", "cam*", "assy*", "mesh*", "fileio*", "viz*"]
+include = ["core*", "geometry*", "cam*", "assy*", "sketch*", "mesh*", "fileio*", "viz*", "tezgah*", "atolye*", "analiz*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

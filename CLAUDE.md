@@ -20,6 +20,7 @@ geometry/       Katı altyapı: build123d / OCCT sarmalayıcıları. Arayüz: ge
 cam/            Takım yolu, G-code, talaş simülasyonu. Arayüz: cam/model.py (Tool, Stock, Move, Toolpath)
 assy/           Montaj ağacı, kısıt çözücü, girişim. Arayüz: assy/model.py (Component, Assembly, Mate)
                 (adı 'assy': FEM'deki core/assembly.py ile karışmasın)
+sketch/         2D kroki (çizgi, yay, daire) + kısıtlar ve çözücü (SPEC 17). Arayüz: sketch/model.py (saf Python + numpy)
 core/           FEM. Saf hesap: numpy + scipy dışında bağımlılık YOK (OCCT, matplotlib, pyvista yasak).
   model.py      FEM'in tek veri modeli.
   elements/     Her eleman bir dosya: ke(), dofs(), axial_force(). Kayıt: elements/__init__.py
