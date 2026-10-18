@@ -21,3 +21,8 @@ def element_stresses(model: Model, u: np.ndarray) -> dict[int, float]:
     """eleman id -> eksenel gerilme sigma = N / A [MPa]"""
     N = element_forces(model, u)
     return {e.id: N[e.id] / model.section(e.section).A for e in model.elements}
+
+
+def element_stress_tensors(model: Model, u: np.ndarray) -> dict[int, np.ndarray]:
+    """eleman id -> gerilme tensörü σ (6,) [MPa], Voigt: xx, yy, zz, xy, xz, yz (SPEC 11)"""
+    raise NotImplementedError("SPEC 11: post.element_stress_tensors")

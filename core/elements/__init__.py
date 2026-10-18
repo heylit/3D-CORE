@@ -16,10 +16,11 @@ Yeni eleman eklemek = bu klasöre bir dosya + aşağıdaki sözlüğe bir satır
 assembly.py ve solver.py'ye DOKUNULMAZ.
 """
 
-from core.elements import bar1d
+from core.elements import bar1d, tet4
 
 ELEMENTS = {
     "bar1d": bar1d,
+    "tet4": tet4,
 }
 
 
