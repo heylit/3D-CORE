@@ -161,7 +161,15 @@ def _yamala(bolumler: dict[str, dict], yamalar: list[dict]) -> set[str]:
 class Kabuk:
     """Tek kullanıcılı proje durumu: güncel Proje, dosya yolu, kirli bayrağı, son Etki."""
 
-    def __init__(self, ekranlar: Sequence[Ekran]) -> None:
+    def __init__(
+        self,
+        ekranlar: Sequence[Ekran],
+        kurtarma: object | None = None,  # fileio.kurtarma.KurtarmaAyari (SPEC 54 Karar 9)
+        klasor: Path | None = None,
+    ) -> None:
+        self._kurtarma = kurtarma  # None → otomatik kayıt kapalı (SPEC 54 §5)
+        self._klasor = klasor
+        self.kurtarma_uyarilari: list[str] = []
         self._ekranlar = [e for e in ekranlar if e.ad != AD]
         self._sahip = _sahipler(self._ekranlar)
         self._sira = sira(self._ekranlar)
@@ -440,6 +448,30 @@ class Kabuk:
         """GET /api/proje/indir: güncel projenin .3dc baytları."""
         return pj.proje_baytlari(self.proje)
 
+    # ----------------------------------------------------- SPEC 54 §5 otomatik kayıt
+
+    def kurtarma_adimi(self, simdi: float | None = None) -> bool:
+        """Zamanı geldiyse kurtarma yazımını arka planda başlatır; başladıysa True."""
+        raise NotImplementedError("SPEC 54: Kabuk.kurtarma_adimi")
+
+    def kurtarma_bekle(self, zaman_asimi: float = 10.0) -> bool:
+        """Süren kurtarma yazımının bitmesini bekler; bittiyse True."""
+        raise NotImplementedError("SPEC 54: Kabuk.kurtarma_bekle")
+
+    def zamanlayici_baslat(self, aralik: float = 1.0) -> None:
+        raise NotImplementedError("SPEC 54: Kabuk.zamanlayici_baslat")
+
+    def zamanlayici_durdur(self) -> None:
+        raise NotImplementedError("SPEC 54: Kabuk.zamanlayici_durdur")
+
+    def kurtarma_durumu(self) -> dict:
+        """GET /api/proje/kurtarma: {"bulunan", "adsizlar", "uyarilar"}."""
+        raise NotImplementedError("SPEC 54: Kabuk.kurtarma_durumu")
+
+    def kurtarma_sec(self, secim: str, yol: str | None = None) -> str | None:
+        """ "kurtar" | "yoksay" | "ikisi"; "ikisi" kopyanın yolunu döndürür."""
+        raise NotImplementedError("SPEC 54: Kabuk.kurtarma_sec")
+
 
 # ---------------------------------------------------------------- FastAPI bağlantısı
 
@@ -531,6 +563,18 @@ def _router(app: FastAPI) -> APIRouter:
         if k.durum()["yinele"] is None:
             raise HTTPException(409, "yinelenecek değişiklik yok")
         return calis(lambda k: yanit(k, k.yinele()))
+
+    @r.get("/kurtarma")
+    def kurtarma() -> dict:
+        return _kabuk_al(app).kurtarma_durumu()
+
+    @r.post("/kurtarma")
+    def kurtarma_sec(govde: dict) -> dict:
+        def sec(k: Kabuk) -> dict:
+            kopya = k.kurtarma_sec(govde.get("secim"), govde.get("yol"))
+            return {"proje": k.durum(), "kopya": kopya}
+
+        return calis(sec)
 
     @r.get("/ornekler")
     def ornekler() -> dict:

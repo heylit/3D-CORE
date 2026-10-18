@@ -59,6 +59,56 @@ export function metinOdagi(hedef: EventTarget | null): boolean {
   return ad === "input" || ad === "textarea" || e.isContentEditable;
 }
 
+// ------------------------------------------------------------------ SPEC 54: hata kartı, kurtarma
+
+/** 422 / 500 gövdesindeki `hata` alanı (tezgah/hata.py). */
+export interface HataKarti {
+  sinif: string;
+  nesne: string;
+  ne_oldu: string;
+  oneri: string;
+  teknik: string;
+}
+
+/** Kartın gösterilecek hali; `geriAl` = "Son değişikliği geri al" düğmesi var mı. */
+export interface HataKartiModeli {
+  baslik: string;
+  nesne: string;
+  oneri: string;
+  teknik: string;
+  geriAl: boolean;
+}
+
+/** GET /api/proje/kurtarma `bulunan` alanı (fileio/kurtarma.py kurtarma_bul). */
+export interface KurtarmaBilgisi {
+  yol: string;
+  okunur: boolean;
+  kaynak_tutuyor: boolean;
+  farkli: boolean;
+  neden: string | null;
+}
+
+export type KurtarmaSecimi = "kurtar" | "yoksay" | "ikisi";
+
+export interface KurtarmaSecenegi {
+  secim: KurtarmaSecimi;
+  etiket: string;
+  varsayilan: boolean;
+}
+
+/** Hata kartı modeli; `geriAl` = durumdaki geri alınabilecek değişikliğin etiketi (yoksa null). */
+export function hataKartiModeli(hata: HataKarti, geriAl: string | null): HataKartiModeli {
+  void hata;
+  void geriAl;
+  throw new Error("SPEC 54: hataKartiModeli uygulanmadı");
+}
+
+/** Kurtarma iletişim kutusunun seçenekleri: Kurtar / Yok say / İkisini de aç. */
+export function kurtarmaSecenekleri(b: KurtarmaBilgisi): KurtarmaSecenegi[] {
+  void b;
+  throw new Error("SPEC 54: kurtarmaSecenekleri uygulanmadı");
+}
+
 // ------------------------------------------------------------------ sunucu
 
 class KabukHatasi extends Error {}
