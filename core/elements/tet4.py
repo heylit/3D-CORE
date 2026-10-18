@@ -133,3 +133,11 @@ def me(element: Element, model: Model, lumped: bool = False) -> np.ndarray:
     if lumped:
         return m / 4.0 * np.eye(12)
     return np.kron(m / 20.0 * (np.ones((4, 4)) + np.eye(4)), np.eye(3))
+
+
+def kg(element: Element, model: Model, sigma0: np.ndarray) -> np.ndarray:
+    """Geometrik rijitlik (12 x 12): Kg_e = V Gᵀ Ŝ G, Ŝ = diag(S, S, S) (specs/68a-burkulma.md).
+
+    sigma0: (6,) Voigt [xx, yy, zz, xy, xz, yz] [MPa], eleman içinde sabit. DOF sırası ke ile aynı.
+    """
+    raise NotImplementedError("specs/68a-burkulma.md uygulanacak")

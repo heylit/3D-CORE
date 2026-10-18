@@ -61,3 +61,12 @@ def assemble_M(model: Model, lumped: bool = False) -> sp.csr_matrix:
         vals.extend(m.ravel())
     n = model.n_dof
     return sp.coo_matrix((vals, (rows, cols)), shape=(n, n)).tocsr()
+
+
+def assemble_Kg(model: Model, sigma0: dict[int, np.ndarray]) -> sp.csr_matrix:
+    """Tüm elemanların kg matrislerini global Kg'ye ekler (n_dof x n_dof, seyrek).
+
+    sigma0: eleman id -> eleman gerilmesi (tet4: (6,) Voigt). kg sağlamayan eleman tipi
+    veya sigma0'da olmayan eleman → ModelError. Teori: specs/68a-burkulma.md
+    """
+    raise NotImplementedError("specs/68a-burkulma.md uygulanacak")
