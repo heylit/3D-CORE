@@ -82,8 +82,10 @@ def _split_all(pieces: list[Segment]) -> list[Segment]:
                 params[j].append(tj)
     out: list[Segment] = []
     for s, ts in zip(pieces, params, strict=True):
-        ts = sorted(ts)
         L = s.length
+        # Uca LINK_TOL'dan yakın kesişim uçtur: teğet bağlantılarda (doğru-yay) kesişim
+        # karekökle ~1e-8 kayar; ayrı nokta sayılırsa parça ucu o kadar kayar, halka açılır.
+        ts = sorted([0.0, 1.0] + [t for t in ts if LINK_TOL < t * L < L - LINK_TOL])
         for t0, t1 in zip(ts[:-1], ts[1:], strict=True):
             if (t1 - t0) * L > LINK_TOL:
                 out.append(s.sub(t0, t1))
