@@ -3,8 +3,8 @@
 Dal: `claude/spec-33-kinematik-m2o4g7` · Oturum: bulut
 
 ## Sıradaki adım
-SPEC metni kullanıcı onayında. Onaydan sonra: A1 arayüzü (`Joint`, `Assembly.joints`) üstüne
-`NotImplementedError` iskeleti, ayrı test thread'i, kod.
+İskelet push edildi; ayrı test thread'inin test commit'i cherry-pick edilecek, sonra kod.
+Kod A1 arayüzü (`Joint`, `Assembly.joints`, dal `claude/arayuz-dalga2-0mc0ys`) main'e girince/dala alınınca yazılır.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
@@ -12,10 +12,14 @@ SPEC metni kullanıcı onayında. Onaydan sonra: A1 arayüzü (`Joint`, `Assembl
 | 2026-10-18 | — | — | Henüz kod/test yok (yalnız SPEC metni) |
 
 ## Son oturum
+**2026-10-18 — İskelet**
+- Kullanıcı SPEC metnini önerilerle onayladı (11:13, toplu onay).
+- `assy/kinematik.py` `NotImplementedError` iskeleti; `Joint` henüz main'de olmadığı için yalnızca
+  `TYPE_CHECKING` altında içe aktarılıyor.
+
 **2026-10-18**
 - `specs/33-kinematik.md` taslağı yazıldı (K1–K16). Analitik değerler (Freudenstein, dönen kol `θ*`) sayısal
   olarak kontrol edildi.
 
 ## Açık sorular
-- A1 `Joint` arayüzü (SPEC'teki "Ön koşul" bölümü) arayüz sahibine iletildi; onay bekliyor.
-- Eklemlerin yönlü olması (`z_b = +z_a`), sınırda `drag`'in durması, `ignore_joined=True` varsayılanı onaya açık.
+_(yok — önerilen varsayılanlar onaylandı)_
