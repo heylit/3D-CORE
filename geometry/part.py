@@ -217,6 +217,41 @@ class Part:
         if not bd.export_stl(self.shape, str(path), tolerance=tolerance):
             raise GeometryError(f"STL yazılamadı: {path}")
 
+    # ---------- Boolean, taşıma, uzaklık (SPEC 09 arayüz eki) ----------
+
+    def moved(self, T: np.ndarray) -> Part:
+        """Rijit T (4x4) ile taşınmış yeni parça; ad aynı, delik kayıtları da taşınır.
+
+        T rijit değilse GeometryError.
+        """
+        from geometry.boolean import moved
+
+        return moved(self, T)
+
+    def common(self, other: Part, tol_v: float = 1e-6) -> Part | None:
+        """Kesişim (A ∩ B). Hacmi ≤ tol_v ise None (temas veya ayrık). tol_v < 0 → GeometryError."""
+        from geometry.boolean import common
+
+        return common(self, other, tol_v)
+
+    def cut(self, other: Part) -> Part:
+        """Fark (A − B). Delik kayıtları korunur. Sonuç boşsa GeometryError."""
+        from geometry.boolean import cut
+
+        return cut(self, other)
+
+    def fuse(self, other: Part) -> Part:
+        """Birleşim (A ∪ B), tek parça; delik kayıtları A, B sırasıyla."""
+        from geometry.boolean import fuse
+
+        return fuse(self, other)
+
+    def distance(self, other: Part) -> tuple[float, np.ndarray, np.ndarray]:
+        """Sınırlar arası en küçük uzaklık d ve en yakın noktalar (p ∈ ∂A, q ∈ ∂B), mm."""
+        from geometry.boolean import distance
+
+        return distance(self, other)
+
     # ---------- CAM / montaj sorguları (inceleme Y5) ----------
 
     def section_z(self, z: float, tol: float = 0.01) -> list[Region]:
