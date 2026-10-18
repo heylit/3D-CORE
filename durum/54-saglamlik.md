@@ -3,10 +3,9 @@
 Dal: `claude/project-thread-uo3o39` (SPEC 37 dalı `claude/spec-37-proje-kabuk-trviuv` 4b31a59 üstünde) · Oturum: bulut
 
 ## Sıradaki adım
-Kod yazıldı (testler d921a16, b227ebf, 116a4d4 cherry-pick). BEKLIYOR işaret kaldırması test oturumunda.
-Kalan: #70 (SPEC 37) `main` ile yeşile dönünce `main` merge edilir; o zaman `sketch/solver.py` (`main`'de, SPEC 17)
-çelişki mesajı §1 biçimine getirilir (durum 10) ve REST / Playwright testleri gerçek A3 ile çalışır.
-Durum 11 / 11b (`cam/model.py`) Karar 4 arayüz PR'ını bekler.
+Kod tamam: testler d921a16, b227ebf, 116a4d4 ve işaret kaldırma 9aafa3b alındı; SPEC 37 a8e18b5 ve `main` dala
+merge edildi, `sketch/solver.py` çelişki mesajı §1 biçiminde (durum 10). Kalan: #70 birleşince `main` yeniden
+alınır, CI yeşilse PR birleşir. Durum 11 / 11b (`cam/model.py`) Karar 4 arayüz PR'ını bekler.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
@@ -24,3 +23,4 @@ Durum 11 / 11b (`cam/model.py`) Karar 4 arayüz PR'ını bekler.
 - Kod: `fileio/kurtarma.py`, `fileio/parca_oku.py`, `tezgah/hata.py`, kabuk otomatik kayıt / hata işleyicileri,
   `kabuk.ts` hata kartı ve kurtarma kutusu; §1 mesajları `assy/solver.py`, `core/solver.py`, `geometry/boolean.py`,
   `geometry/fillet.py` (öneride `max_fillet` sınırı), `fileio/step_montaj.py`, `fileio/proje.py` (`ac` dosya adı öneki).
+| 2026-10-18 | tümü (main + SPEC 37 a8e18b5 ile) | 11 / 11b xfail (Karar 4) | durum 10 yeşil; K14 SPEC 25'e kadar atlanıyor |

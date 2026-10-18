@@ -178,7 +178,11 @@ def _conflict(sys: _System, r: np.ndarray, tol: float) -> None:
             kume.append(key)
         i += w
     adlar = ", ".join(f"{k} ({sys.s.constraints[k].type})" for k in kume)
-    raise SketchError(f"Kısıtlar çelişiyor: {adlar}; max|r| = {np.abs(r).max():.3g} mm", tuple(kume))
+    raise SketchError(
+        f"Kroki / kısıt {adlar}: kısıtlar çelişiyor (max|r| = {np.abs(r).max():.3g} mm)"
+        " — bu kısıtlardan birini kaldırın ya da değerini değiştirin",
+        tuple(kume),
+    )
 
 
 # --- Serbestlik, gereksiz kısıtlar --------------------------------------------------------------------
