@@ -175,6 +175,11 @@ Sadece veri tipleri ve doğrulamaları; hesap (devir / ilerleme, telafi, çarpı
 - Yazıcı (SPEC 04) şimdilik yalnız G17 / G94 / sabit devirli freze yollarını yazar; `plane != XY`, `feed_mode != PER_MIN`,
   `css is not None` veya takım `LatheTool` ise `CamError` (sessizce G17 yayı yazmasın). SPEC 21 torna yazıcısıyla bu korumayı kaldırır.
 
+### Ek — eskiz bölge kenarı kaynağı 2026-10-18 (SPEC 18 S2)
+- `sketch/model.py`: `SegLine` ve `SegArc`'a son alan olarak `src: str = ""` eklendi: bölge kenarının geldiği eskiz
+  öğesinin kimliği (`""` → bilinmiyor; metin değilse `SketchError`). Özellik ağacı yan yüzleri `yan:<src>` diye adlandırır.
+  Varsayılan boş olduğundan mevcut çağrılar değişmez; eskiz çözücüsü (SPEC 17) bölge çıkarırken doldurur.
+
 ### Ortak kurulum
 - `pyproject.toml`: paket listesine `cam*`, `assy*`; pytest işareti `occt: build123d / OpenCascade gerektirir`.
 - Kök `conftest.py`:
