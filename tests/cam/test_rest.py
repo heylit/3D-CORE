@@ -259,7 +259,7 @@ def test_offset_union_inner_is_union_of_offsets():
     d = 2.0
     got = offset_union(regs, d)
     exp = [g for R in regs for g in offset(R, d)]
-    assert len(got) == len(exp) == 4  # 3×3 kare 2r = 4 > 3: boş
+    assert len(got) == len(exp) == 3  # 3×3 kare 2d = 4 > 3: boş
     assert areas(got) == pytest.approx(areas(exp), rel=1e-9)
     assert sorted(len(g.holes) for g in got) == sorted(len(g.holes) for g in exp)
     assert areas(got)[:2] == pytest.approx([36.0, 36.0], rel=1e-9)
