@@ -75,7 +75,10 @@
       ]
     },
     "spindle_power_kw": null,
-    "spindle_torque_nm": null
+    "spindle_torque_nm": null,
+    "c_axis": null,
+    "turrets": [],
+    "multiaxis": null
   },
   "linear_carrier": {
     "X": "kafa",
