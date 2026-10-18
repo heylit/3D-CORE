@@ -5,7 +5,7 @@
 > (kurallar: `BASLANGIC.md` bölüm 7). Sıra ve paralellik: `docs/yol-haritasi.md` → "Paralel çalışma: dalgalar".
 
 ## Açık dalga
-**Dalga 2 sürüyor.** Tamamlanan: 11, 15. Diğerleri bulut thread'lerinde (aşağıdaki tablo). Dalga 1 tamamlandı (01, 02, 03, 04, 08).
+**Dalga 2 sürüyor.** Tamamlanan: 11, 15, 16. Diğerleri bulut thread'lerinde (aşağıdaki tablo). Dalga 1 tamamlandı (01, 02, 03, 04, 08).
 
 ## SPEC tablosu
 | SPEC | Dalga | Durum | Kimde (dal / oturum) | Ayrıntı |
@@ -19,7 +19,7 @@
 | 00-arayuzler ek 2 | 2 | tamamlandı: Dalga 2 CAM arayüzü (PR #24, `9027a42`); `Hole` + havşa alanları (PR #23, `1fcf021`) | — | `durum/00-arayuzler.md` |
 | 11-tet4 | 2 | tamamlandı (PR #21, `98b6623`) | — | `durum/11-tet4.md` |
 | 15-goruntuleyici | 2 | tamamlandı (SPEC + testler PR #18, `149d292`; kod PR #25, `1ce40fb`) | — | `durum/15-goruntuleyici.md` |
-| 16-teknik-resim | 2 | sürüyor (PR #22) | `claude/spec-16-teknik-resim-u8ylv2` | — |
+| 16-teknik-resim | 2 | tamamlandı (PR #22, `778d29b`) | — | `durum/16-teknik-resim.md` |
 | 07-montaj-agaci | 2 | sürüyor (PR #20) | `claude/spec-07-montaj-agaci-ejmdg5` | — |
 | 14-cam-kurulum | 2 | sürüyor (PR #27) | `claude/spec-14-cam-kurulum-05r8z1` | — |
 | 06-cam-3d | 2 | sürüyor | `claude/spec-06-cam-3d-09jwcj` | — |
@@ -53,6 +53,7 @@
 | 00-arayuzler | Ek 2: Dalga 2 CAM arayüzü, G-code yazıcı koruması (PR #24) | 2026-10-18 | — |
 | 11-tet4 | 3B tetrahedron eleman, gerilme tensörü (PR #21) | 2026-10-18 | 58 |
 | 15-goruntuleyici | pyvista geliştirici görüntüleyici (PR #18, #25) | 2026-10-18 | 41 |
+| 16-teknik-resim | Teknik resim, DXF R12 / SVG (PR #22) | 2026-10-18 | 129 |
 
 ## Kurulum kontrol listesi (bir kez, kullanıcı)
 - [x] `powershell -ExecutionPolicy Bypass -File _kurulum\yerlestir.ps1`
