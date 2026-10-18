@@ -1,6 +1,7 @@
 # SPEC 18 — Özellik ağacı: kararlı yüz referansı, döndürme, pah / yuvarlatma adımı, desen, ayna
 
-> **Durum: TASLAK** (kullanıcı onayı bekliyor). Onaylanmadan kod, test ve arayüz PR'ı açılmaz.
+> **Durum: ONAYLI** (kullanıcı, 2026-10-18 11:13, yazılı toplu onay: "… 18 … metinlerini önerilerle … onaylıyorum").
+> Açık sorular S1–S5'te önerilen (a) seçenekleri geçerlidir.
 > Yer: Dalga 5, hat H12 (`/mnt/project-files/yol-haritasi/dalga-5-onerisi.md`; kullanıcı 2026-10-18 10:51 tam kapsam).
 > Bağımlılık: arayüz A2 (`geometry/part.py`: `FaceRef`, `Part.names`, `Part.find`), SPEC 17 (`sketch.model`),
 > SPEC 26 (`geometry/extrude.py`). `geometry/revolve.py` SPEC 28'indir (`Part.axial_section`); bu SPEC ona dokunmaz.
