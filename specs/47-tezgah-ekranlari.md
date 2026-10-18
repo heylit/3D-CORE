@@ -11,6 +11,9 @@
 > SPEC 24'ten, torna ve montaj ekranları SPEC 25'ten gelir; burada tekrar edilmez.
 > Prototip yönü: https://claude.ai/artifact/2YA8RRJYuFSpRJyEFMEX8u (konsept; kabul ölçütü değildir).
 > **Ek: K10 olay zamanı** (kullanıcı, 2026-10-18 12:08 UTC önerisi, 2 dakika kuralıyla onaylı): dosya sonunda.
+> **Errata K8** (kullanıcı, 2026-10-18 16:27 UTC, proje sohbetinde yazılı onay): sınır dışı noktada eklem değerleri
+> SPEC 44 kuralıyla; `G93` yalnız kesme hareketlerinde. Gerekçe: K10 dar profilde `eksen_siniri` olayı ister, SPEC 41
+> `inverse` ise sınır dışında hata verir; eski K8 ile K8 ve K10 birlikte sağlanamıyordu.
 
 ## Amaç
 Kütüphane olarak biten üç yeteneğe Tezgah'ta ekran vermek:
@@ -439,9 +442,10 @@ OCCT gerektirenler `@pytest.mark.occt`, gmsh gerektirenler `pytest.importorskip(
 
 **Çok eksen**
 - [ ] **K8 Eklem değerleri:** `noktalar` ikilisinden çözülen `q` dizisi `kubbe_5eksen`'de `joint_path(tp, kin, wcs, L)`
-  (SPEC 42), `egik_yuz_3arti2`'de `to_machine(tp, kin, wcs, L)` (SPEC 41) ile birebir (`float64`); ikincide döner
-  eksen sütunları işlem boyunca sabit; `G93` dizisi `inverse_time(tp, q)` ile `float32` olarak birebir, hızlı
-  harekette 0; takım ekseni `a` her noktada birim (1e-6, `float32`). (`test_cok_eksen.py::test_eklemler`)
+  (SPEC 42), `egik_yuz_3arti2`'de `to_machine(tp, kin, wcs, L)` (SPEC 41) ile birebir (`float64`); sınır dışı
+  noktada SPEC 44 kuralı (`inverse(kin)`, olmazsa döner eksen sınırları kaldırılmış `inverse`, önceki noktadan
+  süreklilikle); ikincide döner eksen sütunları işlem boyunca sabit; `G93` dizisi `inverse_time(tp, q)` ile `float32`
+  olarak birebir, yalnız kesme hareketlerinde hesaplanır, hızlı harekette 0; takım ekseni `a` her noktada birim (1e-6, `float32`). (`test_cok_eksen.py::test_eklemler`)
 - [ ] **K9 Pozlar:** her `k` ve gövde için `pozlar` ikilisindeki `(R, t)` `poses(model, q_k, setup, tool)` ile
   `float32` olarak birebir; "Parça sabit" görünümü için `pozlar`'dan türetilen takım ucunun WCS konumu `noktalar`
   konumuyla 1e-4 mm (`float32`) içinde (göreli görünüm tutarlılığı). (`test_cok_eksen.py::test_pozlar`)
