@@ -133,3 +133,29 @@ def me(element: Element, model: Model, lumped: bool = False) -> np.ndarray:
     if lumped:
         return m / 4.0 * np.eye(12)
     return np.kron(m / 20.0 * (np.ones((4, 4)) + np.eye(4)), np.eye(3))
+
+
+def kt(element: Element, model: Model, k: float) -> np.ndarray:
+    """Isıl iletkenlik matrisi kt = k V Bᵀ B (4 x 4), B sütunları ∇N_a (SPEC 56).
+
+    Düğüm başına bir sıcaklık serbestliği, element.nodes sırasında. k ≤ 0 veya sonlu değil → ModelError.
+    """
+    if not (np.isfinite(k) and k > 0.0):
+        raise ModelError(f"Eleman {element.id}: ısıl iletkenlik k > 0 olmalı (k={k})")
+    V, G = _hacim_ve_gradyan(element, model)
+    k_e = k * V * G.T @ G
+    return 0.5 * (k_e + k_e.T)
+
+
+def ct(element: Element, model: Model, rho_cp: float, lumped: bool = False) -> np.ndarray:
+    """Isıl kapasite matrisi (4 x 4): tutarlı ρcp V/20 (1 + δ_ab), topaklı ρcp V/4 I (SPEC 68b).
+
+    SPEC 45 kütle matrisinin skaler hâli. rho_cp ≤ 0 veya sonlu değil → ModelError.
+    """
+    if not (np.isfinite(rho_cp) and rho_cp > 0.0):
+        raise ModelError(f"Eleman {element.id}: ısıl kapasite ρ·cp > 0 olmalı (rho_cp={rho_cp})")
+    V, _ = _hacim_ve_gradyan(element, model)
+    c = rho_cp * V
+    if lumped:
+        return c / 4.0 * np.eye(4)
+    return c / 20.0 * (np.ones((4, 4)) + np.eye(4))

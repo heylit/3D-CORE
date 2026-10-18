@@ -1,0 +1,193 @@
+# SPEC 68b — Geçici ısı iletimi ve termo-mekanik zincir (Dalga 7, A10)
+
+> Durum: **onaylı** (kullanıcı, 2026-10-18 16:19, önerilen cevaplarla; mesaj cmsg_01DTo5iWYb5RBUWgjk6xu1sGJGTUdh2rjZ3topbRjRQuit).
+> Bağımlılık:
+> - SPEC 56 (kararlı ısıl, `core/isil.py`)
+> - 67b (ısıl yük, `core/yukler.thermal_loads`)
+> - B2 ve 66 (`cp`, `rho`, `k`, `alpha`)
+> - SPEC 45 (kütle matrisi deseni)
+
+## Amaç
+SPEC 56 kararlı hal sıcaklığını verir. Atölyede sık sorulan sorular ise zamana bağlıdır:
+- Parça fırından ya da kesme sıvısından çıkınca ne kadar sürede soğur?
+- Ölçüm sıcaklığına ne zaman gelir?
+- Isınma sırasında hangi anda en büyük ısıl gerilme oluşur?
+- İki malzemeli bir parça ne kadar çarpılır?
+
+Bu SPEC iki parçadan oluşur:
+1. **Geçici ısıl çözüm:** `C Ṫ + K T = F(t)`, θ-yöntemi.
+2. **Termo-mekanik zincir:** seçilen zamanlarda sıcaklık alanını 67b'nin ısıl yüküne verip statik çözer. Tek yönlü bağlantı
+   kullanılır: mekanik sonuç ısıyı etkilemez.
+
+## Teori
+
+### Birimler
+- `ρ` t/mm³, `cp` mJ/(t·K) (J/(kg·K) × 1e6), `k` mW/(mm·K).
+- Isıl yayınım `a = k/(ρ cp)` mm²/s. Çelik için `50 / (7.85e-9 · 4.6e8) = 13.85` mm²/s, SI'da `1.385e-5` m²/s ile tutarlı.
+- Zaman s.
+
+### Isıl kapasite matrisi (tet4)
+SPEC 45'teki kütle matrisinin skaler hâlidir:
+```
+Ce = ρ cp V / 20 · (1 + δ_ab)     (4×4, tutarlı)
+Ce_topak = ρ cp V / 4 · I
+```
+Topaklanmış kapasite, tutarlı kapasitenin ani sıcaklık sıçramasında ürettiği salınımları önler; ikisi de sunulur.
+
+### Zaman entegrasyonu (θ-yöntemi)
+```
+(C/Δt + θ K) T_{n+1} = (C/Δt − (1 − θ) K) T_n + θ F_{n+1} + (1 − θ) F_n
+```
+- `θ = 1`: geri Euler. Koşulsuz kararlıdır, 1. mertebedir, salınım yoktur.
+- `θ = 1/2`: Crank–Nicolson. 2. mertebedir; süreksiz başlangıçta salınım yapabilir.
+- Varsayılan `θ = 1`.
+
+Sabit `Δt` kullanılır. Sol taraf matrisi bir kez çarpanlara ayrılır (`scipy.sparse.linalg.splu`). Sınır koşulları SPEC
+56'nın kayıtlarıdır; her birine isteğe bağlı bir zaman fonksiyonu `f(t)` eklenir (`T̄(t)`, `q̄(t)`, `T∞(t)`).
+
+**Enerji dengesi (her adımda, cebirsel olarak tam):**
+```
+1ᵀ C (T_{n+1} − T_n) = Δt · 1ᵀ [θ (F_{n+1} − K T_{n+1}) + (1 − θ)(F_n − K T_n)] + tutulu düğüm tepkileri
+```
+
+### Kapalı formüllü referanslar
+1. **Topaklı soğuma** (`Bi = h L_c / k ≪ 0.1`, `L_c = V/A`):
+   - `T(t) = T∞ + (T0 − T∞) e^(−t/τ)`
+   - `τ = ρ cp V / (h A)`
+   - Örnek: alüminyum 10 mm küp, `k = 200`, `ρ = 2.7e-9`, `cp = 9.0e8`, `h = 0.01`. Sonuç `τ = 405` s, `Bi = 8e-5`.
+2. **Yarı sonsuz cisim, yüzeyde sıcaklık sıçraması:**
+   - `T(x, t) = T_s + (T0 − T_s) · erf(x / (2 √(a t)))`
+   - Isının girdiği derinlik `≈ 4√(a t)` olur; cismin boyundan küçük kaldıkça geçerlidir.
+   - `erf` Python `math` modülünde vardır, yeni bağımlılık gerekmez.
+3. **Uzun zaman sınırı:** sabit sınır koşullarında `T(t → ∞)` SPEC 56 kararlı çözümüne gider.
+4. **Bimetal şerit** (Timoshenko 1925). İki katman eşit kalınlıkta (`t1 = t2 = h/2`) ve eşit `E` değerindedir, `ν = 0`,
+   düzgün `ΔT` uygulanır.
+   - eğrilik `κ = 3 (α2 − α1) ΔT / (2h)`
+   - ankastre şerit uç sehimi `δ = κ L² / 2`
+   - Örnek: `h = 2`, `L = 100`, `α1 = 1.0e-5`, `α2 = 2.2e-5`, `ΔT = 100`. Sonuç `κ = 9e-4` 1/mm, `δ = 4.5` mm.
+5. **Gerilmesizlik:** serbest gövdede düzgün ya da doğrusal sıcaklık alanı gerilme üretmez (67b K15'in zamana yayılmış
+   hâli).
+
+Kaynak: Incropera vd., bölüm 5 (topaklı kapasite, yarı sonsuz cisim); Timoshenko, "Analysis of bi-metal thermostats",
+*J. Opt. Soc. Am.* 11 (1925); Zienkiewicz–Taylor, cilt 1, zaman entegrasyonu bölümü.
+
+## Dosyalar
+- **Yeni:**
+  - `core/isil_gecici.py`, `analiz/termomekanik.py`
+  - `tests/unit/test_kapasite.py`, `tests/benchmarks/test_isil_gecici.py`, `tests/benchmarks/test_bimetal.py`
+  - `tests/analiz/test_termomekanik.py`
+  - `specs/68b-gecici-isil-termomekanik.md`, `durum/68b-…md`
+- **Değişecek:**
+  - `core/elements/tet4.py`: isteğe bağlı `ct(element, model, rho_cp, lumped)`
+  - `core/elements/__init__.py`, `analiz/__init__.py`
+- **Dokunulmayacak:** `core/isil.py` (56; kayıtları ve `conductivity_matrix` olduğu gibi kullanılır), `core/yukler.py`
+  (67b), `core/model.py`.
+
+## Arayüz
+```python
+# core/isil_gecici.py
+@dataclass(frozen=True)
+class TransientResult:
+    t: np.ndarray  # (s,) s, t[0] = 0
+    T: np.ndarray  # (s, n) °C, model.nodes sırası
+    node_ids: np.ndarray
+    E_in: np.ndarray  # (s,) mJ, birikimli net giriş (enerji dengesi için)
+
+    def at(self, t: float) -> np.ndarray: ...  # zamanlar arası doğrusal; aralık dışı → ModelError
+
+
+def solve_transient(
+    model,
+    k,
+    rho_cp,
+    *,
+    T0: float | Mapping[int, float],
+    t_end: float,
+    dt: float,
+    theta: float = 1.0,
+    lumped: bool = False,
+    temperatures=(),
+    fluxes=(),
+    convection=(),
+    Q=0.0,
+    zaman: Mapping[int, Callable[[float], float]] | None = None,  # sınır kaydı sırası → çarpan f(t)
+    kaydet: Sequence[float] | None = None,
+) -> TransientResult:
+    ...
+    # rho_cp: ρ·cp, malzeme adına göre de verilebilir; θ ∉ [0.5, 1] → ModelError (koşulsuz kararlılık bölgesi)
+
+
+# analiz/termomekanik.py
+@dataclass(frozen=True)
+class TermoMekanik:
+    t: np.ndarray
+    sigma_vM_maks: np.ndarray  # (s,) her zamanda en büyük düğüm σ_vM
+    u_maks: np.ndarray  # (s,)
+    en_kotu_an: float
+    alanlar: Mapping[float, tuple[np.ndarray, np.ndarray]]  # istenen zamanlar: (u, nodal σ_vM)
+
+
+def zincir(
+    model_mek: Model,
+    sicaklik: TransientResult | ThermalResult,
+    T_ref: float,
+    alpha,
+    zamanlar: Sequence[float] | None = None,
+) -> TermoMekanik:
+    ...
+    # ısıl ve mekanik ağ aynı düğümlerde olmalı (aynı tet4 ağı ya da tet10'un köşe düğümleri); aksi → ModelError
+```
+
+## Kabul kriterleri
+- [ ] **K1** Kapasite:
+  - `Σ_ab Ce_ab = ρ cp V` (göreli 1e-12), topaklı ile tutarlı aynı toplamı verir.
+  - Referans tetrahedronda `Ce` açık değerle eşleşir (abs 1e-15).
+  - `rho_cp ≤ 0` → `ModelError`.
+- [ ] **K2** Topaklı soğuma (K1 küpü, `2×2×2` Kuhn ağı, bütün yüzlerde taşınım, `T0 = 200`, `T∞ = 20`):
+  - `t = τ` anında ortalama `T`, `20 + 180/e`'ye θ=1, Δt=τ/100 ile göreli %0.5 içinde.
+  - θ=1/2, Δt=τ/50 ile göreli 1e-3 içinde.
+  - Δt yarıya inince hata θ=1'de ≈ yarıya (oran 1.8–2.2), θ=1/2'de ≈ dörtte bire (oran 3.5–4.5) iner.
+- [ ] **K3** Yarı sonsuz cisim (`100 × 5 × 5` çelik çubuk, `x = 0`'da `T_s = 100`, `T0 = 20`, diğer yüzler yalıtılmış,
+  ağ `x` yönünde 1 mm; θ=1, `lumped=True`, Δt=0.05):
+  - `t = 20` s'de `x ∈ [0, 50]` düğümlerinde `max |T − T_erf| ≤ 0.02 · 80`.
+  - Hiçbir düğüm `[20, 100]` aralığının dışına çıkmaz (maksimum ilkesi).
+  - Bu son madde aynı testte tutarlı kapasite ve θ=1/2 ile **bilerek** bozulabilir. O durum bir uyarı testi olarak
+    belgelenir, kırmızı sayılmaz.
+- [ ] **K4** Enerji dengesi: K2 ve K3'te her adımda denklem göreli 1e-10 içinde tutar.
+- [ ] **K5** Uzun zaman: SPEC 56 K3 duvarı `T0 = 20` ile başlatılır, `t = 20·L²/a`'da sonuç kararlı çözüme abs 1e-6 içinde
+  yaklaşır.
+- [ ] **K6** Zaman fonksiyonu: taşınım `T∞(t)` rampası (0 → 100, 0–100 s) ile çalıştırılan topaklı küp, adım adım elde
+  hesaplanan tek-düğümlü ODE çözümüyle (aynı θ ve Δt, cebirsel eşdeğer) abs 1e-9 içinde aynıdır.
+- [ ] **K7** Bimetal (Kuhn ağı, iki malzeme eleman merkezine göre atanır, tet10, katman başına kalınlıkta 2 eleman,
+  `ν = 0`):
+  - uç sehimi `4.5` mm'ye %2 içinde
+  - eğrilik orta bölgede (`x ∈ [30, 70]`) `9e-4`'e %2 içinde
+- [ ] **K8** Termo-mekanik zincir:
+  - K3 sıcaklık geçmişi serbest çubuğa verilir.
+  - `t → ∞` sınırında (düzgün `T`) `σ_vM_maks → 0` (≤ 1e-6·`E α ΔT`).
+  - En kötü an, en büyük gerilmenin olduğu anla eşleşir (`argmax`).
+  - Kararlı `ThermalResult` verilince tek zamanlı sonuç 67b'nin doğrudan çözümüyle aynıdır (göreli 1e-12).
+- [ ] **K9** Hatalar (`ModelError`):
+  - `dt ≤ 0`, `t_end < dt`
+  - `θ = 0.3`
+  - ısıl ve mekanik ağ uyuşmuyor
+  - `alpha` eksik malzeme
+  - `TransientResult.at` aralık dışı
+- [ ] **K10** `core/isil_gecici.py` numpy, scipy, `math` ve `core` dışında import etmez. `ruff` temiz; K3, K7 `slow`
+  olabilir.
+
+## Bağımlılık
+- 56 (zorunlu).
+- 67b (K7, K8 için `thermal_loads`; geçici ısıl kısmı K1–K6, 67b olmadan yazılır).
+- 67a (K7 tet10).
+- B2 ve 66 (`cp` alanları).
+
+## Kararlar (kullanıcı onayı 2026-10-18 16:19; önerilen cevaplar kabul edildi)
+1. **Uyarlamalı zaman adımı?** Karar: hayır: sabit `Δt` ve kullanıcıya önerilen `Δt ≈ h²/(6a)` bilgisi yeterli.
+2. **Kesme bölgesinden parçaya giren ısı (CAM sıcaklık geçmişi) bu SPEC'te mi?** Karar: hayır. Hareketli ısı kaynağı ayrı
+   bir CAM-analiz köprüsüdür; Loewen–Shaw talaş sıcaklığı Dalga 7 A3 (59) ile birlikte ele alınır.
+
+## Kapsam dışı
+- Sıcaklığa bağlı `k(T)`, `cp(T)`, faz değişimi, ışınım: 70 (CalculiX köprüsü).
+- İki yönlü bağlantı (mekanik → ısıl), sürtünme ısısı.
+- Isıl işlem ve kalıntı gerilme tahmini.
