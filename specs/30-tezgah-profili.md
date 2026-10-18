@@ -288,9 +288,9 @@ Bu yüzden altın metin, `tool_change_z = None` olan profil kopyasıyla üretili
 - Gerçek tezgâhta doğrulama: kullanıcı yapar (`docs/tezgah-dogrulama.md`); profil `verified: true`
   yalnız kullanıcı tarafından işaretlenir.
 
-## Açık sorular (onayda karar)
-1. `MachineProfile` `cam/model.py`'de mi (öneri: evet, arayüz PR'ı), `cam/post/machine.py`'de mi?
-2. `Wcs.origin` takım **ucu** sözleşmesi (yukarıdaki `z_ölçü = z + oz + L`) SPEC 14'ün `wcs_from_touch`
-   tanımıyla aynı mı? SPEC 14 birleşince netleşir; farklıysa bu SPEC 14'e uyar.
-3. Kurs denetimi profilde eksen kursu varken `setup` zorunlu mu (öneri: evet; iş sıfırı bilinmeden
-   kurs denetimi anlamsızdır, sessiz `origin = 0` tehlikelidir).
+## Teknik kararlar (koordinatör, 2026-10-18)
+1. `MachineProfile` ve `AxisLimits` `cam/model.py`'ye girer; ayrı arayüz PR'ı ("CAM model arayüzü" thread'i).
+   Bu SPEC'in PR'ı `cam/model.py`'ye dokunmaz.
+2. `Wcs.origin` sözleşmesi SPEC 14'ün `wcs_from_touch` tanımına uyar; SPEC 14 birleşince Teori'deki
+   `z_ölçü` formülü ona göre netleştirilir.
+3. Profilde eksen kursu varken `setup` zorunludur (yoksa `CamError`).
