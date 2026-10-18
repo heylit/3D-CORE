@@ -12,7 +12,6 @@ from geometry.drawing.dimensions import format_value
 
 if TYPE_CHECKING:
     from cam.plan import MillPlan
-
     from geometry.part import Part
 
 

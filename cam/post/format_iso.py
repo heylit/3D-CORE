@@ -148,7 +148,7 @@ class _Planner:
             i = self.s(self.s(m.center[0]) - x0)  # I = round(cx) − round(x0)
             j = self.s(self.s(m.center[1]) - y0)
             F = self.feed_value(m.feed)
-            self.blocks.append(Arc(x, y, z, i, j, m.type is MoveType.ARC_CCW, F))
+            self.blocks.append(Arc(x, y, z, i, j, m.type is MoveType.ARC_CCW, F, tuple(m.end)))
         else:
             if x is None and y is None and z is None:
                 x = self.s(m.end[0])  # eksensiz G0/G1 satırı hareket sayılmaz
