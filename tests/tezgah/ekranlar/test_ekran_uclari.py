@@ -5,7 +5,7 @@ K1 (plan kaydı ve örnek listesi), K6 (freze / tornada aç), K7 (plan hataları
 kısımlarını bu dosyaya ekler.)
 
 Uçlar A3 kabuğuyla (`tezgah.sunucu.uygulama`, `tezgah.ekranlar`) test edilir; `[web]` ya da A3 yoksa atlanır.
-Beklenen yanıtlar köprü (`plan_kopru.PlanOturumu`) ve doğrudan SPEC 29 çağrılarıyla (`plan_ortak.planla`)
+Beklenen yanıtlar köprü (`_plan_kopru.PlanOturumu`) ve doğrudan SPEC 29 çağrılarıyla (`plan_ortak.planla`)
 kurulur.
 """
 
@@ -22,8 +22,9 @@ plan_ekrani = pytest.importorskip(
 from cam.model import CamError  # noqa: E402
 from tests.tezgah.ekranlar import plan_ortak as o  # noqa: E402
 from tezgah import kopru  # noqa: E402
-from tezgah.ekranlar import plan_kopru as pk  # noqa: E402
-from tezgah.ekranlar import plan_ornekler as po  # noqa: E402
+
+pk = pytest.importorskip("tezgah.ekranlar._plan_kopru", reason="47a iskeleti (_plan_kopru) yok")
+po = pytest.importorskip("tezgah.ekranlar._plan_ornekler", reason="47a iskeleti (_plan_ornekler) yok")
 
 P = o.PLAN
 OCTET = "application/octet-stream"

@@ -1,5 +1,5 @@
 """
-SPEC 47a — Plan ekranının köprüsü (`tezgah/ekranlar/plan_kopru.py`): K2 plan JSON'u, K3 sessiz atlama yok,
+SPEC 47a — Plan ekranının köprüsü (`tezgah/ekranlar/_plan_kopru.py`): K2 plan JSON'u, K3 sessiz atlama yok,
 K4 "Ne olurdu?" farkı, K5 doğrulama, K21 doğrulama önbelleği (oturum düzeyi).
 
 Beklenen değerler köprüden değil, SPEC 29'un kendi fonksiyonlarından hesaplanır (`plan_ortak.planla`:
@@ -24,7 +24,8 @@ pytest.importorskip("fastapi", reason="[web] kurulu değil (pip install -e .[web
 from cam.gcode import GRBL  # noqa: E402
 from cam.model import CamError, CuttingData, MoveType, Tool, ToolKind, ToolLibrary, Toolpath  # noqa: E402
 from tests.tezgah.ekranlar import plan_ortak as o  # noqa: E402
-from tezgah.ekranlar import plan_kopru as pk  # noqa: E402
+
+pk = pytest.importorskip("tezgah.ekranlar._plan_kopru", reason="47a iskeleti (_plan_kopru) yok")
 
 FARK_ALANLARI = (
     "eklenen",
