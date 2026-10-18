@@ -54,3 +54,18 @@ def test_k18_ocl_batchdropcutter(kind):
     z_ref = _ocl_drop(ocl, V, T, cutter, xy, float(Z.min()) - 50.0)
     z = drop(TriMesh(V=V, T=T), tool, xy)
     np.testing.assert_allclose(z, z_ref, atol=1e-6, rtol=0)
+
+
+def test_k19_ocl_bullcutter_torik():
+    """SPEC 06b K19: torik uç ↔ OpenCAMLib BullCutter (köşe radyüslü), 1e-6 mm."""
+    ocl = _ocl()
+    xs = np.arange(-10.0, 10.25, 0.5)
+    X, Y = np.meshgrid(xs, xs, indexing="ij")
+    Z = 2.0 * np.sin(X / 4) * np.cos(Y / 4) + 0.05 * np.random.default_rng(19).standard_normal(X.shape)
+    V, T = grid_mesh(Z, xs, xs)
+    D, r_c = 8.0, 1.5
+    tool = Tool(id=1, name="t", kind=ToolKind.FLAT, D=D, flute_length=30.0, corner_r=r_c)
+    xy = np.random.default_rng(20).uniform(-5, 5, (60, 2))
+    z_ref = _ocl_drop(ocl, V, T, ocl.BullCutter(D, r_c, 30.0), xy, float(Z.min()) - 50.0)
+    z = drop(TriMesh(V=V, T=T), tool, xy)
+    np.testing.assert_allclose(z, z_ref, atol=1e-6, rtol=0)
