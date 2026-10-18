@@ -90,7 +90,8 @@ Büyük STEP / ağ parçalarında tarayıcıya giden üçgen sayısı sınırlan
   ile aynı liste; 09'un tüm testleri `broadphase = "bvh"` ile değişmeden yeşil — `tests/assy/test_bvh.py`
 - [ ] K6 BVH hızı: "uzun mil üstünde 2000 halka" senaryosunda aday bulma sort-and-sweep'ten en az 10 kat hızlı (aynı makinede, `slow`) — `test_bvh.py`
 - [ ] K7 LOD sadeleştirme: küp (12 üçgen) daraltılmıyor (keskin kenarlar); yoğun ağlı küre (`ρ = 50`, 80 000 üçgen) %12.5 seviyesinde
-  Hausdorff ≤ kiriş hatası formülü `ρ(1 − cos(θ/2))` (seviyenin ortalama kenar açısı `θ` ile), ağ kapalı kalıyor — `tests/viz/test_lod.py`
+  Hausdorff `d_H ≤ ρ − √(ρ² − c²/3) + δ + ε₀` (`c` seviyenin en uzun kenarı, `δ` sadeleşmiş köşelerin küreden en büyük sapması,
+  `ε₀` asıl ağın kiriş hatası; karar 3), ağ kapalı kalıyor — `tests/viz/test_lod.py`
 - [ ] K8 LOD seçimi: `pick` uzaklık iki katına çıkınca bir kademe kabalaşıyor (hata formülüyle elle hesaplanan eşiklerde); `px` sınırı
   her seçilen seviyede sağlanıyor — `test_lod.py`
 - [ ] K9 Hatalar: `block ≤ 0`, `target < 4` veya `target ≥` mevcut üçgen sayısı, kapalı olmayan ağda `keep` ihlali → `CamError` /
@@ -108,3 +109,8 @@ Büyük STEP / ağ parçalarında tarayıcıya giden üçgen sayısı sınırlan
    de `scripts/bench_sim.py` ile ölçülüp `durum/53-performans.md`'ye yazılır.
 2. Önce bu SPEC'in saf numpy yolu uygulanıp ölçülür; hedef tutmazsa numba (yeni bağımlılık) kararı ölçümden sonra
    kullanıcıya sorulur. Bu SPEC kendiliğinden yeni bağımlılık eklemez.
+3. K7 ölçütü (errata, kullanıcı onayı 2026-10-18 15:59 UTC, 11:14 kuralıyla otomatik kabul): ilk metindeki `d_H ≤ ρ(1 − cos(θ/2))` (θ ortalama kenar açısı)
+   ideal ikosferde bile tutmuyor (gerçek / formül ≈ 1.6), çünkü üçgenin içi kenar kirişinden daha derindedir.
+   Kenarı en çok `c` olan bir üçgenin çevrel çember yarıçapı ≤ `c/√3`; kürede bu üçgenin en derin noktası
+   `ρ − √(ρ² − c²/3)` kadar içeridedir. Köşeler küre üzerinde değilse sapmaları `δ`, asıl ağın kendi kiriş hatası `ε₀`
+   eklenir: `d_H ≤ ρ − √(ρ² − c²/3) + δ + ε₀`.

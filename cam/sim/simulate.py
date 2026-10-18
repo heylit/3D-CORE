@@ -1,6 +1,10 @@
 """
 SPEC 05 — Simülasyon sürücüsü: program → z-haritası, süre, olay listesi, çarpışma ve çakma kayıtları.
 
+SPEC 53: block (karo boyu) ve merge (hareket birleştirme) hesabı hızlandırır. merge = True iken bir hareketin
+alt adımları ve aynı doğru üzerindeki ardışık G1 hareketleri tek süpürme olarak uygulanır (gövde denetimi
+hareket öncesi yüzeyle temiz çıkıyorsa ve parça z-haritası verilmemişse; aksi halde SPEC 05 yolu).
+
 Global adım indeksi k: nokta 0 = ilk yolun başlangıcı, adım k'nin bitişi nokta k. Ardışık iki yol arasında
 uçlar farklıysa doğrusal G0 bağlantı adımı eklenir. Her adım alt adımlara (boy ≤ min(R, L_f)/2) bölünür:
 malzeme sonucu alt adımdan bağımsızdır (min), çarpışma denetimi hareket içindeki ilerlemeyi görür.
@@ -14,7 +18,20 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from cam.gcode import GRBL, DrillOp
-from cam.model import ARCS, CamError, FeedMode, LatheTool, Move, MoveType, Plane, Stock, Tool, Toolpath
+from cam.model import (
+    ARCS,
+    CamError,
+    FeedMode,
+    LatheTool,
+    Move,
+    MoveType,
+    Plane,
+    Stock,
+    Tool,
+    ToolKind,
+    Toolpath,
+)
+from cam.sim.blok import ball_envelope, merge_collinear, tiles
 from cam.sim.dexel import DexelMap
 from cam.sim.sweep import body_steps, flat_min_z, sweep_envelope, sweep_top
 from cam.sim.timing import Machine, arc_geometry, move_time
@@ -180,9 +197,9 @@ class _ZField:
     def top(self, w) -> np.ndarray:
         return self.g.z[w]
 
-    def remove(self, w, tool: Tool, a, b, X, Y) -> tuple[np.ndarray, np.ndarray]:
+    def remove(self, w, tool: Tool, a, b, X, Y, env=sweep_envelope) -> tuple[np.ndarray, np.ndarray]:
         z_once = self.g.z[w]
-        z_yeni = np.maximum(self.g.zmin, np.minimum(z_once, sweep_envelope(tool, a, b, X, Y)))
+        z_yeni = np.maximum(self.g.zmin, np.minimum(z_once, env(tool, a, b, X, Y)))
         boy = z_once - z_yeni
         self.g.z[w] = z_yeni
         return boy, np.where(boy > 0, z_yeni, np.inf)
@@ -198,8 +215,8 @@ class _DField:
         t = self.d.hi[w].max(axis=2)
         return np.where(np.isfinite(t), t, self.d.zmin)
 
-    def remove(self, w, tool: Tool, a, b, X, Y) -> tuple[np.ndarray, np.ndarray]:
-        return self.d.remove(w, sweep_envelope(tool, a, b, X, Y), sweep_top(tool, a, b, X, Y))
+    def remove(self, w, tool: Tool, a, b, X, Y, env=sweep_envelope) -> tuple[np.ndarray, np.ndarray]:
+        return self.d.remove(w, env(tool, a, b, X, Y), sweep_top(tool, a, b, X, Y))
 
 
 def _rel(w, W):
@@ -208,7 +225,17 @@ def _rel(w, W):
 
 
 class _Sim:
-    def __init__(self, field, grid: ZMap, part_z, tol: float, gouge_tol: float, arc_tol: float) -> None:
+    def __init__(
+        self,
+        field,
+        grid: ZMap,
+        part_z,
+        tol: float,
+        gouge_tol: float,
+        arc_tol: float,
+        block: int | None = None,
+        merge: bool = False,
+    ) -> None:
         self.f = field
         self.g = grid  # yalnız ızgara bilgisi (pencere, merkezler)
         self.xs = grid.xs()
@@ -222,6 +249,9 @@ class _Sim:
         self.ev_cell: list[np.ndarray] = []
         self.ev_k: list[np.ndarray] = []
         self.ev_z: list[np.ndarray] = []
+        self.say = np.zeros(grid.nx * grid.ny, dtype=np.int64)
+        self.block = block
+        self.merge = merge
 
     def _record(self, kind: str, k: int, op: int, depth: np.ndarray, X, Y, zs) -> None:
         j = int(np.argmax(depth))
@@ -242,6 +272,30 @@ class _Sim:
     def _xy(self, w):
         return np.meshgrid(self.xs[w[1]], self.ys[w[0]])
 
+    def _remove(self, w, tool: Tool, a, b, boy: np.ndarray, W, env=sweep_envelope) -> np.ndarray | None:
+        """Penceredeki kaldırma, ≤ block × block karolar halinde (hücre başına işlem → sonuç aynı).
+
+        Kaldırılan boy W penceresine göre boy dizisine eklenir. Dönüş: parça z-haritası varsa pencerenin en
+        alçak kaldırılan z'si (çakma denetimi için), yoksa None.
+        """
+        en_alt = None if self.part_z is None else np.empty((w[0].stop - w[0].start, w[1].stop - w[1].start))
+        for t in tiles(w, self.block):
+            X, Y = self._xy(t)
+            b_sub, e_sub = self.f.remove(t, tool, a, b, X, Y, env)
+            boy[_rel(t, W)] += b_sub
+            if en_alt is not None:
+                en_alt[_rel(t, w)] = e_sub
+        return en_alt
+
+    def _events(self, W, degisen: np.ndarray, z: np.ndarray, k) -> None:
+        """Değişen hücrelerin olayları; k skaler ya da hücre başına dizi."""
+        jj, ii = np.nonzero(degisen)
+        cell = ((jj + W[0].start) * self.g.nx + (ii + W[1].start)).astype(np.int32)
+        self.ev_cell.append(cell)
+        self.ev_k.append(k)  # skaler ya da hücre başına
+        self.ev_z.append(z)
+        self.say[cell] += 1  # bir çağrıda hücreler tekil
+
     def step(self, k: int, op: int, tool: Tool, p0: np.ndarray, m: Move) -> float:
         """Adım k'yi uygular; kaldırılan hacmi [mm³] döndürür."""
         R = tool.D / 2
@@ -260,10 +314,10 @@ class _Sim:
                 w = self._win([sa, sb], R)
                 if w is None:
                     continue
-                X, Y = self._xy(w)
-                b_sub, en_alt = self.f.remove(w, tool, sa, sb, X, Y)
-                boy[_rel(w, W)] += b_sub
-                self._gouge(k, op, w, en_alt, X, Y)
+                en_alt = self._remove(w, tool, sa, sb, boy, W)
+                if en_alt is not None:
+                    X, Y = self._xy(w)
+                    self._gouge(k, op, w, en_alt, X, Y)
         if W is None or not (boy > 0).any():
             return 0.0
         if m.type is MoveType.RAPID:  # hızlı harekette malzemeye giriş: hücre başına kaldırılan boy
@@ -272,12 +326,72 @@ class _Sim:
         top_sonra = self.f.top(W)
         degisen = top_sonra < top_once
         if degisen.any():
-            jj, ii = np.nonzero(degisen)
-            cell = (jj + W[0].start) * self.g.nx + (ii + W[1].start)
-            self.ev_cell.append(cell.astype(np.int64))
-            self.ev_k.append(np.full(cell.size, k, dtype=np.int64))
-            self.ev_z.append(top_sonra[degisen].copy())
+            self._events(W, degisen, top_sonra[degisen], k)
         return float(np.sum(boy) * self.g.dx * self.g.dy)
+
+    def group(self, k0: int, op: int, tool: Tool, p0: np.ndarray, moves: list[Move]) -> list[float]:
+        """Adımlar k0, k0+1, … (aynı doğru üzerindeki G1'ler ya da tek hareket) → hareket başına hacim.
+
+        merge kapalıysa, parça z-haritası varsa veya gövde hareket öncesi yüzeye yaklaşabiliyorsa
+        SPEC 05 yolu.
+        """
+        pts = [p0] + [np.array(m.end, dtype=float) for m in moves]
+        chords = _chords(p0, moves[0], self.arc_tol) if len(moves) == 1 else [(p0, pts[-1])]
+        kose = [c[0] for c in chords] + [chords[-1][1]]
+        if not self.merge or self.part_z is not None or not self._body_clear(tool, pts + kose):
+            return [self.step(k0 + i, op, tool, pts[i], m) for i, m in enumerate(moves)]
+        R = tool.D / 2
+        W = self._win(kose, R)
+        if W is None:
+            return [0.0] * len(moves)
+        env = _ball if tool.kind is not ToolKind.DRILL and tool.corner_r == R else sweep_envelope
+        top_once = self.f.top(W).copy()
+        boy = np.zeros_like(top_once)
+        for a, b in chords:
+            w = self._win([a, b], R)
+            if w is not None:
+                self._remove(w, tool, a, b, boy, W, env)
+        if not (boy > 0).any():
+            return [0.0] * len(moves)
+        top_sonra = self.f.top(W)
+        if moves[0].type is MoveType.RAPID:
+            X, Y = self._xy(W)
+            self._record("hizli_carpma", k0, op, boy, X, Y, top_sonra)
+        degisen = top_sonra < top_once
+        dA = self.g.dx * self.g.dy
+        if len(moves) == 1:
+            if degisen.any():
+                self._events(W, degisen, top_sonra[degisen], k0)
+            return [float(np.sum(boy) * dA)]
+        # pencere farkı: hücre, penceresi onu ilk kapsayan harekete yazılır
+        sahip = np.full(boy.shape, len(moves) - 1)
+        bos = np.ones(boy.shape, dtype=bool)
+        for i in range(len(moves) - 1):
+            w = self._win([pts[i], pts[i + 1]], R)
+            if w is None:
+                continue
+            r = _rel(w, W)
+            yeni = bos[r]
+            sahip[r] = np.where(yeni, i, sahip[r])
+            bos[r] = False
+        hacim = np.bincount(sahip.ravel(), weights=boy.ravel(), minlength=len(moves)) * dA
+        if degisen.any():
+            self._events(W, degisen, top_sonra[degisen], k0 + sahip[degisen])
+        return [float(v) for v in hacim]
+
+    def _body_clear(self, tool: Tool, pts: list[np.ndarray]) -> bool:
+        """Gövde denetimi bu harekette tetiklenebilir mi?
+
+        Hareket öncesi yüzey en alçak uç + en alçak gövde basamağı + tol'un altındaysa hiçbir alt adımda
+        tetiklenmez (yüzey yalnız alçalır, alt adım pencereleri hareket penceresinin içinde).
+        """
+        steps = body_steps(tool)
+        rho_max = max(tool.D / 2, steps[-1][0])
+        wb = self._win(pts, rho_max)
+        if wb is None:
+            return True
+        z_alt = min(float(p[2]) for p in pts)
+        return not self.f.top(wb).max() > z_alt + steps[0][1] + self.tol
 
     def _body(self, k, op, a, b, steps, rho_max, H_min) -> None:
         """Gövde (sap, tutucu) denetimi: alt adımdan önceki üst yüzeyle."""
@@ -302,6 +416,10 @@ class _Sim:
         if yeni.any():
             self._record("cakma", k, op, np.where(yeni, zP - en_alt, -np.inf), X, Y, en_alt)
             self.gouged[w] |= yeni
+
+
+def _ball(tool: Tool, a, b, X, Y) -> np.ndarray:
+    return ball_envelope(a, b, tool.D / 2, X, Y, tool)
 
 
 def simulate(
@@ -354,7 +472,7 @@ def simulate(
         part_z = np.asarray(part_z, dtype=float)
         if part_z.shape != grid.z.shape:
             raise CamError(f"part_z şekli ızgarayla uyuşmuyor ({part_z.shape} ≠ {grid.z.shape})")
-    sim = _Sim(field, grid, part_z, tol, gouge_tol, arc_tol)
+    sim = _Sim(field, grid, part_z, tol, gouge_tol, arc_tol, block, merge)
 
     steps: list[SimStep] = []
     op_times = [0.0] * len(yollar)
@@ -363,31 +481,35 @@ def simulate(
     onceki_takim: int | None = None
     start = yollar[0].start
 
-    def adim(op: int, tool: Tool, p0: np.ndarray, m: Move, link: bool, ek: float) -> np.ndarray:
+    def adim(op: int, tool: Tool, p0: np.ndarray, ms: list[Move], link: bool, ek: float) -> np.ndarray:
+        """ms: tek hareket ya da birleştirilen G1 grubu; her hareket ayrı SimStep."""
         nonlocal t
-        k = len(steps) + 1
-        sure = move_time(p0, m.end, m, Plane.XY, machine)
-        t0 = t + ek
-        removed = sim.step(k, op, tool, p0, m)
-        steps.append(
-            SimStep(
-                k=k,
-                op=op,
-                type=m.type,
-                start=tuple(float(v) for v in p0),
-                end=m.end,
-                center=m.center,
-                feed=m.feed,
-                link=link,
-                t0=t0,
-                duration=sure,
-                removed=removed,
-                mrr=removed / sure if sure > 0 else 0.0,
+        hacimler = sim.group(len(steps) + 1, op, tool, p0, ms)
+        for m, removed in zip(ms, hacimler, strict=True):
+            k = len(steps) + 1
+            sure = move_time(p0, m.end, m, Plane.XY, machine)
+            t0 = t + ek
+            steps.append(
+                SimStep(
+                    k=k,
+                    op=op,
+                    type=m.type,
+                    start=tuple(float(v) for v in p0),
+                    end=m.end,
+                    center=m.center,
+                    feed=m.feed,
+                    link=link,
+                    t0=t0,
+                    duration=sure,
+                    removed=removed,
+                    mrr=removed / sure if sure > 0 else 0.0,
+                )
             )
-        )
-        t = t0 + sure
-        op_times[op] += ek + sure
-        return np.array(m.end, dtype=float)
+            t = t0 + sure
+            op_times[op] += ek + sure
+            ek = 0.0
+            p0 = np.array(m.end, dtype=float)
+        return p0
 
     for i, tp in enumerate(yollar):
         ek = 0.0
@@ -396,29 +518,30 @@ def simulate(
         onceki_takim = tp.tool.id
         p_bas = np.array(tp.start, dtype=float)
         if pos is not None and not np.array_equal(pos, p_bas):
-            pos = adim(i, tp.tool, pos, Move(MoveType.RAPID, tp.start), True, ek)
+            pos = adim(i, tp.tool, pos, [Move(MoveType.RAPID, tp.start)], True, ek)
             ek = 0.0
         elif pos is None:
             pos = p_bas
-        for m in tp.moves:
-            pos = adim(i, tp.tool, pos, m, False, ek)
+        gruplar = merge_collinear(tp.moves, start=pos) if merge else [(j, j) for j in range(len(tp.moves))]
+        for a, b in gruplar:
+            pos = adim(i, tp.tool, pos, tp.moves[a : b + 1], False, ek)
             ek = 0.0
         if ek:  # hareketsiz yolda takım değişimi yine sayılır
             t += ek
             op_times[i] += ek
 
-    if sim.ev_cell:
-        cell_ = np.concatenate(sim.ev_cell)
-        k_ = np.concatenate(sim.ev_k)
-        z_ = np.concatenate(sim.ev_z)
-        sira = np.lexsort((k_, cell_))
-        cell_, k_, z_ = cell_[sira], k_[sira], z_[sira]
-    else:
-        cell_ = np.zeros(0, dtype=np.int64)
-        k_ = np.zeros(0, dtype=np.int64)
-        z_ = np.zeros(0)
+    # olaylar (hücre, k) sıralı: hücre başına sayım + sıra → doğrudan yerleştirme (lexsort ile aynı sonuç)
     offsets = np.zeros(grid.nx * grid.ny + 1, dtype=np.int64)
-    np.cumsum(np.bincount(cell_, minlength=grid.nx * grid.ny), out=offsets[1:])
+    np.cumsum(sim.say, out=offsets[1:])
+    cell_ = np.repeat(np.arange(grid.nx * grid.ny, dtype=np.int32), sim.say)
+    k_ = np.empty(cell_.size, dtype=np.int32)
+    z_ = np.empty(cell_.size)
+    yer0 = offsets[:-1].copy()  # hücrenin sıradaki boş yeri
+    for c, kk, zz in zip(sim.ev_cell, sim.ev_k, sim.ev_z, strict=True):
+        yer = yer0[c]
+        k_[yer] = kk
+        z_[yer] = zz
+        yer0[c] += 1
     collisions = sorted(sim.coll.values(), key=lambda c: (c.k, KINDS.index(c.kind)))
     if dexel is not None:
         grid.z = dexel.top()
@@ -430,8 +553,8 @@ def simulate(
         start=start,
         total_time=t,
         op_times=op_times,
-        event_cell=cell_.astype(np.int32),
-        event_k=k_.astype(np.int32),
+        event_cell=cell_.astype(np.int32, copy=False),
+        event_k=k_.astype(np.int32, copy=False),
         event_z=z_,
         offsets=offsets,
         collisions=collisions,
