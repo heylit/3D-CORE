@@ -34,5 +34,10 @@ birleşince yazılır (test bağımsızlığı akışıyla).
 - Kod yazıldı (`cam/plan.py`, `cam/plan_turn.py`, `cam/plan_verify.py`); testler ayrı oturumdan cherry-pick
   (01dac32), kod dokunmadı.
 
+## Test verisi notları (Ek A son paragrafı)
+- Torna takımlarına SPEC 22 için `edge_len` eklendi (ISO uç geometrisine en yakın): T21 12, T22 11, T23 8 (kanal
+  dalma kapasitesi), T24 6 mm. K13 işlemleriyle simülasyonda çarpışma yok; sonuç 6–12 arası değerlerde aynı.
+- Freze takımlarına GRBL takım boyu için ortak tutucu (`gauge_length = 60`) ve `stickout = flute_length + 10`.
+
 ## Açık sorular
 _(yok; K8 test ölçüsü 5de7159 ile düzeltildi, kullanıcı onayı 11:55 kartı)_

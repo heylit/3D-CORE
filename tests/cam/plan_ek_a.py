@@ -3,6 +3,10 @@
 Ek A tablosunda olmayan tek ek: GRBL G-code'u (§8) `cam.tool_length.length_offsets` ile ölçü boyu ister;
 bu yüzden freze takımlarına ortak bir tutucu (`gauge_length = 60`) ve `stickout = flute_length + 10` verildi.
 Torna takımlarının uç numaraları ve açıları SPEC 20 doğrulamasından olduğu gibi geçer (değişiklik yok).
+SPEC 22 simülasyonu kesici kenar boyu (`edge_len`) ister; Ek A'da yok. Ek A son paragrafı gereği ISO uç
+geometrisine en yakın değerler verildi: T21 CNMG 12.. (kenar 12.9) → 12, T22 DNMG 11.. (11.6) → 11,
+T23 3 mm kanal ucu dalma kapasitesi → 8, T24 CCMT 06.. (6.4) → 6. K13 işlemleriyle (alın, kaba, finiş, kanal)
+simülasyonda çarpışma yok; kalan / kaldırılan hacim 6–12 arası değerlerde değişmiyor.
 """
 
 from __future__ import annotations
@@ -68,10 +72,14 @@ def torna_lib() -> ToolLibrary:
     K = LatheToolKind
     return ToolLibrary(
         [
-            LatheTool(21, "dis-kaba", K.TURN, 0.8, 3, 93, 80, cutting=cd(Vc=250, fn=0.25, ap=2)),
-            LatheTool(22, "dis-finis", K.TURN, 0.4, 3, 93, 55, cutting=cd(Vc=300, fn=0.1)),
-            LatheTool(23, "kanal3", K.GROOVE, 0.2, 3, 90, 90, width=3, cutting=cd(Vc=150, fn=0.05)),
-            LatheTool(24, "ic-kaba", K.BORE, 0.4, 2, 95, 80, cutting=cd(Vc=200, fn=0.15, ap=1)),
+            LatheTool(
+                21, "dis-kaba", K.TURN, 0.8, 3, 93, 80, cutting=cd(Vc=250, fn=0.25, ap=2), edge_len=12.0
+            ),
+            LatheTool(22, "dis-finis", K.TURN, 0.4, 3, 93, 55, cutting=cd(Vc=300, fn=0.1), edge_len=11.0),
+            LatheTool(
+                23, "kanal3", K.GROOVE, 0.2, 3, 90, 90, width=3, cutting=cd(Vc=150, fn=0.05), edge_len=8.0
+            ),
+            LatheTool(24, "ic-kaba", K.BORE, 0.4, 2, 95, 80, cutting=cd(Vc=200, fn=0.15, ap=1), edge_len=6.0),
         ]
     )
 
