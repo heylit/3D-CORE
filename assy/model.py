@@ -236,3 +236,54 @@ class Assembly:
                 for m in d.get("mates", [])
             ],
         )
+
+
+@dataclass
+class Node:
+    """Montaj ağacında bir oluşum. Yaprak: part dolu, children boş. Alt montaj: part None, children dolu.
+
+    T ebeveyne göre rijit dönüşümdür. Ağaç bütünlüğü (kardeş adları, boş alt montaj, tanım tutarlılığı)
+    assy.tree.validate'tedir, çünkü ağaç adım adım kurulabilmeli.
+    """
+
+    name: str  # kardeşler arasında tekil, boş değil, '/' içermez
+    T: np.ndarray = field(default_factory=lambda: np.eye(4))  # ebeveyne göre, rijit
+    part: str | None = None  # yaprak: parça kimliği
+    children: list[Node] = field(default_factory=list)
+    ref: str | None = None  # alt montaj tanım adı; None → name
+
+    def __post_init__(self) -> None:
+        if not self.name or "/" in self.name:
+            raise AssyError(f"Düğüm adı boş olamaz ve '/' içeremez ({self.name!r})")
+        self.T = np.asarray(self.T, dtype=float)
+        if not is_rigid(self.T):
+            raise AssyError(f"Düğüm '{self.name}': T rijit bir dönüşüm değil")
+        if self.part is not None and (self.children or self.ref is not None):
+            raise AssyError(f"Düğüm '{self.name}': yaprakta (part dolu) çocuk veya ref olamaz")
+
+    @property
+    def definition(self) -> str:
+        """Yaprak: parça kimliği; alt montaj: ref, yoksa name."""
+        if self.part is not None:
+            return self.part
+        return self.ref if self.ref is not None else self.name
+
+    def to_dict(self) -> dict:
+        """Özyinelemeli sözlük; T 4x4 liste olarak."""
+        return {
+            "name": self.name,
+            "T": self.T.tolist(),
+            "part": self.part,
+            "children": [c.to_dict() for c in self.children],
+            "ref": self.ref,
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> Node:
+        return cls(
+            name=d["name"],
+            T=np.array(d.get("T", np.eye(4))),
+            part=d.get("part"),
+            children=[cls.from_dict(c) for c in d.get("children", [])],
+            ref=d.get("ref"),
+        )
