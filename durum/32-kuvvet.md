@@ -3,12 +3,13 @@
 Dal: `claude/spec-32-kuvvet-5x6f7q` · Oturum: bulut
 
 ## Sıradaki adım
-SPEC 22 (`simulate_lathe`) ve A0 (`MachineProfile.spindle_power_kw` / `spindle_torque_nm`) main'e girince main'i merge edip 8 uygulanmamış testi yeşile çevirmek, sonra PR #66'yı birleştirmek.
+A0 dalı (PR #107, 5eb08c1) bu dala merge edildi; tüm SPEC 32 testleri yeşil. #107 main'e girip GitHub Actions düzelince main'i merge edip pytest + kapı yeşilse PR #66'yı birleştirmek.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
 |---|---|---|---|
 | 2026-10-18 | — | — | Sadece SPEC taslağı; kod ve test yok. |
+| 2026-10-18 | 154 SPEC 32 | 0 | A0 (PR #107, 5eb08c1) merge sonrası; `from_profile` yeşil. |
 | 2026-10-18 | 153 SPEC 32 | 1 uygulanmamış | SPEC 22 sonrası; kalan: `from_profile` (A0). |
 | 2026-10-18 | 146 SPEC 32 | 8 uygulanmamış | Bağımsız testler (150fd08 + 18db041, cherry-pick) + kod. Kalan 8: torna (SPEC 22) ve `from_profile` (A0) bağımlılıkları. |
 
