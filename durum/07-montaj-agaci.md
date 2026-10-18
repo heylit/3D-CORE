@@ -3,14 +3,19 @@
 Dal: `claude/spec-07-montaj-agaci-ejmdg5` · Oturum: bulut
 
 ## Sıradaki adım
-Testler "Montaj ağacı testleri (SPEC 07)" thread'inden, `Node` "Dalga 2 arayüz ekleri" thread'inin PR'ından gelecek; ikisi gelince kod ayrı commit'te.
+PR #20 CI yeşil olunca birleştirme onayı (proje sohbeti).
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
 |---|---|---|---|
 | 2026-10-18 | — | — | SPEC taslağı; test ve kod yok |
+| 2026-10-18 | 88 (SPEC 07: ağaç 45, BOM 30, STEP 13) | 0 | main (Node, PR #26) birleştirildikten sonra tüm depo 1448 geçti, 0 uygulanmamış |
 
 ## Son oturum
+**2026-10-18 — kod**
+- Testler ayrı oturumda yazıldı (`47284c9`, cherry-pick `d4a1361`); kod commit'i testlere dokunmadı.
+- `assy/tree.py`, `assy/bom.py`, `fileio/step_montaj.py` uygulandı. STEP okumada aynı adlı iki farklı parça ürünü `AssyError` (aynı kimliğe sessizce iki şekil düşmesin).
+
 **2026-10-18 — onay ve iskelet**
 - SPEC metni kullanıcı tarafından onaylandı (proje sohbeti kartı, 08:29 UTC: Node arayüz PR'ı, ardından testler ve kod).
 - `assy/tree.py`, `assy/bom.py`, `fileio/step_montaj.py` iskeletleri (`NotImplementedError`) eklendi.
