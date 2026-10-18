@@ -65,6 +65,31 @@ Bu SPEC hesap yapmaz (takım yolu, kısıt çözme yok); sadece veri modellerini
   - `world(ref) -> tuple[np.ndarray, np.ndarray]` — referansın dünya koordinatında origin ve birim yönü (`T` ile)
   - `to_dict()`, `Assembly.from_dict(d)` — JSON uyumlu, gidiş-dönüş birebir
 
+### Ek — arayüz PR'ı 2026-10-18 (inceleme Y4, Y5, O3)
+Dalga 2'nin (CAM 05/06, montaj 07, tet ağları 11–12) ihtiyacı için eklenenler. Geriye uyumludur: eski çağrılar ve
+JSON'lar aynen çalışır.
+- `core/model.py`
+  - `Model.node / node_index / material / section` O(1): id → indeks sözlüğü, listeye dışarıdan ekleme / değiştirme
+    sonrası kendini onarır (bulunan kaydın anahtarı tutmazsa veya anahtar yoksa bir kez yeniden kurulur).
+    Sözlük dataclass alanı değildir; `to_dict` ve eşitliğe girmez.
+  - `Material` (E, nu, rho), `Section` (A), `Node` (x, y, z), `BC.value`, `Load.value`: `nan` / `inf` → `ModelError`.
+  - `Model.from_dict`: eksik / fazla / yanlış tipte alan → `ModelError` (eskiden `TypeError`).
+- `geometry/part.py` (OCCT uygulaması `geometry/query.py`'de; diğer paketler onu değil `Part`'ı kullanır)
+  - `@dataclass Region(outer: (k,2) CCW, holes: tuple[(k,2) CW, ...])` — kapalı çokgen, son nokta tekrarsız
+  - `@dataclass PlanarFace(index, origin (3,), normal (3,) dışa bakan birim, area)`
+  - `@dataclass CylindricalFace(index, origin (3,), axis (3,) birim, radius, length, angle [derece], concave, area)`
+    — eksen `origin + s·axis, s ∈ [0, length]`; `concave=True` → delik / cep köşesi; `angle = 360` → tam silindir
+  - `Part.section_z(z, tol=0.01) -> list[Region]` — z düzlemindeki malzeme; kiriş sapması ≤ tol; kesmiyorsa `[]`
+  - `Part.planar_faces() -> list[PlanarFace]`, `Part.cylindrical_faces() -> list[CylindricalFace]`
+    (`index` ortak yüz numarası, aynı parçada kararlı)
+  - `Part.mesh(tol=0.01) -> (V, T)` — `geometry.mesh.tessellate` ile aynı
+- `assy/model.py`
+  - `Mate(..., flip: bool = False)` — yönlü referansın yönü ters alınır (b'nin; b NOKTA ise a'nın):
+    PLANE–PLANE zıt → aynı yön; POINT–PLANE DISTANCE öbür taraf; ANGLE θ → 180° − θ.
+    Etkisiz olduğu kısıtlarda (eksen–eksen, nokta–nokta, nokta–eksen, nokta–düzlem çakışık) `flip=True` → `AssyError`.
+    JSON'da `"flip"` alanı; yoksa `False`.
+  - `Mate.value`, `Ref.origin`, `Ref.direction`: `nan` / `inf` → `AssyError`.
+
 ### Ortak kurulum
 - `pyproject.toml`: paket listesine `cam*`, `assy*`; pytest işareti `occt: build123d / OpenCascade gerektirir`.
 - Kök `conftest.py`:

@@ -173,9 +173,26 @@ def _unsupported(mate: Mate) -> AssyError:
 
 
 def _terms(assembly: Assembly, mate: Mate) -> tuple[np.ndarray, dict[str, np.ndarray]]:
-    """Kısıtın artığı ve dünya büyüklüklerine göre kısmi türevleri."""
+    """Kısıtın artığı ve dünya büyüklüklerine göre kısmi türevleri.
+
+    flip: yönlü referansın (b; b NOKTA ise a) dünya yönü d yerine d' = −d kullanılır. Zincir kuralı:
+    ∂r/∂d = −∂r/∂d', yani o anahtarın türevi işaret değiştirir.
+    """
     pa, da = assembly.world(mate.a)
     pb, db = assembly.world(mate.b)
+    if not mate.flip:
+        return _terms_world(mate, pa, da, pb, db)
+    if mate.b.kind is _POINT:
+        r, G = _terms_world(mate, pa, -da, pb, db)
+        G["da"] = -G["da"]
+    else:
+        r, G = _terms_world(mate, pa, da, pb, -db)
+        G["db"] = -G["db"]
+    return r, G
+
+
+def _terms_world(mate: Mate, pa, da, pb, db) -> tuple[np.ndarray, dict[str, np.ndarray]]:
+    """Dünya büyüklükleri verilmiş kısıtın artığı ve kısmi türevleri (tablo: specs/08-kisitlar.md)."""
     ka, kb = mate.a.kind, mate.b.kind
     pair = {ka, kb}
     D = float(mate.value)
