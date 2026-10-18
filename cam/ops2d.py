@@ -25,13 +25,13 @@ class Cut:
 
     z_top: float
     z_bottom: float
-    a_p: float                  # en büyük paso derinliği
-    feed: float                 # XY kesme ilerlemesi
-    plunge_feed: float          # Z dalma ilerlemesi
+    a_p: float  # en büyük paso derinliği
+    feed: float  # XY kesme ilerlemesi
+    plunge_feed: float  # Z dalma ilerlemesi
     rpm: float
-    z_safe: float               # hızlı hareket yüksekliği
-    clearance: float = 1.0      # dalmadan önce son paso üstünde bırakılan mesafe
-    stepover: float | None = None   # yan paso s (cep, yüz alma)
+    z_safe: float  # hızlı hareket yüksekliği
+    clearance: float = 1.0  # dalmadan önce son paso üstünde bırakılan mesafe
+    stepover: float | None = None  # yan paso s (cep, yüz alma)
 
     def __post_init__(self) -> None:
         if not self.z_top > self.z_bottom:
@@ -178,12 +178,12 @@ def contour(profile: Profile, tool: Tool, cut: Cut, side: str, climb: bool = Tru
             raise CamError("contour: açık profilde sadece 'uzerinde' kullanılabilir")
         reg = Region(profile)
         if side == "dis":
-            loops = [rg.outer.reversed().segments for rg in offset(reg, -r)]      # CW
+            loops = [rg.outer.reversed().segments for rg in offset(reg, -r)]  # CW
         else:
             res = offset(reg, r)
             if not res:
                 raise CamError("contour: takım iç kontura sığmıyor")
-            loops = [rg.outer.segments for rg in res]                          # CCW
+            loops = [rg.outer.segments for rg in res]  # CCW
         if not climb:
             loops = [Profile(lp).reversed().segments for lp in loops]
     b, start = _start_builder(cut, loops[0][0].p0)
@@ -200,7 +200,7 @@ def contour(profile: Profile, tool: Tool, cut: Cut, side: str, climb: bool = Tru
 # ---------------------------------------------------------------- cep
 
 
-INRADIUS_TOL = 1e-9   # iç yarıçap ikiye bölme hassasiyeti (D'ye göre)
+INRADIUS_TOL = 1e-9  # iç yarıçap ikiye bölme hassasiyeti (D'ye göre)
 
 
 @dataclass
@@ -228,7 +228,7 @@ def _build_tree(region: Region, r: float, s: float, D: float) -> _Node:
     if not node.children:
         # yaprak: ortada r'den geniş kesilmemiş alan kalmasın
         t_star = _inradius(region, s, INRADIUS_TOL * D)
-        t_extra = t_star - r + LINK_TOL   # ikiye bölmenin erken "boş" demesine karşı pay
+        t_extra = t_star - r + LINK_TOL  # ikiye bölmenin erken "boş" demesine karşı pay
         if t_extra > TOL:
             node.children = [_Node(c) for c in offset(region, t_extra)]
     return node
@@ -246,7 +246,7 @@ def _rotate(segs: list[Segment], i: int, t: float) -> list[Segment]:
         head = [s]
     else:
         tail = [s]
-    rest = segs[i + 1:] + segs[:i]
+    rest = segs[i + 1 :] + segs[:i]
     return head + rest + tail
 
 

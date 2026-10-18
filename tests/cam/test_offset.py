@@ -23,8 +23,8 @@ from cam.offset import offset, offset_profile
 from cam.profile import Arc, Line, Profile, Region
 from tests.cam.ref2d import Egriler, grid, polygon_contains
 
-A_RECT = 40.0   # [mm]
-B_RECT = 20.0   # [mm]
+A_RECT = 40.0  # [mm]
+B_RECT = 20.0  # [mm]
 
 
 def total_area(regions: list[Region]) -> float:
@@ -142,8 +142,9 @@ def test_rectangle_outer_offset():
         assert a.ccw is True
     for c in [(0.0, 0.0), (A_RECT, 0.0), (A_RECT, B_RECT), (0.0, B_RECT)]:
         assert sum(close(a.c, c) for a in arcs) == 1, c
-    assert np.allclose(np.asarray(reg.outer.bbox(), dtype=float).ravel(),
-                       [-r, -r, A_RECT + r, B_RECT + r], atol=1e-9)
+    assert np.allclose(
+        np.asarray(reg.outer.bbox(), dtype=float).ravel(), [-r, -r, A_RECT + r, B_RECT + r], atol=1e-9
+    )
 
 
 # ---------------------------------------------------------------- K6: daire ofseti
@@ -186,9 +187,19 @@ def test_offset_profile_shortcut():
 
 W_BRIDGE = 4.0
 DUMBBELL = [
-    (0.0, 0.0), (20.0, 0.0), (20.0, 8.0), (30.0, 8.0), (30.0, 0.0), (50.0, 0.0),
-    (50.0, 20.0), (30.0, 20.0), (30.0, 12.0), (20.0, 12.0), (20.0, 20.0), (0.0, 20.0),
-]   # iki 20×20 kare, x ∈ [20, 30]'da w = 4 genişlikli köprü (y ∈ [8, 12]); CCW
+    (0.0, 0.0),
+    (20.0, 0.0),
+    (20.0, 8.0),
+    (30.0, 8.0),
+    (30.0, 0.0),
+    (50.0, 0.0),
+    (50.0, 20.0),
+    (30.0, 20.0),
+    (30.0, 12.0),
+    (20.0, 12.0),
+    (20.0, 20.0),
+    (0.0, 20.0),
+]  # iki 20×20 kare, x ∈ [20, 30]'da w = 4 genişlikli köprü (y ∈ [8, 12]); CCW
 REFLEX = [(20.0, 8.0), (30.0, 8.0), (30.0, 12.0), (20.0, 12.0)]
 
 
@@ -214,7 +225,7 @@ def test_dumbbell_narrow_single_region():
     reg = res[0]
     assert reg.holes == []
     assert reg.area == pytest.approx(840.0 - 172.0 * d + 8 * d**2 - math.pi * d**2, rel=1e-9)
-    assert reg.contains((25.0, 10.0))       # köprünün ortası
+    assert reg.contains((25.0, 10.0))  # köprünün ortası
     arcs = [s for s in reg.outer.segments if isinstance(s, Arc)]
     assert len(arcs) == 4
     for a in arcs:
@@ -259,14 +270,15 @@ def test_dumbbell_split_two_regions():
     assert len(left) == 1 and len(right) == 1 and left[0] is not right[0]
     assert not any(r.contains((25.0, 10.0)) for r in res)
     u1 = math.sqrt(d**2 - (W_BRIDGE / 2) ** 2)
-    assert np.allclose(np.asarray(left[0].outer.bbox(), dtype=float).ravel(),
-                       [d, d, 20.0 - u1, 20.0 - d], atol=1e-9)
+    assert np.allclose(
+        np.asarray(left[0].outer.bbox(), dtype=float).ravel(), [d, d, 20.0 - u1, 20.0 - d], atol=1e-9
+    )
 
 
 # ---------------------------------------------------------------- K8: adalı bölge
 
-SQ = 60.0          # dış kare kenarı
-RHO = 5.0          # ada yarıçapı
+SQ = 60.0  # dış kare kenarı
+RHO = 5.0  # ada yarıçapı
 CEN = (30.0, 30.0)
 
 

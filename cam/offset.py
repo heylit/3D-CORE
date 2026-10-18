@@ -22,7 +22,7 @@ from cam.geom2d import AREA_TOL, LINK_TOL, TOL, cross, distance_to_region, inter
 from cam.model import CamError
 from cam.profile import Arc, Line, Profile, Region, Segment
 
-KEEP_TOL = 1e-7    # mm: budamada "sınıra tam |d| uzaklıkta" sayma toleransı
+KEEP_TOL = 1e-7  # mm: budamada "sınıra tam |d| uzaklıkta" sayma toleransı
 SLIVER_TOL = 1e-6  # mm: kapanmayan zincir bundan inceyse çökmüş şerit sayılır (boş)
 
 
@@ -140,7 +140,7 @@ def _mergeable(a: Segment, b: Segment) -> bool:
         ta, tb = a.tangent(0), b.tangent(0)
         return abs(cross(ta, tb)) < TOL and float(np.dot(ta, tb)) > 0
     if isinstance(a, Arc) and isinstance(b, Arc):
-        return (a.ccw == b.ccw and np.hypot(*(a.c - b.c)) < 1e-8 and abs(a.R - b.R) < 1e-8)
+        return a.ccw == b.ccw and np.hypot(*(a.c - b.c)) < 1e-8 and abs(a.R - b.R) < 1e-8
     return False
 
 
@@ -167,7 +167,7 @@ def merge_segments(segs: list[Segment], closed: bool = True) -> list[Segment]:
                 if j == 0:
                     out = [m] + out[1:i]
                 else:
-                    out[i:j + 1] = [m]
+                    out[i : j + 1] = [m]
                 changed = True
                 break
     return out

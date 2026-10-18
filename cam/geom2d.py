@@ -13,9 +13,9 @@ import math
 
 import numpy as np
 
-TOL = 1e-9         # mm: geometrik eşitlik / sıfır boy
-LINK_TOL = 1e-7    # mm: parçaların uç uca bağlı sayılması
-AREA_TOL = 1e-14   # mm²: bundan küçük alanlı halka sıfır alanlı sayılır
+TOL = 1e-9  # mm: geometrik eşitlik / sıfır boy
+LINK_TOL = 1e-7  # mm: parçaların uç uca bağlı sayılması
+AREA_TOL = 1e-14  # mm²: bundan küçük alanlı halka sıfır alanlı sayılır
 TWO_PI = 2 * math.pi
 
 
@@ -98,7 +98,7 @@ def winding(p, profile) -> int:
                 total += TWO_PI * sgn if inside_disk else 0.0
                 continue
             total += _angle(a, b)
-            side = cross(s.p1 - s.p0, p - s.p0)        # > 0: kirişin solu
+            side = cross(s.p1 - s.p0, p - s.p0)  # > 0: kirişin solu
             if inside_disk and sgn * side < 0:
                 total += TWO_PI * sgn
         else:
@@ -155,7 +155,7 @@ def _line_circle_pts(line, c, R) -> list[np.ndarray]:
         disc = 0.0
     sq = math.sqrt(disc)
     ts = [(-B - sq) / (2 * A), (-B + sq) / (2 * A)]
-    if sq * L / A <= TOL:          # tek (teğet) nokta
+    if sq * L / A <= TOL:  # tek (teğet) nokta
         ts = [-B / (2 * A)]
     return [line.p0 + t * d for t in ts]
 
@@ -164,7 +164,7 @@ def _circle_circle_pts(c1, R1, c2, R2) -> list[np.ndarray]:
     dv = c2 - c1
     dd = float(np.hypot(*dv))
     if dd < TOL:
-        return []          # eş merkezli: aynı çemberse örtüşme ayrıca ele alınır
+        return []  # eş merkezli: aynı çemberse örtüşme ayrıca ele alınır
     if dd > R1 + R2 + TOL or dd < abs(R1 - R2) - TOL:
         return []
     a = (R1 * R1 - R2 * R2 + dd * dd) / (2 * dd)

@@ -57,10 +57,23 @@ RECT = ("poly", [(0.0, 0.0), (60.0, 0.0), (60.0, 40.0), (0.0, 40.0)])
 ISLAND = ("circle", (30.0, 20.0), 6.0)
 L_SHAPE = ("poly", [(0.0, 0.0), (50.0, 0.0), (50.0, 20.0), (20.0, 20.0), (20.0, 45.0), (0.0, 45.0)])
 CIRCLE = ("circle", (0.0, 0.0), 20.0)
-DUMBBELL = ("poly", [
-    (0.0, 0.0), (20.0, 0.0), (20.0, 8.0), (30.0, 8.0), (30.0, 0.0), (50.0, 0.0),
-    (50.0, 20.0), (30.0, 20.0), (30.0, 12.0), (20.0, 12.0), (20.0, 20.0), (0.0, 20.0),
-])   # köprü genişliği 4 < D: takım köprüye giremez, iki ayrı cep
+DUMBBELL = (
+    "poly",
+    [
+        (0.0, 0.0),
+        (20.0, 0.0),
+        (20.0, 8.0),
+        (30.0, 8.0),
+        (30.0, 0.0),
+        (50.0, 0.0),
+        (50.0, 20.0),
+        (30.0, 20.0),
+        (30.0, 12.0),
+        (20.0, 12.0),
+        (20.0, 20.0),
+        (0.0, 20.0),
+    ],
+)  # köprü genişliği 4 < D: takım köprüye giremez, iki ayrı cep
 
 
 def to_profile(ring) -> Profile:
@@ -157,8 +170,9 @@ def face_path() -> Toolpath:
 
 def x_rows(tp: Toolpath, z: float):
     """X'e paralel kesme hareketleri (Δy = 0, Δx ≠ 0)."""
-    return [p for p in cutting_moves(tp, z)
-            if abs(p.p1[1] - p.p0[1]) < 1e-12 and abs(p.p1[0] - p.p0[0]) > 1e-12]
+    return [
+        p for p in cutting_moves(tp, z) if abs(p.p1[1] - p.p0[1]) < 1e-12 and abs(p.p1[0] - p.p0[0]) > 1e-12
+    ]
 
 
 def test_face_rows():
@@ -206,7 +220,7 @@ def test_face_covers_top_surface():
 
 # ---------------------------------------------------------------- K12: contour
 
-CC, CR = (50.0, 40.0), 20.0     # daire konturu merkezi ve yarıçapı
+CC, CR = (50.0, 40.0), 20.0  # daire konturu merkezi ve yarıçapı
 
 
 @pytest.mark.parametrize("side, Rexp", [("dis", CR + r), ("ic", CR - r)])
@@ -228,11 +242,14 @@ def test_contour_circle_radius(side, Rexp):
         assert pass_length(tp, z) == pytest.approx(2 * math.pi * Rexp, rel=1e-9)
 
 
-@pytest.mark.parametrize("side, Lexp", [
-    ("dis", 2 * (40.0 + 20.0) + 2 * math.pi * r),      # 4 kenar + 4 çeyrek yay
-    ("ic", 2 * (40.0 - 2 * r + 20.0 - 2 * r)),          # keskin köşeli 34×14
-    ("uzerinde", 2 * (40.0 + 20.0)),                    # ofsetsiz
-])
+@pytest.mark.parametrize(
+    "side, Lexp",
+    [
+        ("dis", 2 * (40.0 + 20.0) + 2 * math.pi * r),  # 4 kenar + 4 çeyrek yay
+        ("ic", 2 * (40.0 - 2 * r + 20.0 - 2 * r)),  # keskin köşeli 34×14
+        ("uzerinde", 2 * (40.0 + 20.0)),  # ofsetsiz
+    ],
+)
 def test_contour_rectangle_length(side, Lexp):
     """40×20 dikdörtgen konturu: her pasoda yol boyu kapalı form; yol ∂Ω'ya |ofset| uzaklıkta."""
     cut = make_cut()
@@ -249,9 +266,15 @@ def test_contour_rectangle_length(side, Lexp):
 
 
 @pytest.mark.parametrize("shape", ["daire", "dikdortgen"])
-@pytest.mark.parametrize("side, climb, sign", [
-    ("dis", True, -1), ("ic", True, +1), ("dis", False, +1), ("ic", False, -1),
-])
+@pytest.mark.parametrize(
+    "side, climb, sign",
+    [
+        ("dis", True, -1),
+        ("ic", True, +1),
+        ("dis", False, +1),
+        ("ic", False, -1),
+    ],
+)
 def test_contour_direction(shape, side, climb, sign):
     """Tırmanma (M3, malzeme sağda): dış kontur CW (yönlü alan < 0), iç kontur CCW (> 0);
     climb=False tersine çevirir. Profil CW verilse de sonuç aynı (yön kurala göre seçilir)."""
@@ -470,19 +493,22 @@ def test_pocket_inner_link_stays_down():
 # ---------------------------------------------------------------- K16: hatalı girdiler
 
 
-@pytest.mark.parametrize("bad", [
-    dict(z_top=-5.0, z_bottom=-5.0),          # z_top > z_bottom değil
-    dict(z_top=-6.0, z_bottom=-5.0),
-    dict(a_p=0.0),
-    dict(a_p=-1.0),
-    dict(feed=0.0),
-    dict(plunge_feed=-10.0),
-    dict(rpm=0.0),
-    dict(z_safe=0.0),                         # z_safe > z_top değil
-    dict(clearance=-0.5),
-    dict(stepover=0.0),
-    dict(stepover=D + 0.1),                   # s > D
-])
+@pytest.mark.parametrize(
+    "bad",
+    [
+        dict(z_top=-5.0, z_bottom=-5.0),  # z_top > z_bottom değil
+        dict(z_top=-6.0, z_bottom=-5.0),
+        dict(a_p=0.0),
+        dict(a_p=-1.0),
+        dict(feed=0.0),
+        dict(plunge_feed=-10.0),
+        dict(rpm=0.0),
+        dict(z_safe=0.0),  # z_safe > z_top değil
+        dict(clearance=-0.5),
+        dict(stepover=0.0),
+        dict(stepover=D + 0.1),  # s > D
+    ],
+)
 def test_bad_cut_raises(bad):
     """Cut alan kısıtları (kurulumda veya kullanımda) → CamError."""
     kw = dict(stepover=3.0)

@@ -18,9 +18,9 @@ from cam.geom2d import LINK_TOL, TOL, distance, distance_to_region, intersect, w
 from cam.model import CamError
 from cam.profile import Arc, Line, Profile, Region
 
-A_RECT = 40.0   # dikdörtgen kenarı a [mm]
-B_RECT = 20.0   # dikdörtgen kenarı b [mm]
-R5 = 5.0        # daire yarıçapı [mm]
+A_RECT = 40.0  # dikdörtgen kenarı a [mm]
+B_RECT = 20.0  # dikdörtgen kenarı b [mm]
+R5 = 5.0  # daire yarıçapı [mm]
 
 
 def close(p, q, tol: float = 1e-9) -> bool:
@@ -221,11 +221,11 @@ def test_region_with_hole_area_and_contains():
     reg = Region(Profile.rectangle(0.0, 0.0, A_RECT, B_RECT), [Profile.circle((20.0, 10.0), 3.0)])
     assert reg.area == pytest.approx(A_RECT * B_RECT - math.pi * 9.0, rel=1e-9)
     assert reg.contains((5.0, 5.0))
-    assert reg.contains((20.0, 14.0))           # delik dışında, deliğin hemen üstü
-    assert not reg.contains((-1.0, 5.0))        # dış sınırın dışı
+    assert reg.contains((20.0, 14.0))  # delik dışında, deliğin hemen üstü
+    assert not reg.contains((-1.0, 5.0))  # dış sınırın dışı
     assert not reg.contains((50.0, 10.0))
-    assert not reg.contains((20.0, 10.0))       # deliğin merkezi
-    assert not reg.contains((21.0, 11.0))       # deliğin içi (√2 < 3)
+    assert not reg.contains((20.0, 10.0))  # deliğin merkezi
+    assert not reg.contains((21.0, 11.0))  # deliğin içi (√2 < 3)
 
 
 def test_region_contains_with_arcs():
@@ -290,8 +290,9 @@ def test_line_line_none():
 
 def test_line_circle_two_points():
     """y = 0 doğrusu R=5 tam daireyi (±5, 0)'da keser (x² = R²)."""
-    check_hits(Line((-10.0, 0.0), (10.0, 0.0)), Arc((R5, 0.0), (R5, 0.0), (0.0, 0.0), True),
-               [(-R5, 0.0), (R5, 0.0)])
+    check_hits(
+        Line((-10.0, 0.0), (10.0, 0.0)), Arc((R5, 0.0), (R5, 0.0), (0.0, 0.0), True), [(-R5, 0.0), (R5, 0.0)]
+    )
 
 
 def test_line_circle_one_point_segment_end_inside():

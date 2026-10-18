@@ -36,9 +36,9 @@ def dist_points_lines(P: np.ndarray, A: np.ndarray, B: np.ndarray) -> np.ndarray
     B = np.asarray(B, dtype=float).reshape(-1, 2)
     if len(A) == 0:
         return np.full((len(P), 0), np.inf)
-    AB = B - A                                       # (M,2)
-    L2 = np.einsum("ij,ij->i", AB, AB)               # (M,)
-    AP = P[:, None, :] - A[None, :, :]               # (N,M,2)
+    AB = B - A  # (M,2)
+    L2 = np.einsum("ij,ij->i", AB, AB)  # (M,)
+    AP = P[:, None, :] - A[None, :, :]  # (N,M,2)
     t = np.einsum("nmk,mk->nm", AP, AB) / np.where(L2 > 0, L2, 1.0)
     t = np.clip(t, 0.0, 1.0)
     Q = A[None, :, :] + t[:, :, None] * AB[None, :, :]
@@ -59,7 +59,7 @@ def dist_points_arcs(
     R = np.asarray(R, dtype=float)
     th0 = np.asarray(th0, dtype=float)
     sw = np.asarray(sw, dtype=float)
-    V = P[:, None, :] - C[None, :, :]                # (N,K,2)
+    V = P[:, None, :] - C[None, :, :]  # (N,K,2)
     rho = np.linalg.norm(V, axis=2)
     phi = np.arctan2(V[..., 1], V[..., 0])
     rel = np.mod(phi - th0[None, :], TWO_PI)
@@ -98,9 +98,9 @@ def arc_ccw_form(p0, p1, c, cw: bool) -> tuple[float, float, float]:
 class Egriler:
     """Doğru ve yaylardan oluşan küme; noktadan kümeye en kısa uzaklık için."""
 
-    A: list = field(default_factory=list)      # doğru başlangıçları
-    B: list = field(default_factory=list)      # doğru bitişleri
-    C: list = field(default_factory=list)      # yay merkezleri
+    A: list = field(default_factory=list)  # doğru başlangıçları
+    B: list = field(default_factory=list)  # doğru bitişleri
+    C: list = field(default_factory=list)  # yay merkezleri
     R: list = field(default_factory=list)
     th0: list = field(default_factory=list)
     sw: list = field(default_factory=list)
