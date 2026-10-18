@@ -3,7 +3,8 @@
 Dal: `claude/project-thread-6zs2nh` · Oturum: bulut
 
 ## Sıradaki adım
-PR #42'nin CI'ı yeşile dönünce kullanıcının birleştirme kararı (proje sohbeti). #27 / #33 birleşirse `main` dala alınacak (`cam/gcode/writer.py`).
+Ek E3 (SPEC 40, eksenel delme): ayrı test oturumu `tests/cam/test_gcode_lathe_drill.py`'yi yazacak (K12–K15);
+test commit'i cherry-pick edilip kod ayrı commit'te yazılacak.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
@@ -20,6 +21,13 @@ PR #42'nin CI'ı yeşile dönünce kullanıcının birleştirme kararı (proje s
 - `cam/gcode/lathe.py` iskeleti (`NotImplementedError`) push edildi (`7762b30`).
 - Testler ayrı oturumda (dal `claude/project-thread-bb9p8s`, commit `7f6af1c`) yazıldı, cherry-pick edildi; kod ayrı commit'te.
 - `cam/gcode/writer.py`: `_yazilabilir` koruması kalıcı, mesajı `write_lathe`'i gösteriyor (tek satır + docstring).
+
+**2026-10-18 (Ek E3)**
+- PR #42 birleşti (`11c7414`).
+- SPEC 40'ın E3 eki SPEC 21 metnine "Ek E3" bölümü olarak işlendi (kullanıcı yazılı onayı 11:13 UTC); altın örnek K12,
+  kabul kriterleri K12–K15.
+- `cam/gcode/lathe.py` iskeleti: `DRILL`/`CONE` `Tool` yazıcıda ve okuyucuda `NotImplementedError`; `read_lathe`
+  `tools` tipi `LatheTool | Tool`. K1–K11 değişmeden yeşil.
 
 ## Açık sorular
 _(yok)_
