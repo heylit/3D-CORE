@@ -15,6 +15,9 @@ Her eleman modülü şu fonksiyonları sağlar (sözleşme):
     stress(element, model, u) -> np.ndarray (6,)     (sadece katı elemanlar)
         Gerilme tensörü [MPa], Voigt: xx, yy, zz, xy, xz, yz (specs/11-tet4.md).
 
+    volume(element, model) -> float                  (sadece katı elemanlar)
+        Eleman hacmi [mm³]; düğüm gerilmesinin hacim ağırlığı (specs/13-calculix.md).
+
 ke ve dofs her elemanda zorunludur.
 
 Yeni eleman eklemek = bu klasöre bir dosya + aşağıdaki sözlüğe bir satır.
