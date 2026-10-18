@@ -5,7 +5,7 @@
 > (kurallar: `BASLANGIC.md` bölüm 7). Sıra ve paralellik: `docs/yol-haritasi.md` → "Paralel çalışma: dalgalar".
 
 ## Açık dalga
-**Dalga 2 tamamlandı** (05, 06, 07, 11, 14, 15, 16, 20, 23). **Dalga 3 sürüyor:** 09, 12, 13, 21, 24 ve 27 tamamlandı; 17'de yalnız arayüz birleşti. Dalga 5'in SPEC metinleri onaylandı. Dalga 1 tamamlandı (01, 02, 03, 04, 08).
+**Dalga 2 tamamlandı** (05, 06, 07, 11, 14, 15, 16, 20, 23). **Dalga 3 tamamlandı** (09, 12, 13, 17, 21, 24, 27); 03b de tamamlandı. Dalga 5'in SPEC metinleri onaylandı. Dalga 1 tamamlandı (01, 02, 03, 04, 08).
 
 ## SPEC tablosu
 | SPEC | Dalga | Durum | Kimde (dal / oturum) | Ayrıntı |
@@ -27,7 +27,7 @@
 | 20-torna-yol | 2 | tamamlandı (PR #34, `25548e0`) | — | `durum/20-torna-yol.md` |
 | 05-cam-sim | 2 | tamamlandı (PR #54, `4084c2d`) | — | `durum/05-cam-sim.md` |
 | 24-tezgah | 3 | tamamlandı (PR #40, `0c6ee2b`) | — | `durum/24-tezgah.md` |
-| 17-kroki | 3 | SPEC onaylı; `sketch/model.py` arayüzü birleşti (PR #55, `fb99eb6`) | — | — |
+| 17-kroki | 3 | tamamlandı (arayüz PR #55, kod PR #39, `0e82c65`) | — | `durum/17-kroki.md` |
 | 13-calculix | 3 | tamamlandı (PR #62, `5ad8c41`); delikli plaka ve L braket testleri SPEC 12 ile çalışıyor | — | `durum/13-calculix.md` |
 | 09-girisim | 3 | tamamlandı (PR #43, `af45f60`) | — | `durum/09-girisim.md` |
 | 12-gmsh | 3 | tamamlandı (PR #61, `df5d352`) | — | `durum/12-gmsh.md` |
@@ -36,7 +36,8 @@
 | 10-montaj-cam | 3 → 5 | Dalga 5'e alındı | — | — |
 | 22-torna-sim | 4 | SPEC onaylı (2026-10-18 10:38) | — | — |
 | 18-ozellik-agaci, 19-adaptif-kaba | 4 → 5 | Dalga 5'e alındı | — | — |
-| 03b-cep-kalan-malzeme, 06b-cam-3d-ek, 25-tezgah-torna-montaj, 26-tezgah-modelleme, 28-torna-profili, 30-tezgah-profili, 31-sinumerik-heidenhain, 41-kinematik-3arti2, 42-bes-eksen-yol, 43-tri-dexel, 44-tezgah-carpisma | — | SPEC onaylı (2026-10-18 10:38); dalgası henüz atanmadı. | — | — |
+| 03b-cep-kalan-malzeme | — | tamamlandı (PR #49, `4e59efe`) | — | `durum/03b-cep-kalan-malzeme.md` |
+| 06b-cam-3d-ek, 25-tezgah-torna-montaj, 26-tezgah-modelleme, 28-torna-profili, 30-tezgah-profili, 31-sinumerik-heidenhain, 41-kinematik-3arti2, 42-bes-eksen-yol, 43-tri-dexel, 44-tezgah-carpisma | — | SPEC onaylı (2026-10-18 10:38); dalgası henüz atanmadı. | — | — |
 | 29-islem-plani | — | SPEC metni onaylı ve birleşti (PR #58, `94989a3`); kod bekliyor | — | `durum/29-islem-plani.md` |
 | Dalga 5: 4 arayüz PR'ı + 03c, 04b, 10, 18, 19, 32, 33, 34, 35, 36, 37, 38, 39, 40, 45, 46, 47 | 5 | kapsam onaylı (2026-10-18 10:51); SPEC metinleri onaylı (35 ve 46 ~11:16, diğerleri 11:13) | — | — |
 
@@ -84,6 +85,10 @@
 | 09-girisim | Boolean API, montaj girişim / temas / boşluk kontrolü (PR #43) | 2026-10-18 | 84 |
 | 12-gmsh | `Part`'tan gmsh ile tet4 ağı, sınır seçimi, tutarlı yükler (PR #61) | 2026-10-18 | 87 |
 | 27-ozellik-tanima | Özellik tanıma (PR #46) | 2026-10-18 | 52 |
+| 17-kroki | Kısıt artıkları, Gauss-Newton çözücü, bölgeler (PR #39) | 2026-10-18 | 72 |
+| 03b-cep-kalan-malzeme | Kalan malzeme kontrollü cep (PR #49) | 2026-10-18 | 123 |
+| 00-arayuzler | Koni takım, tezgâh profili ve çok eksen arayüz ekleri (PR #60, `65381cf`) | 2026-10-18 | 272 |
+| 47-tezgah-ekranlari | SPEC metni onaylandı (PR #74, `6b043ca`) | 2026-10-18 | — |
 | — | `pyproject.toml`: `atolye*` ve `analiz*` paketleri (PR #80, `b62c3a7`) | 2026-10-18 | — |
 | 05-cam-sim | Talaş simülasyonu: z-map, dexel, süre, çarpışma, oyma (PR #54) | 2026-10-18 | 175 |
 | 17-kroki | `sketch/model.py` eskiz veri modeli arayüzü (PR #55, `fb99eb6`) | 2026-10-18 | 138 |
