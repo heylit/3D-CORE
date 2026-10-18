@@ -101,8 +101,11 @@ def rayleigh_from_zeta(
   - `rayleigh_from_zeta(f1, f2, ζ)` iki frekansta tam `ζ` verir.
 - [ ] **K4** Rezonans genliği (K2 çubuğu, `ζ = 0.02`, ilk 10 mod, kalıntı açık): `f_1`'de `|U| / U_statik` `20.26`'ya %1
   içinde. Tepe frekansı `f_1 √(1 − 2ζ²)`'ye en yakın ızgara noktasıdır.
-- [ ] **K5** CalculiX (`*STEADY STATE DYNAMICS`, modal sönüm, aynı ağ; `ccx` yoksa atlanır): K3 konsolunda 10 frekansta
-  genlik göreli 1e-4 içinde eşittir.
+- [ ] **K5** CalculiX yazıcı doğrulaması (`*STEADY STATE DYNAMICS`, modal sönüm, aynı ağ; `ccx` yoksa atlanır):
+  `to_inp_steady_state` çıktısı ccx ile çözülür; K3 konsolunda ccx'in yazdığı frekanslarda genlik, ccx'in kendi
+  frekansları ve kütlesiyle kurulan modal toplamla göreli 1e-4 içinde eşittir. Bizim çözücü ile ccx karşılaştırması
+  tet10'a (67a) ertelendi: ccx 2.21 C3D4'te farklı (toplanmış) kütle kullanır, f₁ farkı %0.1–0.8 kaçınılmazdır
+  (kullanıcı onayı 2026-10-18 19:08).
 - [ ] **K6** Parça köprüsü (OCCT): 67b dilinde `FaceRef` mesnet ve kuvvet verilir. Sonuç, ilk öz frekansın (45) altında
   ve üstünde K1 ile K2 davranışını gösterir (statik sınır göreli 1e-9, faz dönmesi).
 - [ ] **K7** Hatalar: `zeta` yok, `zeta = 1`, `f = [-10]`, yük yok, sönümsüz doğrudan çözüm tam rezonansta
