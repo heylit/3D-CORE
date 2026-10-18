@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tezgah</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Crect x=%275%27 y=%271%27 width=%276%27 height=%279%27 rx=%271%27 fill=%27%23d6a54e%27/%3E%3Cpath d=%27M6 10v4M8 10v5M10 10v4%27 stroke=%27%23d6a54e%27/%3E%3C/svg%3E" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,400..700&family=Big+Shoulders+Display:wght@600;800&family=JetBrains+Mono:wght@400;600&display=swap"
+    />
+  </head>
+  <body>
+    <div id="uygulama">
+      <header class="ust">
+        <div class="marka"><b>3D-CORE</b><span>Tezgah</span></div>
+        <nav class="alanlar" role="tablist" aria-label="Çalışma alanı" id="alanlar"></nav>
+        <button class="komut" id="komutDugme" aria-label="Komut çubuğunu aç (Ctrl K)">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+            <circle cx="7" cy="7" r="5" />
+            <path d="M11 11l4 4" />
+          </svg>
+          <span>Komut yaz: “çap 12”, “paso 2”, “cep”, “sona git”</span><kbd>Ctrl K</kbd>
+        </button>
+      </header>
+      <aside class="sol" id="sol" aria-label="İş ve işlemler"></aside>
+      <section class="sahne" id="sahneKap" aria-label="3B sahne">
+        <div id="gorunum"></div>
+        <div class="hud sol-ust" id="hudBaslik"></div>
+        <div class="hud sag-ust" id="hudKatman"></div>
+        <div class="hud sol-alt" id="hudDro"></div>
+        <div class="hud sag-alt" id="hudUyari"></div>
+        <div class="ipucu" id="ipucu">
+          Sürükle: döndür · Sağ tık: kaydır · <kbd>Boşluk</kbd> oynat · <kbd>←</kbd><kbd>→</kbd> adım ·
+          <kbd>Ctrl K</kbd> komut
+        </div>
+      </section>
+      <aside class="sag" id="sag" aria-label="Müfettiş, G-code ve kanıtlar">
+        <div class="mufettis" id="mufettis"></div>
+        <div class="sekmeler" role="tablist" id="sekmeler"></div>
+        <div class="bolme" id="bolme"></div>
+      </aside>
+      <footer class="serit">
+        <div class="serit-kontrol">
+          <div class="serit-satir">
+            <button class="oynat" id="oynat" aria-label="Oynat (Boşluk)"></button>
+            <div class="saat" id="saat">0:00 <span>/ 0:00</span></div>
+          </div>
+          <div class="hiz" id="hiz" role="group" aria-label="Oynatma hızı"></div>
+        </div>
+        <div class="serit-kap" id="seritKap"><canvas id="seritTuval" data-testid="zaman-seridi" tabindex="0" aria-label="Zaman şeridi"></canvas></div>
+      </footer>
+    </div>
+    <div class="perde" id="perde" hidden>
+      <div class="palet" data-testid="komut-cubugu" role="dialog" aria-modal="true" aria-label="Komut çubuğu">
+        <input id="paletGirdi" autocomplete="off" spellcheck="false" aria-label="Komut" />
+        <ul id="paletListe" role="listbox"></ul>
+        <footer>
+          <span><kbd>↑</kbd><kbd>↓</kbd> seç</span><span><kbd>Enter</kbd> uygula</span><span><kbd>Esc</kbd> kapat</span>
+          <span>Sayı yazınca seçili işlemin parametresi değişir</span>
+        </footer>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

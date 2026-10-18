@@ -1,4 +1,4 @@
-"""SPEC 03 — cam/ops2d.py testleri (K10–K16).
+"""SPEC 03 — cam/ops2d.py testleri (K10–K16), Ek A (K17–K19) ve SPEC 03b (K5–K8: r < s ≤ D cep).
 
 Testler sadece SPEC 03 "Arayüz" bölümündeki imzalardan yazıldı; uygulama kodu okunmadı.
 Takım yolu geometrisi (G1 doğru, G2/G3 yay, merkez mutlak XY) ve bölge sınırına uzaklık
@@ -23,6 +23,7 @@ import pytest
 from cam.model import CamError, MoveType, Stock, Tool, ToolKind, Toolpath
 from cam.ops2d import Cut, contour, depths, face, pocket
 from cam.profile import Line, Profile, Region
+from cam.rest import COVER_TOL
 from tests.cam.ref2d import (
     Egriler,
     RefBolge,
@@ -308,10 +309,25 @@ def pocket_path(name: str, s: float, **cut_kw) -> Toolpath:
     return pocket(to_region(POCKETS[name]), make_tool(), make_cut(**kw))
 
 
-@pytest.mark.parametrize("name, s", [("dikdortgen_ada", 3.0), ("L", 3.0), ("daire", 2.7), ("halter", 3.0)])
+@pytest.mark.parametrize(
+    "name, s",
+    [
+        ("dikdortgen_ada", 3.0),
+        ("L", 3.0),
+        ("daire", 2.7),
+        ("halter", 3.0),
+        # SPEC 03b K6: r < s ≤ D
+        ("dikdortgen_ada", 0.7 * D),
+        ("dikdortgen_ada", D),
+        ("L", 0.6 * D),
+        ("L", D),
+        ("daire", 0.95 * D),
+        ("halter", D),
+    ],
+)
 def test_pocket_no_gouge(name, s):
-    """Tüm kesme hareketleri (G1 dalma ve bağlantılar dahil) üzerindeki örnek noktalar:
-    dist(p, ∂Ω) ≥ r − 1e-9 ve p ∈ Ω (adanın dışında)."""
+    """K13 (ve SPEC 03b K6, r < s ≤ D): tüm kesme hareketleri (G1 dalma ve bağlantılar dahil)
+    üzerindeki örnek noktalar: dist(p, ∂Ω) ≥ r − 1e-9 ve p ∈ Ω (adanın dışında)."""
     ref = POCKETS[name]
     tp = pocket_path(name, s)
     parts = [p for p in moves_of(tp) if p.type is not MoveType.RAPID]
@@ -344,11 +360,11 @@ def test_pocket_dumbbell_two_islands_of_work():
 # ---------------------------------------------------------------- K14: cep kalan malzeme yok
 
 
-def assert_covered(tp: Toolpath, P: np.ndarray, z: float) -> None:
+def assert_covered(tp: Toolpath, P: np.ndarray, z: float, tol: float = r + 1e-9) -> None:
     curves = curves_of(cutting_moves(tp, z))
     dist = curves.distance(P)
     worst = int(np.argmax(dist))
-    assert dist[worst] <= r + 1e-9, f"kalan malzeme: {P[worst]} uzaklık {dist[worst]}"
+    assert dist[worst] <= tol, f"kalan malzeme: {P[worst]} uzaklık {dist[worst]}"
 
 
 @pytest.mark.parametrize("s", [0.4 * D, 0.5 * D])
@@ -392,27 +408,55 @@ def test_pocket_island_coverage_every_pass():
 # ---------------------------------------------------------------- K15: hareket kuralları
 
 
-def all_paths() -> dict[str, tuple[Toolpath, Cut]]:
-    """Kural kontrolü için örnek yollar: yüz alma, kontur (dış/iç), adalı ve halter cep (çok pasolu)."""
-    out = {}
+def _pocket_case(name: str, s: float, climb: bool = True) -> tuple[Toolpath, Cut]:
+    c = make_cut(stepover=s)
+    return pocket(to_region(POCKETS[name]), make_tool(), c, climb=climb), c
+
+
+def _face_case() -> tuple[Toolpath, Cut]:
     c = make_cut(z_top=0.0, z_bottom=-1.0, a_p=0.6, stepover=FACE_S)
-    out["face"] = (face(FACE_STOCK, make_tool(), c), c)
+    return face(FACE_STOCK, make_tool(), c), c
+
+
+def _contour_case(side: str) -> tuple[Toolpath, Cut]:
     c = make_cut()
-    out["kontur_dis"] = (contour(Profile.rectangle(0.0, 0.0, 40.0, 20.0), make_tool(), c, "dis"), c)
-    out["kontur_ic"] = (contour(Profile.circle(CC, CR), make_tool(), c, "ic", climb=False), c)
-    c = make_cut(stepover=3.0)
-    out["cep_ada"] = (pocket(to_region(POCKETS["dikdortgen_ada"]), make_tool(), c), c)
-    out["cep_halter"] = (pocket(to_region(POCKETS["halter"]), make_tool(), c), c)
-    out["cep_L"] = (pocket(to_region(POCKETS["L"]), make_tool(), c), c)
-    return out
+    if side == "dis":
+        return contour(Profile.rectangle(0.0, 0.0, 40.0, 20.0), make_tool(), c, "dis"), c
+    return contour(Profile.circle(CC, CR), make_tool(), c, "ic", climb=False), c
+
+
+# Kural kontrolü için örnek yollar: yüz alma, kontur (dış/iç), adalı, halter ve L cep (çok pasolu);
+# SPEC 03b K6: r < s ≤ D cepler de aynı kurallara uyar.
+PATH_BUILDERS = {
+    "face": _face_case,
+    "kontur_dis": lambda: _contour_case("dis"),
+    "kontur_ic": lambda: _contour_case("ic"),
+    "cep_ada": lambda: _pocket_case("dikdortgen_ada", 3.0),
+    "cep_halter": lambda: _pocket_case("halter", 3.0),
+    "cep_L": lambda: _pocket_case("L", 3.0),
+    "cep_ada_0.7D": lambda: _pocket_case("dikdortgen_ada", 0.7 * D),
+    "cep_ada_D": lambda: _pocket_case("dikdortgen_ada", D),
+    "cep_L_0.6D": lambda: _pocket_case("L", 0.6 * D),
+    "cep_L_D_konvansiyonel": lambda: _pocket_case("L", D, climb=False),
+    "cep_daire_0.95D": lambda: _pocket_case("daire", 0.95 * D),
+    "cep_halter_D": lambda: _pocket_case("halter", D),
+}
+
+
+class _LazyPaths(dict):
+    """Yollar ilk istendiklerinde (test gövdesinde) üretilir: üretim hatası o testin hatası olur."""
+
+    def __missing__(self, name: str) -> tuple[Toolpath, Cut]:
+        self[name] = PATH_BUILDERS[name]()
+        return self[name]
 
 
 @pytest.fixture(scope="module")
 def paths():
-    return all_paths()
+    return _LazyPaths()
 
 
-PATH_NAMES = ["face", "kontur_dis", "kontur_ic", "cep_ada", "cep_halter", "cep_L"]
+PATH_NAMES = list(PATH_BUILDERS)
 
 
 @pytest.mark.parametrize("name", PATH_NAMES)
@@ -482,9 +526,11 @@ def test_feeds(paths, name):
             assert p.feed == cut.plunge_feed
 
 
-def test_pocket_inner_link_stays_down():
-    """Adasız dikdörtgen cepte (tek ağaç) halkalar arası geçiş inmeden G1 ile: paso başına tek dalma."""
-    cut = make_cut(stepover=3.0)
+@pytest.mark.parametrize("s", [3.0, 0.8 * D, D], ids=["r", "0.8D", "D"])
+def test_pocket_inner_link_stays_down(s):
+    """Adasız dikdörtgen cepte (tek ağaç) halkalar arası geçiş inmeden G1 ile: paso başına tek dalma
+    (SPEC 03b K6: r < s ≤ D'de de)."""
+    cut = make_cut(stepover=s)
     tp = pocket(Region(Profile.rectangle(0.0, 0.0, 60.0, 40.0)), make_tool(), cut)
     plunges = [p for p in moves_of(tp) if p.is_plunge]
     assert len(plunges) == len(depths(cut.z_top, cut.z_bottom, cut.a_p))
@@ -530,8 +576,10 @@ def test_stepover_required_for_pocket_and_face():
 
 def test_stepover_equal_D_allowed():
     """Sınır değer s = D yüz almada kabul edilir (0 < s ≤ D; Ek A1 yüz almayı değiştirmez).
-    Cepte sınır s = r (K17)."""
+    SPEC 03b K8: cepte de sınır yine s = D."""
     tp = face(FACE_STOCK, make_tool(), make_cut(z_top=0.0, z_bottom=-1.0, a_p=0.6, stepover=D))
+    tp.validate()
+    tp = pocket(Region(Profile.rectangle(0.0, 0.0, 60.0, 40.0)), make_tool(), make_cut(stepover=D))
     tp.validate()
 
 
@@ -594,9 +642,9 @@ def reachable(ref: RefBolge, P: np.ndarray) -> np.ndarray:
     return ok
 
 
-def assert_no_residue(ref: RefBolge, s: float, n: int = 45) -> None:
+def assert_no_residue(ref: RefBolge, s: float, n: int = 45, tol: float = r + 1e-9) -> None:
     """K14 ölçütü: tek pasolu cepte (z 0 → −2) erişilebilir her ızgara noktası bir kesme hareketine
-    ≤ r + 1e-9."""
+    ≤ tol (SPEC 03 / Ek A: r + 1e-9; SPEC 03b K5: r + COVER_TOL + 1e-9)."""
     tp = pocket(to_region(ref), make_tool(), make_cut(z_top=0.0, z_bottom=-2.0, a_p=5.0, stepover=s))
     tp.validate()
     pts = np.array(ref.outer[1]) if ref.outer[0] == "poly" else None
@@ -609,7 +657,7 @@ def assert_no_residue(ref: RefBolge, s: float, n: int = 45) -> None:
     P = grid(float(x0), float(x1), float(y0), float(y1), n, n)
     P = P[reachable(ref, P)]
     assert len(P) > 0
-    assert_covered(tp, P, -2.0)
+    assert_covered(tp, P, -2.0, tol)
 
 
 def test_reachable_matches_rectangle_corner_formula():
@@ -626,13 +674,18 @@ def test_reachable_matches_rectangle_corner_formula():
     assert np.array_equal(got[~near], exp[~near])
 
 
-# ------------------------------------------- K17: cepte yan paso sınırı s ≤ r
+# ------------------------------------------- K17: cepte s = r sınırı (Ek A1) → SPEC 03b K8
+#
+# Ek A1 cepte s > r'yi CamError yapmıştı. SPEC 03b (kalan malzeme denetimli halka ağacı) bu kuralı kaldırır:
+# cepte yine 0 < s ≤ D; r < s ≤ D değerleri K5 ölçütüyle (≤ r + COVER_TOL + 1e-9) kalan malzemesiz
+# kabul edilir.
 
 S_LIMIT_POCKETS = {
     "dikdortgen": RefBolge(RECT),
     "L": RefBolge(L_SHAPE),
     "dikdortgen_ada": RefBolge(RECT, [ISLAND]),
 }
+TOL_03B = r + COVER_TOL + 1e-9  # SPEC 03b "kalan malzeme yok" ölçütü
 
 
 @pytest.mark.parametrize("name", list(S_LIMIT_POCKETS))
@@ -643,30 +696,39 @@ def test_pocket_stepover_equal_r_accepted_no_residue(name):
 
 @pytest.mark.parametrize("name", ["dikdortgen", "L", "daire"])
 @pytest.mark.parametrize("s", [r + 1e-6, 0.8 * D, D], ids=["r+1e-6", "0.8D", "D"])
-def test_pocket_stepover_above_r_raises(name, s):
-    """K17: cepte s > r → CamError (s ≤ D olsa da; Ek A1 "cepte yan paso en fazla D/2")."""
+def test_pocket_stepover_above_r_accepted(name, s):
+    """SPEC 03b K8: Ek A1'in s > r → CamError beklentisi kalktı; bu değerler kabul edilir ve K5'e göre
+    kalan malzeme yok (erişilebilir her nokta bir kesme hareketine ≤ r + COVER_TOL + 1e-9)."""
     ref = POCKETS.get(name) or S_LIMIT_POCKETS[name]
-    with pytest.raises(CamError):
-        pocket(to_region(ref), make_tool(), make_cut(stepover=s))
+    assert_no_residue(ref, s, n=40, tol=TOL_03B)
 
 
 def test_pocket_stepover_error_message():
-    """K17: hata mesajı s'yi ve r = D/2'yi verir."""
-    with pytest.raises(CamError, match=r"4\.8") as e:
-        pocket(to_region(S_LIMIT_POCKETS["dikdortgen"]), make_tool(), make_cut(stepover=0.8 * D))
-    assert "3" in str(e.value)
+    """SPEC 03b K7/K8: cepte s > D → CamError kalır; mesaj s'yi verir."""
+    with pytest.raises(CamError, match=r"6\.5"):
+        pocket(to_region(S_LIMIT_POCKETS["dikdortgen"]), make_tool(), make_cut(stepover=D + 0.5))
+
+
+@pytest.mark.parametrize("s", [D + 1e-6, 1.5 * D])
+@pytest.mark.parametrize("name", ["dikdortgen", "L"])
+def test_pocket_stepover_above_D_raises(name, s):
+    """SPEC 03b K7: cepte s > D → CamError."""
+    with pytest.raises(CamError):
+        pocket(to_region(S_LIMIT_POCKETS[name]), make_tool(), make_cut(stepover=s))
 
 
 def test_l_pocket_arm_middle_not_left_uncut():
-    """K17'nin nedeni (Ek A1): L cepte (kollar 20 geniş) s = 0,6D kolların ortasını kesmeden bırakıyordu.
-    Artık bu stepover reddedilir; s = r'de kol ortaları (10, 35) ve (35, 10) kesilir."""
-    with pytest.raises(CamError):
-        pocket(to_region(S_LIMIT_POCKETS["L"]), make_tool(), make_cut(stepover=0.6 * D))
-    tp = pocket(
-        to_region(S_LIMIT_POCKETS["L"]), make_tool(), make_cut(z_top=0.0, z_bottom=-2.0, a_p=5.0, stepover=r)
-    )
-    dist = curves_of(cutting_moves(tp, -2.0)).distance(np.array([(10.0, 35.0), (35.0, 10.0)]))
-    assert np.all(dist <= r + 1e-9)
+    """Ek A1'in nedeni: L cepte (kollar 20 geniş) denetimsiz ağaç s = 0,6D'de kolların ortasını kesmeden
+    bırakıyordu. SPEC 03b K8: s = 0,6D kabul edilir ve kol ortaları (10, 35), (35, 10) kesilir
+    (s = r'de de)."""
+    for s in (0.6 * D, r):
+        tp = pocket(
+            to_region(S_LIMIT_POCKETS["L"]),
+            make_tool(),
+            make_cut(z_top=0.0, z_bottom=-2.0, a_p=5.0, stepover=s),
+        )
+        dist = curves_of(cutting_moves(tp, -2.0)).distance(np.array([(10.0, 35.0), (35.0, 10.0)]))
+        assert np.all(dist <= TOL_03B)
 
 
 @pytest.mark.parametrize("w", [30.0, 40.0], ids=["30x12", "40x12"])
@@ -742,6 +804,42 @@ def test_random_polygons_self_check():
 def test_pocket_no_residue_random(name, k):
     """K18: s ∈ {0,3D, 0,4D, 0,5D} için erişilebilir her örnek nokta bir kesme hareketine ≤ r + 1e-9."""
     assert_no_residue(RANDOM_POCKETS[name], k * D, n=40)
+
+
+# ------------------------------------------- SPEC 03b K5: r < s ≤ D cepte kalan malzeme yok
+
+K5_CASES = [
+    ("dikdortgen", RefBolge(RECT), [0.8, 1.0]),
+    ("daire", RefBolge(CIRCLE), [0.95]),
+    ("L", RefBolge(L_SHAPE), [0.6, 0.7, 1.0]),
+    ("dikdortgen_ada", RefBolge(RECT, [ISLAND]), [0.7, 1.0]),
+]
+
+
+@pytest.mark.parametrize("name, k", [(name, k) for name, _, ks in K5_CASES for k in ks], ids=lambda v: str(v))
+def test_pocket_no_residue_above_r(name, k):
+    """SPEC 03b K5: dikdörtgen (0,8D, D), daire (0,95D), L (0,6D, 0,7D, D), adalı (0,7D, D): erişilebilir
+    kümedeki ((Ω ⊖ B_r) ⊕ B_r) her örnek nokta bir kesme hareketine ≤ r + COVER_TOL + 1e-9."""
+    ref = {n: g for n, g, _ in K5_CASES}[name]
+    assert_no_residue(ref, k * D, tol=TOL_03B)
+
+
+@pytest.mark.parametrize("name", [n for n in RANDOM_POCKETS if n != "L"])
+@pytest.mark.parametrize("k", [0.6, 0.8, 1.0], ids=["0.6D", "0.8D", "D"])
+def test_pocket_no_residue_random_above_r(name, k):
+    """SPEC 03b K5: rastgele dışbükey / içbükey çokgenler, s ∈ {0,6D, 0,8D, D}: kalan malzeme yok."""
+    assert_no_residue(RANDOM_POCKETS[name], k * D, n=40, tol=TOL_03B)
+
+
+@pytest.mark.parametrize("k", [0.7, 1.0], ids=["0.7D", "D"])
+def test_pocket_no_residue_every_pass_above_r(k):
+    """SPEC 03b K5: çok pasolu adalı cepte her pasoda aynı ölçüt (Z pasoları XY'yi değiştirmez)."""
+    ref = RefBolge(RECT, [ISLAND])
+    tp = pocket(to_region(ref), make_tool(), make_cut(z_top=0.0, z_bottom=-5.0, a_p=2.0, stepover=k * D))
+    P = grid(0.0, 60.0, 0.0, 40.0, 30, 30)
+    P = P[reachable(ref, P)]
+    for z in depths(0.0, -5.0, 2.0):
+        assert_covered(tp, P, z, TOL_03B)
 
 
 # ------------------------------------------- K19: merkezden kesmeyen takım
