@@ -186,6 +186,7 @@ class Tool:
     stickout: float | None = None  # mm, tutucu ağzından takım ucuna boy
     holder: ToolHolder | None = None
     cutting: dict[str, CuttingData] = field(default_factory=dict)  # malzeme → kesme verisi (fz)
+    center_cutting: bool = True  # merkezden keser mi (False → düz dalma yok, SPEC 03 / 04)
 
     def __post_init__(self) -> None:
         self.kind = ToolKind(self.kind)
@@ -211,6 +212,10 @@ class Tool:
             _sonlu(nerede, stickout=self.stickout)
             if self.stickout < self.flute_length:
                 raise CamError(f"{nerede}: taşma boyu kesici boydan kısa olamaz ({self.stickout})")
+        if not isinstance(self.center_cutting, bool):
+            raise CamError(f"{nerede}: center_cutting bool olmalı ({self.center_cutting!r})")
+        if self.kind is ToolKind.DRILL and not self.center_cutting:
+            raise CamError(f"{nerede}: matkap merkezden keser; center_cutting=False olamaz")
         for malzeme, c in self.cutting.items():
             if c.fz is None:
                 raise CamError(f"{nerede}: '{malzeme}' kesme verisinde fz (mm/diş) olmalı")
@@ -240,6 +245,7 @@ class Tool:
             "stickout": self.stickout,
             "holder": None if self.holder is None else self.holder.to_dict(),
             "cutting": {k: v.to_dict() for k, v in self.cutting.items()},
+            "center_cutting": self.center_cutting,
         }
 
     @classmethod
@@ -248,7 +254,7 @@ class Tool:
             "Takım",
             d,
             {"id", "name", "kind", "D", "flute_length"},
-            {"corner_r", "flutes", "shank_d", "stickout", "holder", "cutting"},
+            {"corner_r", "flutes", "shank_d", "stickout", "holder", "cutting", "center_cutting"},
         )
         d = dict(d)
         if d.get("holder") is not None:
