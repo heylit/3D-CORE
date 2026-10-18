@@ -200,10 +200,11 @@ class _Writer:
 
 
 def _yazilabilir(tp: Toolpath) -> None:
-    """Geçici koruma (SPEC 00 Ek 2): bu yazıcı yalnız G17 / G94 / sabit devirli freze yolu yazar.
-    Torna yolları (G18, G95, G96) SPEC 21'in yazıcısına kadar sessizce yanlış yazılmasın diye reddedilir."""
+    """Koruma (SPEC 00 Ek 2, SPEC 21'de kalıcı): bu yazıcı yalnız G17 / G94 / sabit devirli freze yolu yazar.
+    Torna yolları `cam.gcode.lathe.write_lathe` ile yazılır; freze başlığındaki G90 / G94 Fanuc tornada
+    çevrim kodudur, bu yüzden torna yolu burada reddedilir."""
     if isinstance(tp.tool, LatheTool):
-        raise CamError(f"Takım yolu '{tp.name}': torna takımı bu yazıcıda desteklenmiyor (SPEC 21)")
+        raise CamError(f"Takım yolu '{tp.name}': torna yolu burada yazılmaz; write_lathe kullanın (SPEC 21)")
     if tp.plane is not Plane.XY:
         raise CamError(f"Takım yolu '{tp.name}': {tp.plane.value} düzlemi desteklenmiyor, yalnız G17")
     if tp.feed_mode is not FeedMode.PER_MIN:
