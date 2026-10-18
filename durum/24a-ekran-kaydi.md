@@ -6,6 +6,18 @@ Dal: `claude/project-thread-c0lzh0` · Oturum: bulut · Metin: `specs/24a-ekran-
 Kod yazıldı; PR #86 CI'da. Yeşilse birleşir. Sonra SPEC 25/26/37/47 ekranları kendi
 `tezgah/ekranlar/<ad>.py` ve `src/ekranlar/<ad>.ts` dosyalarını ekler.
 
+## Nerede kaldı (2026-10-18 19:15, kullanıcı isteğiyle durduruldu)
+Dal `claude/project-thread-c0lzh0` (PR henüz açılmadı; #128 birleşti aa8a683). Daldaki commit'ler:
+Ctrl K komut ekranı kancası (005ee4d), komut ekranı sekme değil + SPEC 63 gönder ucu iskeleti (1326921),
+SPEC 63 K8 bağımsız testi (95445e6, 288f9cd'den), Google Fonts kaldırıldı (84894a1), açılışta build123d
+yüklenmez + URL satırı flush (3ea4930).
+Sırada:
+1. #130 (atolye.dnc) main'e girince main'i dala merge et; gönder ucu kodu
+   `/mnt/project-files/tezgah-kanca/gonder-ucu-kodu.patch` (git apply) ayrı commit; #130 dalıyla 8/8 geçti.
+2. PR aç (kanca + gönder + yazı tipi + açılış), GitHub'da pytest + kapi yeşilse birleştir.
+3. Ctrl K kancasının bağımsız e2e testi (SPEC 62 test thread'i) gelince cherry-pick.
+4. #150 (B1) birleşince kabukta B1'in iki yeni proje alanını taşı (iskelet → ayrı test thread'i → kod).
+
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
 |---|---|---|---|
