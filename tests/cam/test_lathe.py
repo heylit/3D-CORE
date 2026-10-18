@@ -538,3 +538,47 @@ def test_k6_kanal_tabani_budaniyor():
     zs = sorted([taban[0].p0[0], taban[0].p1[0]])
     assert zs[0] == pytest.approx(-13.0 + RHO, abs=TOL)
     assert zs[1] == pytest.approx(-10.0 - RHO, abs=TOL)
+
+
+# ------------------------------------------------------------------ uç kapakları (SPEC 20 eki)
+# Son parçası ρ'dan kısa açık profil: z = −35'teki duvar 1 mm, ρ = r + δ = 1.1.
+# Budama profilin baş ve son noktası merkezli ρ yarıçaplı tam dairelerle de böler (uç kapakları);
+# silindir ofseti x = 16.1, son nokta (−35, 16) merkezli kapakla z = −35 + √(1.1² − 0.1²)'de kesişir.
+
+END_CAP_RHO = 1.1
+END_CAP_Z = -35.0 + math.sqrt(END_CAP_RHO**2 - 0.1**2)  # −33.904555...
+
+
+def short_wall_profile() -> Profile:
+    return poly((0.0, 10.0), (-20.0, 10.0), (-20.0, 15.0), (-35.0, 15.0), (-35.0, 16.0))
+
+
+def test_uc_kapagi_gevsek_modda_kapakta_biter():
+    prof = short_wall_profile()
+    ns = nose_path(prof, END_CAP_RHO, strict=False)
+    assert_connected(ns)
+    assert close(ns[-1].p1, (END_CAP_Z, 16.1))
+    assert END_CAP_Z == pytest.approx(-33.904555, abs=1e-6)
+
+
+def test_uc_kapagi_gevsek_modda_profile_rho_uzak():
+    prof = short_wall_profile()
+    ns = nose_path(prof, END_CAP_RHO, strict=False)
+    P = np.vstack([sample(ns), [ns[0].p0, ns[-1].p1]])  # uç noktalar dahil
+    d = curves(prof.segments).distance(P)
+    assert np.min(d) >= END_CAP_RHO - 1e-9, f"en yakın {np.min(d)} < ρ"
+
+
+def test_uc_kapagi_siki_modda_hata():
+    with pytest.raises(CamError):
+        nose_path(short_wall_profile(), END_CAP_RHO, strict=True)
+
+
+def test_uc_kapagi_kapaga_ulasmayan_profil_degismez():
+    # r = 0.8 < 1 mm duvar: son nokta eskisi gibi profil sonu + ρ·n = (−34.2, 16)
+    ns = nose_path(short_wall_profile(), R_NOSE, strict=True)
+    assert_connected(ns)
+    assert close(ns[-1].p1, (-35.0 + R_NOSE, 16.0))
+    assert any(close(s.p1, (-35.0 + R_NOSE, 15.0 + R_NOSE)) for s in ns[:-1])  # keskin iç köşe
+    d = curves(short_wall_profile().segments).distance(sample(ns))
+    np.testing.assert_allclose(d, R_NOSE, atol=1e-9)

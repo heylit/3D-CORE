@@ -51,6 +51,10 @@ Burun merkezi yolu, profilin boş tarafa `ρ` kadar ofsetidir (`ρ = r + δ`, `�
   düşer; tüm ham parçaların ikili kesişimleri bulunup parçalar bölünür; orta noktası profile `ρ − TOL`'den yakın olan alt parça
   atılır; kalanlar baştan sona bağlanır. Burun merkezi yolu, profil başlangıç noktasının `ρ·n₀` ötesinden başlar ve bitiş
   noktasının `ρ·n_son` ötesinde biter.
+  Bölme, profilin başlangıç ve bitiş noktası merkezli `ρ` yarıçaplı daireler (**uç kapakları**) ile de yapılır; bu daireler
+  yola eklenmez, yalnız içlerine giren alt parçaların atılmasını sağlar. Bir uç parçanın ofseti budamada tamamen silinirse
+  burun merkezi yolu, kalan son parçanın uç kapağına değdiği noktada başlar/biter (kaba çevrimde hata değildir; sıkı modda
+  "Erişilemeyen profil" kuralı uygulanır).
 - **Erişilemeyen profil** (sıkı mod, ince profil): ofset yarıçapı `R − r ≤ TOL` olan içbükey yay **veya** budamada ofseti
   tamamen silinen bir profil parçası (örn. genişliği `2r`'den dar kanal tabanı) → `CamError`. Sessizce malzeme bırakılmaz.
   Kaba çevrimde (`ρ = r + δ`) bu durumlar hata değildir; o bölgede fazla malzeme kalır ve ince paso sıkı modda kontrol eder.
@@ -187,7 +191,7 @@ Geometrik değerlerde tolerans aksi yazılmadıkça mutlak `1e-9 mm`. Test profi
 - [ ] K3 Açılar ve erişim: silindir `φ = 0`, alın / omuz `φ = 90°`, 30° koni `φ = 30°`, geri çekme `φ < 0`; `is_monotone`; `κr = 93°` omzu işler, `κr = 60°` → `CamError`; `κr' `'den dik iniş → `CamError` — `tests/cam/test_lathe.py`
 - [ ] K4 Telafi, doğru: silindir ve alında `T = 3` hayali uç yolu profilin kendisi; koni (`α = 30°`, `45°`) için `ΔX = −r(1 − tan(45° − α/2))` ve `ΔZ = −r(1 − tan(α/2))`; `T = 0` hayali uç = burun merkezi (`ρ·n` kayması) — `tests/cam/test_lathe.py`
 - [ ] K5 Telafi, yay: dışbükey yay → merkez `c + q_T`, yarıçap `R + r`; içbükey yay → `R − r`; `R ≤ r` içbükey yay → sıkı modda `CamError`, `strict=False`'ta yay düşüyor — `tests/cam/test_lathe.py`
-- [ ] K6 Köşeler: omuzda (içbükey 90°) burun merkezi köşesi `(z_s + ρ, x_f + ρ)` keskin; pah üstünde (dışbükey) `V` merkezli `ρ` yarıçaplı yay; `2r`'den dar kanal → sıkı modda `CamError`; budama sonrası burun merkezi yolundaki örnek noktaların profile uzaklığı `ρ` (± 1e-9) — `tests/cam/test_lathe.py`
+- [ ] K6 Köşeler: omuzda (içbükey 90°) burun merkezi köşesi `(z_s + ρ, x_f + ρ)` keskin; pah üstünde (dışbükey) `V` merkezli `ρ` yarıçaplı yay; `2r`'den dar kanal → sıkı modda `CamError`; budama sonrası burun merkezi yolundaki örnek noktaların profile uzaklığı `ρ` (± 1e-9); örnek noktaların profile (uç noktaları dahil) uzaklığı ≥ `ρ − 1e-9` — `tests/cam/test_lathe.py`
 - [ ] K7 `TurnCut` doğrulamaları ve `a_p` zorunluluğu → `CamError` — `tests/cam/test_lathe_ops.py`
 - [ ] K8 `face`: paso sayısı `⌈H/a_p⌉`, temas düzlemleri `z_i`, son paso tam `z_face`; `T = 3` dolu çubukta uç `x = −r`'ye iniyor, boruda `max(0, d/2 − cl)`; hatalı `z_face` → `CamError` — `tests/cam/test_lathe_ops.py`
 - [ ] K9 `turn`: paso sayısı `⌈(X_s − X_f)/a_p⌉`, seviyeler `x_k = X_s − k·H/n`, boyuna paso uçları `P_z = z_end`, kontur pasosu `X_f`'de ve omuzda; iç tarafta (boru) aynı formüller aynada — `tests/cam/test_lathe_ops.py`
