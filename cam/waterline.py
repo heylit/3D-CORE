@@ -26,8 +26,10 @@ from cam.model import CamError, Move, MoveType, Tool, Toolpath
 _KESIT = 7  # çok parçalı bölmede tur başına iç nokta (aralık 8'e bölünür)
 _TUR = 18  # bölme turu: aralık 8⁻¹⁸ = 2⁻⁵⁴ katına iner
 _BOLME_TOL = 1e-10  # uyarlamalı bölme noktalarının doğruluğu [mm]
-_LIF_TUR = 56  # lif aralığı uçları: aralık 2⁻⁵⁶ katına (makine duyarlığı) iner; uç bir lif çizgisine
-# denk geldiğinde X ve Y liflerinin aynı kararı vermesi için kaba doğruluk yetmez (örgü tutarlılığı)
+# Lif aralığı uçları makine duyarlığına (≈ 2⁻⁵⁴) iner: uç bir lif çizgisine denk geldiğinde X ve Y
+# liflerinin aynı kararı vermesi için kaba doğruluk yetmez (örgü tutarlılığı).
+_AZ_SATIR = 64  # uyarlamalı bölmede bundan az satırda çok parçalı bölme
+_COK_SATIR = 2000  # bundan çok satırda yüklem satır sayısıyla pahalanır → çok parçalı yerine ikiye bölme
 _ORNEK = 8  # uyarlamalı bölmede dik doğrultudaki örnek sayısı
 
 
@@ -53,10 +55,20 @@ def _gecis(yuklem, a: np.ndarray, b: np.ndarray, kesit: int = _KESIT, tur: int =
 
 
 def _ikiye(yuklem, a: np.ndarray, b: np.ndarray) -> np.ndarray:
-    """_gecis'in ikiye bölme biçimi: en uzun aralık _BOLME_TOL'a inene kadar (pahalı yüklem için)."""
+    """Uyarlamalı bölmenin sınır noktası: en uzun aralık _BOLME_TOL'a inene kadar. Az satırda çağrı
+    başına sabit maliyet baskın → çok parçalı (az tur); çok satırda ikiye bölme (az yüklem)."""
     boy = float(np.max(np.abs(b - a))) if len(a) else 0.0
-    tur = max(1, math.ceil(math.log2(max(boy, _BOLME_TOL) / _BOLME_TOL)) + 1)
-    return _gecis(yuklem, a, b, 1, tur)
+    bit = math.log2(max(boy, _BOLME_TOL) / _BOLME_TOL)
+    if len(a) <= _AZ_SATIR:
+        return _gecis(yuklem, a, b, _KESIT, max(1, math.ceil(bit / 3) + 1))
+    return _gecis(yuklem, a, b, 1, max(1, math.ceil(bit) + 1))
+
+
+def _lif_gecis(yuklem, a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    """Lif aralığı ucu: az satırda çok parçalı (tur sayısı az), çok satırda ikiye bölme (yüklem az)."""
+    if len(a) > _COK_SATIR:
+        return _gecis(yuklem, a, b, 1, 3 * _TUR + 2)  # 2⁻⁵⁶
+    return _gecis(yuklem, a, b)  # 8⁻¹⁸ = 2⁻⁵⁴
 
 
 # ---------------------------------------------------------------- lifler ve aralıklar
@@ -87,13 +99,14 @@ def _birlestir(A: np.ndarray, B: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     return ca[uzun], cb[uzun]
 
 
-def _tanim(P: np.ndarray, y0: np.ndarray, R: float) -> tuple[np.ndarray, np.ndarray]:
-    """y = y0 doğrusunun {c : dist(c, üçgen_xy) ≤ R} ile kesişimi [ta, tb] (boşsa ta > tb).
+def _tanim(P: np.ndarray, y0: np.ndarray, R: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """y = y0 doğrusunun {c : dist(c, üçgen_xy) ≤ R} ile kesişimi [ta, tb] (boşsa ta > tb); R üçgen başına.
 
     Bölge dışbükeydir; sınırı köşe yayları ve R kadar kaydırılmış kenarlardan oluşur → uçlar bu
     parçaların doğruyla kesişimlerinin en küçüğü ve en büyüğü.
     """
     k = len(P)
+    R = np.broadcast_to(np.asarray(R, dtype=float), (k,))
     ta = np.full(k, np.inf)
     tb = np.full(k, -np.inf)
 
@@ -116,7 +129,7 @@ def _tanim(P: np.ndarray, y0: np.ndarray, R: float) -> tuple[np.ndarray, np.ndar
         with np.errstate(divide="ignore", invalid="ignore"):
             nu = np.column_stack([-e[:, 1], e[:, 0]]) / L[:, None]
         for sgn in (1.0, -1.0):
-            a = A + sgn * R * nu
+            a = A + sgn * R[:, None] * nu
             ya, yb = a[:, 1] - y0, a[:, 1] + e[:, 1] - y0
             ok = ok_e & (ya * yb <= 0) & (e[:, 1] != 0)
             with np.errstate(divide="ignore", invalid="ignore"):
@@ -139,11 +152,13 @@ def _lif_araliklari(
     P: np.ndarray, n: np.ndarray, Vu: np.ndarray, K: Cutter, z: float, ys: np.ndarray
 ) -> list[tuple[np.ndarray, np.ndarray]]:
     """X lifleri (y = ys[j]) üzerinde I(z)'nin aralıkları: üçgen başına tek aralık, birleşim."""
-    R = K.R
-    yuksek = P[:, :, 2].max(axis=1) > z  # z_tri ≤ max P_z
+    zmax = P[:, :, 2].max(axis=1)
+    yuksek = zmax > z  # z_tri ≤ max P_z
     Py, ny = P[yuksek], n[yuksek]
-    ymin = Py[:, :, 1].min(axis=1) - R
-    ymax = Py[:, :, 1].max(axis=1) + R
+    # z_tri(c) ≤ max P_z − f(dist(c, üçgen_xy)) → girişim yalnız dist < f⁻¹(max P_z − z) iken (uzanım ≤ R)
+    uzan = K.f_ters(zmax[yuksek] - z)
+    ymin = Py[:, :, 1].min(axis=1) - uzan
+    ymax = Py[:, :, 1].max(axis=1) + uzan
     Vy = Vu[Vu[:, 2] > z]
     sonuc = []
     jl, tl, tal, tbl = [], [], [], []
@@ -154,7 +169,7 @@ def _lif_araliklari(
         tri = np.nonzero((ymin <= y0) & (ymax >= y0))[0]
         if len(tri) == 0:
             continue
-        ta, tb = _tanim(Py[tri], np.full(len(tri), y0), R)
+        ta, tb = _tanim(Py[tri], np.full(len(tri), y0), uzan[tri])
         ok = ta <= tb
         if len(ka):  # tanım aralığı bir köşe aralığının içinde → birleşimi değiştiremez
             i = np.searchsorted(ka, ta, side="right") - 1
@@ -220,10 +235,10 @@ def _ucgen_araliklari(
     b[s] = tb[s]
     if np.any(~sol_ic):
         r = np.nonzero(~sol_ic)[0]
-        a[s[r]] = _gecis(lambda t, q, r=r: yuklem(t, r[q]), ta[s[r]], t_ic[s[r]], 1, _LIF_TUR)
+        a[s[r]] = _lif_gecis(lambda t, q, r=r: yuklem(t, r[q]), ta[s[r]], t_ic[s[r]])
     if np.any(~sag_ic):
         r = np.nonzero(~sag_ic)[0]
-        b[s[r]] = _gecis(lambda t, q, r=r: yuklem(t, r[q]), t_ic[s[r]], tb[s[r]], 1, _LIF_TUR)
+        b[s[r]] = _lif_gecis(lambda t, q, r=r: yuklem(t, r[q]), t_ic[s[r]], tb[s[r]])
     return a, b
 
 
@@ -300,13 +315,15 @@ def _orgu(xs: np.ndarray, ys: np.ndarray, X: list, Y: list) -> list[np.ndarray]:
 def _bol(L: np.ndarray, icinde, tol: float, ds_min: float) -> np.ndarray:
     """Parça orta noktasından dik doğrultuda sınır aranır; |q − m| > tol ise q araya girer.
 
-    Döngü I(z) sağda olacak yöndedir → dışa bakan normal sol normaldir.
+    Döngü I(z) sağda olacak yöndedir → dışa bakan normal sol normaldir. Sonucu belli olan parça (değişim
+    yok veya q tol içinde) bir daha sorgulanmaz; yalnız yeni eklenen noktanın iki yanı yeniden bakılır.
     """
+    bitti = np.zeros(len(L), dtype=bool)  # i: L[i] → L[i+1] parçası
     while True:
         Q = np.roll(L, -1, axis=0)
         e = Q - L
         boy = np.hypot(e[:, 0], e[:, 1])
-        aday = np.nonzero(boy / 2 >= ds_min)[0]
+        aday = np.nonzero((boy / 2 >= ds_min) & ~bitti)[0]
         if len(aday) == 0:
             return L
         m = (L[aday] + Q[aday]) / 2
@@ -324,6 +341,7 @@ def _bol(L: np.ndarray, icinde, tol: float, ds_min: float) -> np.ndarray:
             s_hi = np.where(degisti, s, s_hi)
             s_lo = np.where(bekle & ~degisti, s, s_lo)
         var = ~np.isnan(s_hi)
+        bitti[aday[~var]] = True
         if not np.any(var):
             return L
         lo, hi = s_lo[var], s_hi[var]
@@ -331,10 +349,13 @@ def _bol(L: np.ndarray, icinde, tol: float, ds_min: float) -> np.ndarray:
         orta = _ikiye(lambda t, q, mv=mv, yv=yv: icinde(mv[q] + t[:, None] * yv[q]), lo, hi)
         q = mv + orta[:, None] * yv
         uzak = np.hypot(*(q - mv).T) > tol
+        bitti[aday[var][~uzak]] = True
         if not np.any(uzak):
             return L
         sira = aday[var][uzak] + 1
         L = np.insert(L, sira, q[uzak], axis=0)
+        bitti = np.insert(bitti, sira, False)
+        bitti[sira - 1 + np.arange(len(sira))] = False  # bölünen parçanın ilk yarısı
 
 
 # ---------------------------------------------------------------- arayüz

@@ -189,7 +189,8 @@ def _duz(P: np.ndarray, n: np.ndarray, c: np.ndarray, r: float) -> np.ndarray:
 
 
 _ALTIN = (math.sqrt(5) - 1) / 2
-_ALTIN_ADIM = 64  # aralık 0.618⁶⁴ ≈ 4e-14 katına iner
+_ALTIN_ADIM = 44  # aralık 0.618⁴⁴ ≈ 6e-10 katına iner; profil C¹ olduğundan (koni kapalı formda)
+# en büyük değerin hatası aralığın karesiyle orantılı, ~1e-18 mertebesinde
 
 
 def altin(g, a: np.ndarray, b: np.ndarray, adim: int = _ALTIN_ADIM) -> tuple[np.ndarray, np.ndarray]:
