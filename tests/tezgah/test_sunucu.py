@@ -61,10 +61,15 @@ def _beklenen(J_once: dict, islem: int | None = None, anahtar: str | None = None
 
 
 def test_list_jobs():
+    """Örnek freze işleri listenin başında; A3 ile diğer ekranların işleri (ör. torna) arkadan gelebilir."""
     istemci = _istemci()
     r = istemci.get("/api/isler")
     assert r.status_code == 200
-    assert r.json() == {"sema": SEMA, "isler": list(ORNEK_ISLER)}
+    J = r.json()
+    assert set(J) == {"sema", "isler"}
+    assert J["sema"] == SEMA
+    assert J["isler"][: len(ORNEK_ISLER)] == list(ORNEK_ISLER)
+    assert len(J["isler"]) == len(set(J["isler"]))
 
 
 def test_get_job():

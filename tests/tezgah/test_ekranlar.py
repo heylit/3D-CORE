@@ -98,6 +98,10 @@ def sahte_paket(tmp_path, monkeypatch):
     kok = tmp_path / "sahte_ekranlar"
     kok.mkdir()
     monkeypatch.setattr(paket, "__path__", [str(kok)])
+    # Önceden import edilmiş gerçek ekranlar (ör. başka testin topladığı analiz) sahtelerin yerine geçmesin;
+    # monkeypatch teardown'da onları geri koyar.
+    for k in [k for k in sys.modules if k.startswith(f"{paket.__name__}.")]:
+        monkeypatch.delitem(sys.modules, k)
     onceki = set(sys.modules)
     importlib.invalidate_caches()
     yield kok
@@ -694,12 +698,17 @@ def test_invalid_definition_cam_error_and_store_unchanged(depo, bozuk):
 
 
 def test_reset_removes_dynamic_jobs(depo):
-    """K7: POST /api/sifirla dinamik işleri siler; örnek işler kalır."""
+    """K7: POST /api/sifirla dinamik işleri siler; ekranların sabit örnek işleri kalır.
+
+    Karşılaştırma uygulama açılırkenki listeyle yapılır (ör. SPEC 25 tornası kendi örneğini ekler).
+    """
     istemci = depo()
+    baslangic = _is_listesi(istemci)
+    assert set(ORNEK_ISLER) <= set(baslangic)
     is_kaydet(DINAMIK, dataclasses.replace(o.kucuk_is(), ad=DINAMIK))
     assert DINAMIK in _is_listesi(istemci)
     assert istemci.post("/api/sifirla").status_code == 200
-    assert _is_listesi(istemci) == list(ORNEK_ISLER)
+    assert _is_listesi(istemci) == baslangic
     assert istemci.get(f"/api/is/{DINAMIK}").status_code == 404
 
 
