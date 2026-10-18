@@ -12,6 +12,6 @@
   - smooth_axes: kesme dizisi = ekseni dolu, aynı ilerlemeli ardışık G1'ler (dalma ayrı dizi).
     Torikte yeni eksen eski uçtan geçen doğruda 42 drop'uyla; kin verilirse ulaşılamayan eksen eski kalır.
   - finish5 torik: sürüş noktası düşey drop ucu + R·ẑ; Ek A |c − c₀| denetimi yalnız küresel uçta.
-  - rough5: ds_min = 0.05 (DS_MIN; test yazarının önerisi, SPEC Ek A metni onayla düzeltilecek).
+  - rough5: ds_min = 0.05 (DS_MIN; SPEC Ek A, kullanıcı onayıyla düzeltildi).
     Hava atlama: tek yolun 43 simülasyonunda v_min'den az kaldıran ardışık G1'ler z_safe'te G0 bağlantıya
     (yukarı, üstten, aşağı) çevrilir. Son stok yolların sırayla simülasyonu (yollar arası bağlantı yok).

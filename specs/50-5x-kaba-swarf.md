@@ -117,7 +117,7 @@ Aşağıdakiler testin ihtiyaç duyduğu tanımları sabitler (koordinatör kara
   `clearance = 1.0` [mm, mm/dk, dev/dk]. `rough5`'e ayrıca `max_tilt = 30.0` [°] parametresi eklenir (yönelim ekseninin
   +Z ile en büyük açısı; aşan `F_i` → `CamError`). Her `F_i` için 06 kabanın girdileri yerel stoktan türetilir:
   stok = `local_stock(stock, F_i)` (41; ilk stok kutusu, kalan malzeme tri-dexel'den hava atlamayla hesaba girer),
-  raster dikdörtgeni = bu yerel stoğun XY'si, `ds = ds_min = stepover`, `tol = 0.01`, `z_safe = zmax_yerel + 5`,
+  raster dikdörtgeni = bu yerel stoğun XY'si, `ds = stepover`, `ds_min = 0.05` (kullanıcı onayı 2026-10-18 17:57 UTC), `tol = 0.01`, `z_safe = zmax_yerel + 5`,
   `direction = "x"`, `z_bottom = max(zmin_yerel_stok, zmin_yerel_ağ)`. Böylece K1'de `F = +Z` (başlangıç 0) ve
   `v_min = 0` iken yol `ops3d.rough(mesh, stock, tool, Raster(...), a_p, z_bottom, allowance)` ile aynıdır.
 - `rough5(..., machine=None, setup=None, max_tilt=30.0)`: `machine` (44 `MachineModel`) verilirse `setup` zorunlu; her
