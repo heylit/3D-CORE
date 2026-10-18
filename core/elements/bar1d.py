@@ -46,3 +46,12 @@ def axial_force(element: Element, model: Model, u: np.ndarray) -> float:
     u1, u2 = (u[i] for i in dofs(element, model))
     uzama = (u2 - u1) if n2.x > n1.x else (u1 - u2)
     return float(_EA_L(element, model) * uzama)
+
+
+def me(element: Element, model: Model, lumped: bool = False) -> np.ndarray:
+    """Kütle matrisi [t] (specs/45-modal.md).
+
+    tutarlı:   ρAL/6 · [[2, 1], [1, 2]]      toplanmış: ρAL/2 · I₂
+    ρ ≤ 0 → ModelError.
+    """
+    raise NotImplementedError("SPEC 45: bar1d.me")

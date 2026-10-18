@@ -1,5 +1,7 @@
 # SPEC 45 — Modal analiz ve kesme kuvveti altında sehim (Dalga 5, H16)
 
+> Onaylandı: kullanıcı, 2026-10-18 11:13 UTC, Dalga 5 toplu yazılı onayı ("önerilerle").
+
 ## Amaç
 FEM modelinin doğal frekanslarını ve mod şekillerini (`K φ = ω² M φ`) hesaplamak ve bir kesme kuvvetinin
 ağdaki bir parçada takım temas noktasında yarattığı sehimi (statik uyum) vermek: CAM ile FEM arasındaki

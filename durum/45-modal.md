@@ -3,15 +3,21 @@
 Dal: `claude/spec-45-modal-xigwto` · Oturum: bulut thread "Modal analiz ve kesme sehimi (SPEC 45)"
 
 ## Sıradaki adım
-SPEC metni kullanıcı onayını bekliyor. Onaydan sonra `NotImplementedError` iskeleti (SPEC 12 dalının üstüne
-kurulabilir), iskelet hash'i koordinatöre, ayrı test thread'inin commit'i cherry-pick, kod ayrı commit'te.
+İskelet push edildi; ayrı test thread'inin test commit'i bekleniyor (cherry-pick), sonra kod ayrı commit'te.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
 |---|---|---|---|
 | 2026-10-18 | — | — | Yalnız SPEC metni; kod yok. |
+| 2026-10-18 | — | — | İskelet; SPEC 45 testleri henüz yok. |
 
 ## Son oturum
+**2026-10-18 — Onay ve iskelet**
+- SPEC metni kullanıcı tarafından onaylandı (11:13 UTC, Dalga 5 toplu yazılı onayı, "önerilerle").
+- Dal, SPEC 12 dalı (`claude/project-thread-eioc8y`, PR #61) ile birleştirildi: `analiz` `mesh` adlarını kullanır.
+- `NotImplementedError` iskeleti: `bar1d.me`, `tet4.me`, `assemble_M`, `core/modal.py` (`ModalResult` dataclass gerçek),
+  `analiz/` (`Sehim` dataclass gerçek), `examples/45_modal_cubuk.json`.
+
 **2026-10-18 — SPEC taslağı**
 - `specs/45-modal.md` yazıldı: eleman kütle matrisleri (`me`, tutarlı + toplanmış), `assemble_M`, `core/modal.py`
   (`modal`, `ModalResult`, `effective_mass`, `model_mass`), yeni `analiz/` köprü paketi (`nokta_kuvveti`,

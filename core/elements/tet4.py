@@ -117,3 +117,12 @@ def strain(element: Element, model: Model, u: np.ndarray) -> np.ndarray:
 def stress(element: Element, model: Model, u: np.ndarray) -> np.ndarray:
     """σ = D B d  (6,) [MPa]."""
     return D(model.material(element.material)) @ strain(element, model, u)
+
+
+def me(element: Element, model: Model, lumped: bool = False) -> np.ndarray:
+    """Kütle matrisi (12 x 12) [t], DOF sırası ke ile aynı (specs/45-modal.md).
+
+    tutarlı:   ρV/20 · (1 + δ_ab) ⊗ I₃       toplanmış: ρV/4 · I₁₂
+    Hatalar ke ile aynı, ek olarak ρ ≤ 0 → ModelError.
+    """
+    raise NotImplementedError("SPEC 45: tet4.me")

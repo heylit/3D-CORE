@@ -39,3 +39,12 @@ def assemble_F(model: Model) -> np.ndarray:
     for ld in model.loads:
         F[model.dof_index(ld.node, ld.dof)] += ld.value
     return F
+
+
+def assemble_M(model: Model, lumped: bool = False) -> sp.csr_matrix:
+    """Tüm elemanların me matrislerini global M'ye ekler (n_dof x n_dof, seyrek) [t].
+
+    assemble_K ile aynı COO birleştirmesi. Eleman me sağlamıyorsa ModelError.
+    Teori: specs/45-modal.md
+    """
+    raise NotImplementedError("SPEC 45: assemble_M")
