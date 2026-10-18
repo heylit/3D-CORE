@@ -167,6 +167,15 @@ test.describe("Tezgah torna ve montaj uçtan uca @slow", () => {
     }
   });
 
+  test("#/torna?is=<ad> torna ekranını o işle açar (A3 iş deposu)", async ({ page, request }) => {
+    const is: Is = await (await request.get("/api/ekran/torna/is/kademeli_mil")).json();
+    await page.goto("/#/torna?is=kademeli_mil");
+    await hazir(page);
+    expect(etkin(page)).toBe("torna");
+    await expect.poll(() => kanca(page, (k) => k.torna.gcodeSatirSayisi())).toBe(is.gcode.length);
+    expect(await kanca(page, (k) => k.torna.toplamSure())).toBeCloseTo(is.sure.toplam, 9);
+  });
+
   test("torna: satırın üstünde hayali uç satırın uç noktasında, DRO X satırdaki sayı; S kesit, R yarıçap", async ({
     page,
     request,
