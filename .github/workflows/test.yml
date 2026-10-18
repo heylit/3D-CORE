@@ -36,7 +36,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends libosmesa6
           pip install -e ".[viz]"
           python -c "import pyvista as pv; p = pv.Plotter(off_screen=True, window_size=(64, 48)); p.add_mesh(pv.Cube()); assert p.screenshot(return_img=True).shape == (48, 64, 3)"
-      - run: pip install -e ".[dev,cad]"
+      - run: pip install -e ".[dev,cad,web]"   # web: SPEC 24 Tezgah testleri (tests/tezgah) atlanmasın
       - name: CalculiX (ccx) kur  # FEM çapraz kontrolü (tests/reference/test_calculix.py) atlanmasın
         run: |
           sudo apt-get update -qq
@@ -45,3 +45,13 @@ jobs:
       - run: ruff check .
       - run: ruff format --check .
       - run: pytest -rs --uygulanmamis-hata   # -rs: atlanan testler ve nedenleri logda; NotImplementedError PR'da kırmızı (conftest.py)
+      - name: LinuxCNC rs274 çapraz kontrolü  # Ubuntu 24.04'te LinuxCNC paketi yok: Debian kapsayıcısında
+        run: |
+          docker run --rm -v "$PWD:/w" -w /w debian:trixie bash -euo pipefail -c '
+            apt-get update -qq
+            apt-get install -y -qq --no-install-recommends \
+              linuxcnc-uspace python3-numpy python3-scipy python3-pytest > /dev/null
+            command -v rs274
+            python3 -m pytest -rs -p no:cacheprovider --uygulanmamis-hata \
+              tests/reference/test_gcode_crosscheck.py -k rs274
+          '
