@@ -288,7 +288,9 @@ class Eslesmeme:
 - [ ] K11 `uygula`: girdi montaj değişmiyor; yeni adlar tekil ve kurala uygun (mevcut `vida_1` varken
   `vida_2`); `Assembly.validate` geçiyor; `assy.solver.solve` 0 iterasyonla dönüyor; `to_dict` / `from_dict`
   gidiş-dönüşü eşit; eklenen her `Component.part` için `parca(...)` kuruluyor (`@pytest.mark.occt` kısmı) — `test_oneri.py`
-- [ ] K12 Değişmezlik: bütün montaj keyfi rijit G ile taşınınca aynı M, L, kod ve eklenen T'ler `G·T` (1e-9) — `test_oneri.py`
+- [ ] K12 Değişmezlik: bütün montaj keyfi rijit G ile taşınınca aynı M, L, kod; eklenen parçaların konumu `G·t` ve
+  ekseni `G·(R e_z)` (1e-9). Tam eşitlik `T' = G·T` yalnız dönme ekseni dizi eksenine dik olan G için beklenir
+  (en küçük dönme kuralı eksen etrafındaki açıyı G'den bağımsız seçer; düzeltme 2026-10-18, kullanıcı onayı) — `test_oneri.py`
 - [ ] K13 Hatalar: `parts`'ta olmayan kimlik, `kappa ≤ 0`, `tol ≤ 0` → `AssyError` — `test_oneri.py`
 - [ ] Tüm testler yeşil (`pytest` 0 failed, bu SPEC'te 0 "uygulanmamış"), `ruff check .` ve
   `ruff format --check .` temiz
