@@ -11,6 +11,7 @@ Bağımlılık yoksa (SPEC 29 kodu, SPEC 28, OCCT) test atlanır; SPEC 29 iskele
 
 from __future__ import annotations
 
+import importlib
 import json
 import re
 
@@ -66,18 +67,16 @@ def planla(g, lib: ToolLibrary | None = None, secenekler: dict | None = None):
     """Girdinin planı, doğrudan SPEC 29 ile (köprüsüz)."""
     lib = g.lib if lib is None else lib
     s = {**g.secenekler, **(secenekler or {})}
+    # importlib: modüller henüz olmayabilir; ruff sürümleri arası import sıralama farkına da takılmaz
     if g.tur == "torna":
-        from cam.plan_turn import TurnOptions, plan_turn
-        from cam.turn_profile import turn_profile
-
-        tp = turn_profile(g.part)
-        return plan_turn(tp.outer, g.stok, lib, g.malzeme, TurnOptions(**s), inner=tp.inner)
-    from cam.plan import MillOptions, plan_mill, plan_mill_features
-
-    opt = MillOptions(**s)
+        pt = importlib.import_module("cam.plan_turn")
+        tp = importlib.import_module("cam.turn_profile").turn_profile(g.part)
+        return pt.plan_turn(tp.outer, g.stok, lib, g.malzeme, pt.TurnOptions(**s), inner=tp.inner)
+    pm = importlib.import_module("cam.plan")
+    opt = pm.MillOptions(**s)
     if g.part is None:
-        return plan_mill_features(g.features, g.part_zmin, g.stok, lib, g.malzeme, options=opt)
-    return plan_mill(g.part, g.stok, lib, g.malzeme, options=opt)
+        return pm.plan_mill_features(g.features, g.part_zmin, g.stok, lib, g.malzeme, options=opt)
+    return pm.plan_mill(g.part, g.stok, lib, g.malzeme, options=opt)
 
 
 def takim_degisimi(plan) -> int:
