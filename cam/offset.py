@@ -82,8 +82,10 @@ def _split_all(pieces: list[Segment]) -> list[Segment]:
                 params[j].append(tj)
     out: list[Segment] = []
     for s, ts in zip(pieces, params, strict=True):
-        ts = sorted(ts)
         L = s.length
+        # Uca LINK_TOL'dan yakın kesişim uçtur: teğet bağlantılarda (doğru-yay) kesişim
+        # karekökle ~1e-8 kayar; ayrı nokta sayılırsa parça ucu o kadar kayar, halka açılır.
+        ts = sorted([0.0, 1.0] + [t for t in ts if LINK_TOL < t * L < L - LINK_TOL])
         for t0, t1 in zip(ts[:-1], ts[1:], strict=True):
             if (t1 - t0) * L > LINK_TOL:
                 out.append(s.sub(t0, t1))
@@ -192,19 +194,32 @@ def offset(region: Region, d: float) -> list[Region]:
     """Bölgenin d ofseti; d > 0 iç, d < 0 dış. Boş olabilir. Dar boğazda birden çok bölge döner."""
     if not isinstance(region, Region):
         raise CamError("offset: Region bekleniyor")
+    return offset_union([region], d)
+
+
+def offset_union(regions: list[Region], d: float) -> list[Region]:
+    """SPEC 03b — ayrık bölgelerin birleşimi ∪R_i'nin d ofseti; d < 0'da bileşenler birleşebilir.
+
+    Tüm halkaların ham ofsetleri birlikte budanır: dist(m, ∪∂R_i) ≥ |d| ve (m ∈ ∪R_i ⇔ d > 0).
+    """
+    if not all(isinstance(rg, Region) for rg in regions):
+        raise CamError("offset_union: Region listesi bekleniyor")
     d = float(d)
     if abs(d) < TOL:
         raise CamError("offset: d sıfır olamaz")
+    if not regions:
+        return []
     raw: list[Segment] = []
-    for loop in region.loops:
-        raw.extend(_raw_offset(loop, d))
+    for rg in regions:
+        for loop in rg.loops:
+            raw.extend(_raw_offset(loop, d))
     pieces = _split_all(raw)
     keep = []
     for s in pieces:
         m = _mid(s)
-        if distance_to_region(m, region) < abs(d) - KEEP_TOL:
+        if min(distance_to_region(m, rg) for rg in regions) < abs(d) - KEEP_TOL:
             continue
-        if region.contains(m) != (d > 0):
+        if any(rg.contains(m) for rg in regions) != (d > 0):
             continue
         keep.append(s)
     loops = []

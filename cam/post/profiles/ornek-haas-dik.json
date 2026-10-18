@@ -1,0 +1,17 @@
+{
+  "name": "ORNEK-HAAS-DIK",
+  "controller": "haas",
+  "kind": "mill",
+  "x": {"min": -350.0, "max": 350.0},
+  "y": {"min": -200.0, "max": 200.0},
+  "z": {"min": -450.0, "max": 0.0},
+  "rpm_min": 50.0,
+  "rpm_max": 12000.0,
+  "feed_max": 16500.0,
+  "rapid": [25400.0, 25400.0, 25400.0],
+  "tool_slots": 20,
+  "tool_change_z": 0.0,
+  "program_no_range": [1, 99999],
+  "decimals": 3,
+  "verified": false
+}
