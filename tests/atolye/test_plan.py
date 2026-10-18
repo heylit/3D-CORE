@@ -14,9 +14,8 @@ import pytest
 
 plan_mod = pytest.importorskip("cam.plan")
 
-from cam.features import FaceFeature, Features, HoleFeature, PocketFeature  # noqa: E402
-
 from atolye import from_mill_plan  # noqa: E402
+from cam.features import FaceFeature, Features, HoleFeature, PocketFeature  # noqa: E402
 from cam.model import CuttingData, Stock, Tool, ToolHolder, ToolKind, ToolLibrary  # noqa: E402
 from cam.profile import Profile, Region  # noqa: E402
 from cam.sim import Machine  # noqa: E402
