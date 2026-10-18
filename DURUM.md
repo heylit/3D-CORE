@@ -5,7 +5,7 @@
 > (kurallar: `BASLANGIC.md` bölüm 7). Sıra ve paralellik: `docs/yol-haritasi.md` → "Paralel çalışma: dalgalar".
 
 ## Açık dalga
-**Dalga 2 tamamlandı** (05, 06, 07, 11, 14, 15, 16, 20, 23). **Dalga 3 tamamlandı** (09, 12, 13, 17, 21, 24, 27); 03b, 22, 26, 28, 30, 31, 41, 43, 44 ve Dalga 5'ten 18, 33, 34, 35, 36, 38, 40, 45, 46 tamamlandı; Dalga 5 arayüzleri (A0, A1a, A1b, A2) tamam. Dalga 5'in SPEC metinleri onaylandı. Dalga 1 tamamlandı (01, 02, 03, 04, 08).
+**Dalga 2 tamamlandı** (05, 06, 07, 11, 14, 15, 16, 20, 23). **Dalga 3 tamamlandı** (09, 12, 13, 17, 21, 24, 27); 03b, 22, 26, 28, 30, 31, 41, 42, 43, 44 ve Dalga 5'ten 18, 32, 33, 34, 35, 36, 38, 40, 45, 46 tamamlandı (46'nın altın zinciri H1–H15 tamam); Dalga 5 arayüzleri (A0, A1a, A1b, A2) tamam. Dalga 5'in SPEC metinleri onaylandı. Dalga 1 tamamlandı (01, 02, 03, 04, 08).
 
 ## SPEC tablosu
 | SPEC | Dalga | Durum | Kimde (dal / oturum) | Ayrıntı |
@@ -44,7 +44,8 @@
 | 36-montaj-sirasi | 5 | tamamlandı (PR #68, `cd25d0e`) | — | `durum/36-montaj-sirasi.md` |
 | 45-modal | 5 | tamamlandı (PR #78, `977d0bc`) | — | `durum/45-modal.md` |
 | 35-standart-parca | 5 | tamamlandı (PR #82, `8fb636c`) | — | `durum/35-standart-parca.md` |
-| 46-uctan-uca | 5 | tamamlandı (PR #83, `1807be6`); H10 eklendi (PR #104, `6507198`); H11/H14 SPEC 26/29'u bekliyor | — | `durum/46-uctan-uca.md` |
+| 46-uctan-uca | 5 | tamamlandı: H1–H15 etkin ve yeşil, K18 karşılandı (PR #83, #104, #117 `cce9c56`); yalnız H5'in rs274 testi CI'da atlanıyor | — | `durum/46-uctan-uca.md` |
+| 32-kuvvet | 5 | tamamlandı (PR #66, `40fc7c4`) | — | `durum/32-kuvvet.md` |
 | 40-torna-ek | 5 | tamamlandı (PR #75, `eefa134`) | — | `durum/40-torna-ek.md` |
 | 38-is-foyu | 5 | tamamlandı (PR #69, `4066ee9`); K10 (SPEC 29 uyarlayıcısı) `cam.plan` gelince çalışır | — | `durum/38-is-foyu.md` |
 | 33-kinematik | 5 | tamamlandı (PR #72, `d2c581c`) | — | `durum/33-kinematik.md` |
@@ -52,7 +53,7 @@
 | 06b-cam-3d-ek, 25-tezgah-torna-montaj | — | SPEC onaylı (2026-10-18 10:38); dalgası henüz atanmadı. | — | — |
 | 26-tezgah-modelleme | — | tamamlandı (PR #92, `87d35b8`) | — | `durum/26-tezgah-modelleme.md` |
 | 31-sinumerik-heidenhain | — | tamamlandı (PR #102, `35267e0`; SPEC 30 Ek B dahil) | — | `durum/31-sinumerik-heidenhain.md` |
-| 42-bes-eksen-yol | — | SPEC onaylı; "4 ve 5 eksen işleme" oturumunda | — | — |
+| 42-bes-eksen-yol | — | tamamlandı (PR #97, `3c6b5c3`; Ek A dahil) | — | `durum/42-bes-eksen-yol.md` |
 | 43-tri-dexel | — | tamamlandı (PR #96, `e0bf13f`) | — | `durum/43-tri-dexel.md` |
 | 44-tezgah-carpisma | — | tamamlandı (PR #100, `695ea76`) | — | `durum/44-tezgah-carpisma.md` |
 | 29-islem-plani | — | SPEC metni onaylı ve birleşti (PR #58, `94989a3`); kod bekliyor | — | `durum/29-islem-plani.md` |
@@ -106,6 +107,7 @@
 | 03b-cep-kalan-malzeme | Kalan malzeme kontrollü cep (PR #49) | 2026-10-18 | 123 |
 | 00-arayuzler | Koni takım, tezgâh profili ve çok eksen arayüz ekleri (PR #60, `65381cf`) | 2026-10-18 | 272 |
 | 47-tezgah-ekranlari | SPEC metni onaylandı (PR #74, `6b043ca`) | 2026-10-18 | — |
+| 47-tezgah-ekranlari | K10 düzeltmesi (PR #106, `231faf3`) | 2026-10-18 | — |
 | — | `pyproject.toml`: `atolye*` ve `analiz*` paketleri (PR #80, `b62c3a7`) | 2026-10-18 | — |
 | 28-torna-profili | Katıdan torna profili (PR #56, `fba8875`) | 2026-10-18 | 67 |
 | 30-tezgah-profili | Tezgâh profilleri, sınır denetimi, GRBL/Fanuc/Haas postprosesörleri (PR #50) | 2026-10-18 | 177 |
@@ -131,6 +133,14 @@
 | 46-uctan-uca | H10 halkası; zincir H1–H10, H12, H13, H15 (PR #104, `6507198`) | 2026-10-18 | 5 |
 | 20-torna-yol | Uç kapağı düzeltmesi (PR #108, `318fd61`) | 2026-10-18 | — |
 | — | CI: ubuntu-latest, belge PR'larında pytest yeşil raporu (PR #110, `7b80c58`) | 2026-10-18 | — |
+| 00-arayuzler | `MachineProfile.to_dict` boş iş mili alanlarını yazmıyor; main yeniden yeşil (PR #113, `f1990eb`) | 2026-10-18 | — |
+| — | CI: iş zaman aşımı 25 dakika (PR #115, `41dea4f`) | 2026-10-18 | — |
+| 21-torna-gcode | E3 eki (SPEC 40) (PR #88, `36a779f`) | 2026-10-18 | 47 |
+| 35-standart-parca | K12 düzeltmesi (PR #103, `23b6606`) | 2026-10-18 | — |
+| 32-kuvvet | Kesme kuvveti (PR #66) | 2026-10-18 | 154 |
+| 42-bes-eksen-yol | Beş eksen takım yolu, Ek A (PR #97) | 2026-10-18 | 60 |
+| 46-uctan-uca | H11 + H14; altın zincir H1–H15 tamam (PR #117) | 2026-10-18 | 11 |
+| — | `pyproject.toml`: `malzeme*`, `ruff==0.17.1`, ruff `known-first-party` (PR #123, `a4a4611`) | 2026-10-18 | — |
 | 05-cam-sim | Talaş simülasyonu: z-map, dexel, süre, çarpışma, oyma (PR #54) | 2026-10-18 | 175 |
 | 17-kroki | `sketch/model.py` eskiz veri modeli arayüzü (PR #55, `fb99eb6`) | 2026-10-18 | 138 |
 | — | CI: gmsh (mesh ekstrası) ve sistem kütüphaneleri kuruluyor (PR #57, `49a739f`) | 2026-10-18 | — |
