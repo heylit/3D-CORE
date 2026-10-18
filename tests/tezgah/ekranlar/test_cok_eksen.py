@@ -9,7 +9,8 @@ SPEC 41–44 kodu yoksa testler atlanır (`cekirdek()`); `[web]` yoksa da (`tezg
 Örnek işlerin varsayılan profilleri (kodlayıcının kabul edilen seçimi): `kubbe_5eksen` → `ac_besik_dar`,
 diğerleri → `ac_besik`; `kubbe_5eksen`'in olaysız hâli `ornek("kubbe_5eksen", profil="ac_besik")`.
 
-Nokta dizisi sözleşmesi (köprü belgesi): işlemler art arda; işlem j'nin noktaları `islemler[j].k0..k1`,
+Nokta dizisi sözleşmesi (köprü belgesi): ilk işlemin başlangıcı, sonra her `Move.end`; sonraki işlemlerin
+başlangıcı G0 bağlantı noktasıdır. İşlemler art arda; işlem j'nin noktaları `islemler[j].k0..k1`,
 satırları 5 eksende `joint_path(ops[j], kin, wcs, L)`, 3+2'de `to_machine(ham[j], kin, wcs, L)`.
 Noktanın takım ekseni: `k0 + 1 + i` noktası için `moves[i].axis`, `k0` (işlem başı) için `moves[0].axis`.
 """
@@ -260,8 +261,10 @@ def test_olaylar(ad, profil):
     is_ = ornek_is(ad, profil)
     J = json_tur(kopru.cok_json(is_))
     beklenen = _olaylar_beklenen(is_)
-    assert J["olaylar"] == beklenen
-    assert json_tur(kopru.olaylar(is_)) == beklenen
+    # Olay sözlüğü = SPEC 44 MachineEvent alanları (t: hareket içi parametre 0–1) + "zaman" [s].
+    for olaylar in (J["olaylar"], json_tur(kopru.olaylar(is_))):
+        assert [{a: v for a, v in e.items() if a != "zaman"} for e in olaylar] == beklenen
+        assert all("zaman" in e for e in olaylar)
 
     turler = [e["kind"] for e in beklenen]
     sinir, carpma = kontrol(J["kontroller"], "eksen_siniri"), kontrol(J["kontroller"], "tezgah_carpma")
@@ -283,11 +286,16 @@ def test_olaylar(ad, profil):
     # Kontrol durumu olay sayısından.
     assert sinir["durum"] == ("hata" if "eksen_siniri" in turler else "tamam")
     assert carpma["durum"] == ("hata" if "tezgah_carpma" in turler else "tamam")
-    # Her olayın t'si nokta dizisinin süre dizisinde k ile k+1 arasında.
+    # Olayın zamanı: k = SPEC 05 adım indeksi; adım k, k−1 noktasından k noktasına giden harekettir.
+    # zaman = zaman[k−1] + t·(zaman[k] − zaman[k−1]), t hareket içi parametre (0–1).
     zaman = _noktalar(is_)["zaman"]
-    for e in beklenen:
-        assert 0 <= e["k"] < len(zaman) - 1
-        assert zaman[e["k"]] <= e["t"] <= zaman[e["k"] + 1]
+    for e in J["olaylar"]:
+        k = e["k"]
+        assert 1 <= k <= len(zaman) - 1
+        assert 0 <= e["t"] <= 1
+        beklenen_zaman = zaman[k - 1] + e["t"] * (zaman[k] - zaman[k - 1])
+        assert e["zaman"] == pytest.approx(beklenen_zaman, rel=1e-12, abs=1e-12)
+        assert zaman[k - 1] <= e["zaman"] <= zaman[k]
 
 
 # ---------------------------------------------------------------- K11: sapma
