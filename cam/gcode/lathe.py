@@ -98,13 +98,26 @@ def _sweep_lt_pi(p0, p1, m: Move) -> bool:
 # ---------------------------------------------------------------- yazıcı
 
 
+def _check_axial(tp: Toolpath, nerede: str) -> None:
+    """Eksenel delme yolu (Ek E3): bütün noktalar x = 0, yay yok, sabit devir; aksi CamError."""
+    if tp.css is not None:
+        raise CamError(f"{nerede}: eksenel delme sabit devir (G97) ister; css verilmemeli")
+    if abs(tp.start[0]) > EPS:
+        raise CamError(f"{nerede}: eksenel delme yolu x = 0'da başlamalı (x={tp.start[0]})")
+    for i, m in enumerate(tp.moves):
+        if m.type in ARCS:
+            raise CamError(f"{nerede}, hareket {i}: eksenel delme yolunda yay olamaz")
+        if abs(m.end[0]) > EPS:
+            raise CamError(f"{nerede}, hareket {i}: eksenel delme yolu x = 0'da kalmalı (x={m.end[0]})")
+
+
 def _check_op(tp: Toolpath, tc: tuple[float, float]) -> None:
     """Bir yolun torna yazıcısına uygunluğu (SPEC 21 "Arayüz"); aksi CamError."""
     tp.validate()
     nerede = f"Takım yolu '{tp.name}'"
     if _axial(tp.tool):
-        raise NotImplementedError("SPEC 21 Ek E3: eksenel delme yazımı")
-    if not isinstance(tp.tool, LatheTool):
+        _check_axial(tp, nerede)
+    elif not isinstance(tp.tool, LatheTool):
         raise CamError(f"{nerede}: torna takımı değil; freze yolları cam.gcode.write ile yazılır")
     if tp.plane is not Plane.ZX:
         raise CamError(f"{nerede}: torna yolu ZX (G18) düzleminde olmalı")
@@ -396,6 +409,7 @@ class _LatheReader:
         self.rpm: float | None = None  # G97 devri
         self.limit: float | None = None  # G50 devir sınırı
         self.pending = False  # yeni yol başlayacak: sonraki hareket G0 olmalı
+        self.left_axis = False  # eksenel yol eksenden çıktı: yeni T / iş mili değişimi gerekir (Ek E3)
         self.cur: Toolpath | None = None
         self.paths: list[Toolpath] = []
 
@@ -433,9 +447,12 @@ class _LatheReader:
             raise CamError(f"bilinmeyen takım T{ss:02d}")
         if oo != ss:
             raise CamError(f"T{ss:02d}{oo:02d}: ofset no. istasyonla aynı olmalı (T{ss:02d}{ss:02d})")
-        if isinstance(self.tools[ss], Tool):
-            raise NotImplementedError("SPEC 21 Ek E3: eksenel delme okuması")
-        self.tool = self.tools[ss]
+        tool = self.tools[ss]
+        if isinstance(tool, Tool) and not _axial(tool):
+            raise CamError(f"T{ss:02d}: tornada freze takımı yalnız eksenel delmede ({tool.kind.name})")
+        if not isinstance(tool, (LatheTool, Tool)):
+            raise CamError(f"T{ss:02d}: takım LatheTool veya Tool olmalı")
+        self.tool = tool
         self.pending = True
 
     def spindle_change(self, g: int | None, w: dict[str, float]) -> None:
@@ -494,14 +511,27 @@ class _LatheReader:
             self.start_path(x, z)
             self.x, self.z = x, z
             return
+        if self.left_axis:
+            raise CamError("eksenel yol eksenden çıktı; yeni hareket için T veya iş mili değişimi gerekli")
         if self.cur is None:
             raise CamError("yol başlamadı")
+        if _axial(self.tool) and abs(x) > EPS:
+            if self.motion != "G0":
+                raise CamError(f"eksenel delme takımı x = 0 dışına {self.motion} yapamaz (x={x})")
+            self.left_axis = True  # eksenden çıkış: yola girmez, yolu kapatır
+            self.x, self.z = x, z
+            return
         self.cur.moves.append(self.make_move(x, z, w))
         self.x, self.z = x, z
 
     def start_path(self, x: float, z: float) -> None:
         if self.mode is None:
             raise CamError("iş mili devri tanımsız (G97 S veya G50 S + G96 S)")
+        if _axial(self.tool):
+            if self.mode == "G96":
+                raise CamError("eksenel delme sabit devir (G97) ister; G96 kipinde başlıyor")
+            if abs(x) > EPS:
+                raise CamError(f"eksenel delme yolu x = 0'da başlamalı (x={x})")
         rpm = self.limit if self.mode == "G96" else self.rpm
         css = self.css if self.mode == "G96" else None
         k = len(self.paths) + 1
@@ -516,6 +546,7 @@ class _LatheReader:
         )
         self.paths.append(self.cur)
         self.pending = False
+        self.left_axis = False
 
     def make_move(self, x: float, z: float, w: dict[str, float]) -> Move:
         g = self.motion
@@ -523,6 +554,8 @@ class _LatheReader:
             return Move(MoveType.RAPID, (x, 0.0, z))
         if self.feed is None or self.feed <= 0:
             raise CamError(f"{g}: ilerleme (F) yok")
+        if _axial(self.tool) and g != "G1":
+            raise CamError(f"eksenel delme yolunda {g} olamaz (yalnız G0 / G1)")
         if g == "G32":
             if self.tool.kind is not LatheToolKind.THREAD:
                 raise CamError("G32 sadece diş takımıyla")
