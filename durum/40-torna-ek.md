@@ -3,7 +3,7 @@
 Dal: `claude/spec-40-torna-ek-iemrjz` · Oturum: bulut
 
 ## Sıradaki adım
-PR #75 birleşti (eefa134). K6 G-code gidiş-dönüş testleri (2) SPEC 21 E3 (#88) birleşince yeşil olmalı; o zamana kadar `NotImplementedError` (CI'da kırmızı).
+Yok: SPEC 40 tamam (PR #75 kod, PR #109 atlama düzeltmesi + K6 toleransı). Tüm 172 test yeşil.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
@@ -11,6 +11,7 @@ PR #75 birleşti (eefa134). K6 G-code gidiş-dönüş testleri (2) SPEC 21 E3 (#
 | 2026-10-18 | — | — | Sadece SPEC taslağı; kod ve test yok. |
 | 2026-10-18 | 160 (SPEC 40) | 0 | 12 atlanan: K6 (E3/E4 bekliyor), K9–K10 (SPEC 22 `RadialMap`/`simulate_lathe` henüz kodlanmadı). |
 | 2026-10-18 | 170 (SPEC 40) | 2 | SPEC 22 (#41) birleşti: K9–K10 ve K6 E4 yeşil. Atlama yerine `NotImplementedError` (test commit `db269fe`, cherry-pick); kalan 2: K6 E3 (#88). |
+| 2026-10-18 | 172 (SPEC 40) | 0 | #88 (E3) birleşti; K6 G-code gidiş-dönüşü SPEC 21 toleranslarıyla (x 0,25·10⁻³, z 0,5·10⁻³ mm) yeşil. |
 
 ## Son oturum
 **2026-10-18**
