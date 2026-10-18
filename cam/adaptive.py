@@ -206,6 +206,8 @@ class _Boundary:
         self.R = np.array(R, dtype=float)
         self.a0 = np.array(A0, dtype=float)
         self.sw = np.array(SW, dtype=float)
+        self._lines: list | None = None
+        self._arcs: list = []
 
     def dist(self, P: np.ndarray) -> np.ndarray:
         """P (N, 2) → sınıra uzaklık (N,)."""
@@ -232,6 +234,38 @@ class _Boundary:
             d = np.where(ic, d_in, np.minimum(d0, d1))
             out = np.minimum(out, np.min(d, axis=1))
         return out
+
+    def dist1(self, x: float, y: float) -> float:
+        """Tek nokta için dist (saf Python; az parçalı sınırda numpy çağrısından hızlı)."""
+        if self._lines is None:
+            ln = self.is_line
+            self._lines = [
+                (a[0], a[1], b[0] - a[0], b[1] - a[1], (b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2)
+                for a, b in zip(self.p0[ln].tolist(), self.p1[ln].tolist(), strict=True)
+            ]
+            self._arcs = list(
+                zip(
+                    self.c.tolist(),
+                    self.R.tolist(),
+                    self.a0.tolist(),
+                    self.sw.tolist(),
+                    self.p0[self.arc_idx].tolist(),
+                    self.p1[self.arc_idx].tolist(),
+                    strict=True,
+                )
+            )
+        best = math.inf
+        for ax, ay, bx, by, L2 in self._lines:
+            t = min(1.0, max(0.0, ((x - ax) * bx + (y - ay) * by) / L2))
+            best = min(best, math.hypot(x - (ax + t * bx), y - (ay + t * by)))
+        for (cx, cy), R, a0, sw, e0, e1 in self._arcs:
+            vx, vy = x - cx, y - cy
+            if (math.atan2(vy, vx) - a0) % TWO_PI <= sw + 1e-15:
+                d = abs(math.hypot(vx, vy) - R)
+            else:
+                d = min(math.hypot(x - e0[0], y - e0[1]), math.hypot(x - e1[0], y - e1[1]))
+            best = min(best, d)
+        return best
 
     def dist_chunked(self, P: np.ndarray, chunk: int = 20000) -> np.ndarray:
         return np.concatenate([self.dist(P[i : i + chunk]) for i in range(0, len(P), chunk)] or [np.zeros(0)])
@@ -328,16 +362,15 @@ class MaterialGrid:
         i0, i1, j0, j1 = self._window(a, b, r)
         if i0 >= i1 or j0 >= j1:
             return None
-        xs = self.x0 + (np.arange(j0, j1) + 0.5) * self.h
-        ys = self.y0 + (np.arange(i0, i1) + 0.5) * self.h
-        X, Y = np.meshgrid(xs, ys)
+        ex = (self.x0 + (np.arange(j0, j1) + 0.5) * self.h - a[0])[None, :]  # X − a_x (satır)
+        ey = (self.y0 + (np.arange(i0, i1) + 0.5) * self.h - a[1])[:, None]  # Y − a_y (sütun)
         ab = b - a
         L2 = float(ab @ ab)
         if L2 > 0:
-            t = np.clip(((X - a[0]) * ab[0] + (Y - a[1]) * ab[1]) / L2, 0.0, 1.0)
+            t = np.clip((ex * ab[0] + ey * ab[1]) / L2, 0.0, 1.0)
+            d2 = (ex - t * ab[0]) ** 2 + (ey - t * ab[1]) ** 2
         else:
-            t = np.zeros_like(X)
-        d2 = (X - a[0] - t * ab[0]) ** 2 + (Y - a[1] - t * ab[1]) ** 2
+            d2 = ex**2 + ey**2
         return (slice(i0, i1), slice(j0, j1)), d2 <= r * r
 
     def cut_segment(self, a, b, r: float) -> float:
@@ -371,20 +404,38 @@ class MaterialGrid:
         return self._count(a, b, r, _ring(int(n))) * 360.0 / n
 
     def _count(self, a: np.ndarray, b: np.ndarray, r: float, U: np.ndarray) -> int:
-        Q = b + r * U
-        j = np.floor((Q[:, 0] - self.x0) / self.h).astype(np.int64)
-        i = np.floor((Q[:, 1] - self.y0) / self.h).astype(np.int64)
-        ok = (i >= 0) & (i < self.ny) & (j >= 0) & (j < self.nx)
-        mat = np.zeros(len(Q), dtype=bool)
-        mat[ok] = self.m[i[ok], j[ok]]
-        if not mat.any():
-            return 0
         ab = b - a
         L2 = float(ab @ ab)
         if L2 > 0:
-            t = np.clip(((Q[:, 0] - a[0]) * ab[0] + (Q[:, 1] - a[1]) * ab[1]) / L2, 0.0, 1.0)
-            d2 = (Q[:, 0] - a[0] - t * ab[0]) ** 2 + (Q[:, 1] - a[1] - t * ab[1]) ** 2
-            mat &= d2 >= (r * (1 - DIST_REL)) ** 2
+            # Yalnız ön yarı (U·ab ≥ 0) dist ≥ r(1 − DIST_REL) olabilir: arka yarıda dist ≤ r·√(1 − ε²)
+            # (ε = −U·ab/|ab|), ±90°'nin 2 örnek ötesinde ε ≫ √(2·DIST_REL). Sonuç tüm halkayla aynıdır.
+            n = len(U)
+            k0 = round(math.atan2(ab[1], ab[0]) * n / TWO_PI)
+            U = U[(k0 + _front(n)) % n]
+        qx = b[0] + r * U[:, 0]
+        qy = b[1] + r * U[:, 1]
+        h = self.h
+        if (
+            b[0] - r > self.x0
+            and b[1] - r > self.y0
+            and b[0] + r < self.x0 + self.nx * h
+            and b[1] + r < self.y0 + self.ny * h
+        ):
+            # takım dairesi ızgaranın içinde: sınır denetimi gerekmez (floor = int kesme, değerler ≥ 0)
+            mat = self.m[((qy - self.y0) / h).astype(np.intp), ((qx - self.x0) / h).astype(np.intp)]
+        else:
+            j = np.floor((qx - self.x0) / h).astype(np.int64)
+            i = np.floor((qy - self.y0) / h).astype(np.int64)
+            ok = (i >= 0) & (i < self.ny) & (j >= 0) & (j < self.nx)
+            mat = np.zeros(len(qx), dtype=bool)
+            mat[ok] = self.m[i[ok], j[ok]]
+        if not mat.any():
+            return 0
+        if L2 > 0:
+            ex, ey = qx - a[0], qy - a[1]
+            t = np.clip((ex * ab[0] + ey * ab[1]) / L2, 0.0, 1.0)
+            d2 = (ex - t * ab[0]) ** 2 + (ey - t * ab[1]) ** 2
+            mat = mat & (d2 >= (r * (1 - DIST_REL)) ** 2)
         return int(np.count_nonzero(mat))
 
     def area(self) -> float:
@@ -404,6 +455,18 @@ def _ring(n: int) -> np.ndarray:
         a = np.arange(n) * TWO_PI / n
         U = _RINGS[n] = np.column_stack([np.cos(a), np.sin(a)])
     return U
+
+
+_FRONTS: dict[int, np.ndarray] = {}
+
+
+def _front(n: int) -> np.ndarray:
+    """Halka indislerinde ilerleme yönünün ±(90° + 2 örnek) çevresi (göreli)."""
+    k = _FRONTS.get(n)
+    if k is None:
+        half = math.ceil(n / 4) + 2
+        k = _FRONTS[n] = np.arange(-half, half + 1) if 2 * half + 1 < n else np.arange(n)
+    return k
 
 
 def _arc_points(p0, p1, c, ccw: bool, tol: float) -> list[np.ndarray]:
@@ -608,8 +671,8 @@ class _Adaptive:
         return c
 
     def valid_many(self, Q: np.ndarray) -> np.ndarray:
-        """Q (N, 2) noktaları C içinde mi (kiriş payıyla). |d(p) − d(hücre merkezi)| ≤ h/√2 ön elemesi,
-        belirsiz olanlarda kesin uzaklık."""
+        """Q (N, 2) noktaları C içinde mi (kiriş payıyla). |d(p) − d(hücre merkezi)| ≤ |p − hücre merkezi|
+        ön elemesi (uzaklık 1-Lipschitz), belirsiz olanlarda kesin uzaklık."""
         g = self.grid
         Q = np.asarray(Q, dtype=float).reshape(-1, 2)
         j = np.floor((Q[:, 0] - g.x0) / g.h).astype(np.int64)
@@ -618,7 +681,7 @@ class _Adaptive:
         d0 = np.full(len(Q), -1.0)
         d0[ok] = self.clr[i[ok], j[ok]]
         need = self.R_need + self.margin
-        e = 0.7072 * g.h
+        e = np.hypot(Q[:, 0] - g.x0 - (j + 0.5) * g.h, Q[:, 1] - g.y0 - (i + 0.5) * g.h) * (1 + 1e-9) + 1e-12
         out = d0 - e >= need
         unsure = (d0 >= 0) & ~out & (d0 + e >= need)
         if unsure.any():
@@ -626,7 +689,20 @@ class _Adaptive:
         return out
 
     def valid(self, p: np.ndarray) -> bool:
-        return bool(self.valid_many(p[None])[0])
+        """valid_many'nin tek nokta için skaler yolu (aynı kural)."""
+        g = self.grid
+        j = math.floor((p[0] - g.x0) / g.h)
+        i = math.floor((p[1] - g.y0) / g.h)
+        if not (0 <= i < g.ny and 0 <= j < g.nx):
+            return False
+        d0 = float(self.clr[i, j])
+        need = self.R_need + self.margin
+        e = math.hypot(p[0] - g.x0 - (j + 0.5) * g.h, p[1] - g.y0 - (i + 0.5) * g.h) * (1 + 1e-9) + 1e-12
+        if d0 - e >= need:
+            return True
+        if d0 < 0 or d0 + e < need:
+            return False
+        return self.bnd.dist1(float(p[0]), float(p[1])) >= need
 
     def phi(self, a: np.ndarray, b: np.ndarray) -> float:
         return self.grid._count(a, b, self.r, self.U) * 360.0 / self.n
@@ -635,14 +711,18 @@ class _Adaptive:
         """Aynı başlangıçtan birçok adımın φ'si (vektörel; _count ile aynı kural)."""
         g = self.grid
         r = self.r
-        Q = B[:, None, :] + r * self.U[None]
+        ab = B - a[None]
+        L2 = np.einsum("ij,ij->i", ab, ab)
+        U = self.U[None]
+        if np.all(L2 > 0):  # _count'taki gibi yalnız ön yarı
+            k0 = np.round(np.arctan2(ab[:, 1], ab[:, 0]) * self.n / TWO_PI).astype(np.int64)
+            U = self.U[(k0[:, None] + _front(self.n)[None]) % self.n]
+        Q = B[:, None, :] + r * U
         j = np.floor((Q[..., 0] - g.x0) / g.h).astype(np.int64)
         i = np.floor((Q[..., 1] - g.y0) / g.h).astype(np.int64)
         ok = (i >= 0) & (i < g.ny) & (j >= 0) & (j < g.nx)
         mat = np.zeros(ok.shape, dtype=bool)
         mat[ok] = g.m[i[ok], j[ok]]
-        ab = B - a[None]
-        L2 = np.einsum("ij,ij->i", ab, ab)
         L2s = np.where(L2 > 0, L2, 1.0)
         dot = (Q[..., 0] - a[0]) * ab[:, None, 0] + (Q[..., 1] - a[1]) * ab[:, None, 1]
         t = np.clip(dot / L2s[:, None], 0, 1)
