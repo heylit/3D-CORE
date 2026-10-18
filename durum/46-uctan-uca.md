@@ -3,14 +3,15 @@
 Dal: `claude/spec-46-uctan-uca-9q6dbf` · Oturum: bulut (Dalga 5, hat H17) · PR #83
 
 ## Sıradaki adım
-H1–H9 ve H12 yeşil. Kalanlar bağlı SPEC `main`'e girince (koordinatör bildirir):
-22 → H10, 26 → H11 (17 main'de), 28 → H13, 29 → H14, 30 → H15.
+H1–H9, H12 ve H13 yeşil. Kalanlar bağlı SPEC `main`'e girince (koordinatör bildirir):
+22 → H10, 26 → H11 (17 main'de), 29 → H14, 30 → H15.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
 |---|---|---|---|
 | 2026-10-18 | 25 | 0 | H1–H7; 2 atlama: `rs274` yerelde kurulu değil (CI kapsayıcısında var) |
 | 2026-10-18 | 29 | 0 | + H8 (09), H9 (21), H12 (27); uygulama hatası yok |
+| 2026-10-18 | 30 | 0 | + H13 (28); `outer` alın doğrusunu da içerir (pah + silindir elle profille aynı) |
 
 ## Son oturum
 **2026-10-18**
