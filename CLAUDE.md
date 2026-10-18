@@ -1,36 +1,49 @@
 # 3D-CORE — Claude Code çalışma kuralları
 
 > **Oturuma başlarken:** önce `BASLANGIC.md` (hedef ve çalışma şekli), sonra `DURUM.md`
-> (aktif görev, son oturum, açık sorular) oku. Oturum sonunda `DURUM.md`'yi güncelle.
+> (açık dalga, kim neyi yapıyor) ve SPEC'inin `durum/NN-*.md` dosyasını oku. Oturum sonunda `durum/NN-*.md`'yi güncelle.
 
-Sıfırdan yazılan bir FEM (sonlu elemanlar) çözücüsü ve ileride CAD katmanı.
-Amaç hem öğrenmek hem de doğrulanmış, güvenilir bir çekirdek kurmak.
+3D CAM ve 3D montaj sistemi. Katı modelleme altyapısı hazır çekirdekle (OpenCascade, build123d üzerinden);
+yanında kendi FEM çözücümüz analiz modülü olarak. Amaç hem öğrenmek hem de doğrulanmış, güvenilir bir çekirdek kurmak.
+Birden fazla oturum (bulut + yerel) **aynı anda** çalışır: `BASLANGIC.md` bölüm 4.
 
 ## Altın kurallar
 1. **Testsiz kod yok.** Her değişiklikten sonra `pytest` çalıştır. Kırmızı test varken iş bitmiş sayılmaz.
 2. **Testi değiştirerek testi geçirme.** `tests/benchmarks/` analitik çözümlerdir; bir benchmark tutmuyorsa hata koddadır. Bir testin yanlış olduğunu düşünüyorsan değiştirme, kullanıcıya gerekçesiyle sor.
-3. **Bir seferde bir SPEC.** Sadece istenen `specs/NN-*.md` dosyasını uygula. Kapsam dışına taşma.
+3. **Bir oturumda bir SPEC.** Sadece istenen `specs/NN-*.md` dosyasını uygula; sadece o SPEC'in paketine, test klasörüne ve `durum/NN-*.md` dosyasına yaz. Kapsam dışına taşma.
 4. **Birim sistemi: N – mm – MPa.** Kodda birim dönüşümü yapma; girdiler zaten bu birimde.
 5. **Sessiz hata yok.** Tekil matris, bilinmeyen düğüm, sıfır boy gibi durumlarda `core.model.ModelError` fırlat. Asla `nan` veya yanlış sayı döndürme.
 
 ## Mimari
 ```
-core/           Saf hesap. numpy + scipy dışında bağımlılık YOK (matplotlib, pyvista yasak).
-  model.py      Tek veri modeli. Tüm katmanlar sadece bunun üzerinden konuşur.
+geometry/       Katı altyapı: build123d / OCCT sarmalayıcıları. Arayüz: geometry/part.py (Part)
+cam/            Takım yolu, G-code, talaş simülasyonu. Arayüz: cam/model.py (Tool, Stock, Move, Toolpath)
+assy/           Montaj ağacı, kısıt çözücü, girişim. Arayüz: assy/model.py (Component, Assembly, Mate)
+                (adı 'assy': FEM'deki core/assembly.py ile karışmasın)
+core/           FEM. Saf hesap: numpy + scipy dışında bağımlılık YOK (OCCT, matplotlib, pyvista yasak).
+  model.py      FEM'in tek veri modeli.
   elements/     Her eleman bir dosya: ke(), dofs(), axial_force(). Kayıt: elements/__init__.py
   assembly.py   Global K (scipy.sparse) ve F. Eleman tipinden bağımsız.
   solver.py     K u = F, sınır koşulları, tepkiler.
   post.py       Eleman kuvvet/gerilme, ileride von Mises.
-geometry/       build123d sarmalayıcıları (Aşama 2)
-mesh/           gmsh -> Model dönüşümü (Aşama 2-3)
+mesh/           gmsh -> core.model.Model dönüşümü
 fileio/         JSON / STEP / CalculiX .inp (adı bilerek 'io' değil: stdlib ile çakışır)
-viz/            matplotlib / pyvista çizimleri. core/ buraya bağımlı olamaz, tersi serbest.
-tests/unit/        Matris özellikleri (simetri, rijit cisim modu, özdeğerler)
-tests/benchmarks/  Analitik çözümlerle karşılaştırma
+viz/            matplotlib / pyvista çizimleri. Hiçbir paket viz/'e bağımlı olamaz, tersi serbest.
+tests/unit/, tests/benchmarks/   FEM (mevcut)
+tests/geometry/, tests/cam/, tests/assy/   Paket başına testler
 tests/reference/   CalculiX çapraz kontrolü (ileride)
 specs/          Her adımın tanımı ve kabul kriterleri
+durum/          SPEC başına canlı durum dosyası (paralel oturumlar çakışmasın diye)
 examples/       JSON örnek problemler
 ```
+
+### Paralel çalışma için bağımlılık kuralları
+- Paketler birbirini **sadece `model.py` arayüzleri üzerinden** kullanır (ör. `cam` → `geometry.part.Part`),
+  başka bir paketin iç dosyalarını import etmez.
+- `cam/model.py` ve `assy/model.py` saf Python + numpy'dir; OCCT gerektirmez. Takım yolu, G-code ve
+  kısıt çözücü OCCT olmadan geliştirilip test edilebilir.
+- OCCT / build123d gerektiren testler `@pytest.mark.occt` ile işaretlenir (yoksa atlanır).
+- Arayüz (`*/model.py`) değişikliği = ayrı küçük PR + kullanıcı onayı. SPEC PR'ı arayüzü değiştirmez.
 
 ## Kod stili
 - Python 3.11+, tip ipuçları, kısa fonksiyonlar.
@@ -39,7 +52,7 @@ examples/       JSON örnek problemler
 - Yeni bağımlılık ekleme; gerekiyorsa sor.
 
 ## Komutlar
-- Kurulum: `pip install -e ".[dev]"`
+- Kurulum (bulut ve yerel aynı): `pip install -e ".[dev,cad]"`  (sadece FEM için `.[dev]` yeter)
 - Test: `pytest`  (tek dosya: `pytest tests/benchmarks/test_bar.py -v`)
 - Lint: `ruff check .`  (otomatik düzelt: `ruff check . --fix`, biçim: `ruff format .`)
 - Tam yerel CI (Windows): `.\ci.ps1`
@@ -47,7 +60,9 @@ examples/       JSON örnek problemler
 ## Git ve CI kuralları (GitHub Actions dakikası kısıtlı)
 - CI yereldir: pre-commit (ruff + hızlı testler) ve pre-push (ruff + tüm testler) hook'ları kapıdır. `--no-verify` KULLANMA.
 - Push'ları grupla: her küçük commit'te push etme. Bir SPEC bitince veya oturum sonunda bir kez push et.
-- Bulut/uzak oturumlarda: `main` yerine `spec-NN-...` dalında çalış, iş bitince `main`'e tek PR aç. Actions sadece bu PR'da çalışır.
+- Bir SPEC = bir dal = bir PR. `main`'de doğrudan çalışma. Dal adı `spec-NN-...` (bulutta oturumun verdiği dal adı da olur). Actions sadece bu PR'da çalışır.
+- Ortak dosyalar (`*/model.py`, `pyproject.toml`, `.github/`, `CLAUDE.md`, `BASLANGIC.md`, `DURUM.md`) SPEC PR'ında değişmez; gerekiyorsa ayrı PR.
+- PR'ı açmadan önce `main`'i dala merge et ve testleri yeniden çalıştır (rebase / force-push yok).
 - 10 saniyeden uzun süren testleri `@pytest.mark.slow` ile işaretle.
 - `.github/workflows/test.yml` dosyasında tetikleyici, Python sürümü sayısı veya işletim sistemi ekleme; dakika maliyetini artırır. Gerekirse kullanıcıya sor.
 
