@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from cam.plan_verify import PlanCheck
 
     from cam.library import ToolLibrary
-    from tezgah.ekranlar.plan_ornekler import PlanGirdisi
+    from tezgah.ekranlar._plan_ornekler import PlanGirdisi
 
 SEMA = 1
 

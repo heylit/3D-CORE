@@ -1,5 +1,5 @@
 """
-SPEC 47a — Plan ekranı: A3 `Ekran` kaydı ve `/api/ekran/plan` uçları (ince katman; hesap plan_kopru'da).
+SPEC 47a — Plan ekranı: A3 `Ekran` kaydı ve `/api/ekran/plan` uçları (ince katman; hesap _plan_kopru'da).
 
 Uçlar (öneksiz; kabuk /api/ekran/plan altına bağlar):
     GET  /ornekler            → {"sema": 1, "ornekler": [{ad, tur, aciklama, hazir, neden}]}
