@@ -68,6 +68,8 @@ def _parse(raw: str) -> tuple[list[int], list[int], dict[str, float]] | None:
             raise CamError(f"bilinmeyen kelime '{letter}{num}'")
         if letter in "GM":
             v = float(num)
+            if letter == "G" and v == 43.1:
+                raise NotImplementedError  # SPEC 14: G43.1 (GRBL dinamik takım boyu ofseti)
             if not v.is_integer():
                 raise CamError(f"bilinmeyen {letter} kodu '{letter}{num}'")
             (gs if letter == "G" else ms).append(int(v))
@@ -126,6 +128,8 @@ class _Reader:
                 pass  # length_offset() denetler
             elif g in (98, 99):
                 self.state.retract = f"G{g}"
+            elif g in (55, 56, 57, 58, 59):
+                raise NotImplementedError  # SPEC 14: G55..G59 iş sıfırı
             elif g in G_REFUSED:
                 raise CamError(G_REFUSED[g])
             elif g not in G_NOOP:
