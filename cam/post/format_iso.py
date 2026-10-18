@@ -18,7 +18,7 @@ from __future__ import annotations
 from cam.gcode.cycles import DrillOp
 from cam.gcode.dialect import GRBL, HAAS, Dialect
 from cam.gcode.modal import ModalState, fmt, snap
-from cam.gcode.writer import _stok_ustu, _yazilabilir, _z_kesme
+from cam.gcode.writer import _ofsetler, _stok_ustu, _yazilabilir, _z_kesme, cevrim_op
 from cam.model import ARCS, CamError, Move, MoveType, Toolpath
 from cam.post.blocks import (
     Arc,
@@ -26,10 +26,12 @@ from cam.post.blocks import (
     Comment,
     Cycle,
     CycleEnd,
+    Dwell,
     End,
     Linear,
     MachineZ,
     Rapid,
+    RigidTap,
     Spindle,
     Start,
     ToolChange,
@@ -44,7 +46,14 @@ XYZ = ("x", "y", "z")
 class _Planner:
     """Tek bir programın plan durumu: modal durum (yuvarlanmış değerler) + bloklar."""
 
-    def __init__(self, dialect: Dialect, safe_z: float, tool_change_z: float | None) -> None:
+    def __init__(
+        self,
+        dialect: Dialect,
+        safe_z: float,
+        tool_change_z: float | None,
+        length_offsets: dict[int, float] | None = None,
+    ) -> None:
+        self.length_offsets = length_offsets
         self.d = dialect
         self.state = ModalState()
         self.blocks: list[Block] = []
@@ -99,6 +108,8 @@ class _Planner:
             self.blocks.append(ToolChange(tool_id, self.tools_used == 0))
             self.state.tool = tool_id
             self.tools_used += 1
+            if self.length_offsets is not None:  # SPEC 14: GRBL G43.1
+                self.blocks.append(ToolLength(tool_id, self.s(self.length_offsets[tool_id])))
         if changed or S != self.state.rpm:
             self.blocks.append(Spindle(S))
             self.state.rpm = S
@@ -149,24 +160,34 @@ class _Planner:
         self.set_pos(m.end)
         self.p_true = m.end
 
-    def toolpath(self, tp: Toolpath) -> None:
+    def toolpath(self, tp: Toolpath, dwell: float | None = None) -> None:
+        """Yol hareketleri; `dwell` verilirse (açılmış G82) her G1'den sonra `Dwell`."""
         self.op_begin(tp.tool.id, tp.rpm, tp.start)
         for m in tp.moves:
             self.move(m)
+            if dwell is not None and m.type is MoveType.LINEAR:
+                self.blocks.append(Dwell(dwell))
 
-    def drill(self, op: DrillOp) -> None:
-        """Delik op: çevrimli dilde Cycle ... CycleEnd; çevrimsiz dilde kanonik açılım."""
+    def drill(self, op) -> None:
+        """Delik op (DrillOp, SPEC 04b G82 / G84): çevrimli dilde Cycle ... CycleEnd; çevrimsiz dilde
+        kanonik açılım (G82: dipte `Dwell`). Kılavuz çevrimsiz dilde `_guvenli_z`'de reddedilir."""
         tp = op.to_toolpath(self.d)  # c < q denetimi her iki dilde de
+        dwell = op.dwell if op.kind == "G82" else None
         if not self.d.canned_cycles:
-            self.toolpath(tp)
+            self.toolpath(tp, dwell)
             return
         self.op_begin(op.tool.id, op.rpm, op.start)
+        if op.kind == "G84" and self.d.rigid_tap == "m29":
+            self.blocks.append(RigidTap(self.state.rpm))  # Fanuc: her G84'ten önce M29 S (SPEC 04b Karar 2)
         self.state.motion, self.state.retract = op.kind, op.retract
+        z_ret = op.start[2] if op.retract == "G98" else op.r
         for k, (x, y) in enumerate(op.holes):
             if k == 0:
                 F = float(fmt(op.feed, self.d.feed_decimals))
                 q = self.s(op.q) if op.kind == "G83" else None
-                blk = Cycle(op.kind, op.retract, self.s(x), self.s(y), self.s(op.z), self.s(op.r), q, F, True)
+                blk = Cycle(
+                    op.kind, op.retract, self.s(x), self.s(y), self.s(op.z), self.s(op.r), q, F, True, dwell
+                )
                 self.state.feed = F
             else:
                 cx, cy, _ = self.changed_axes((x, y, self.state.pos[2]))
@@ -174,8 +195,8 @@ class _Planner:
                     cx = self.s(x)  # aynı noktada ikinci delik
                 blk = Cycle(op.kind, op.retract, cx, cy, None, None, None, None, False)
             self.blocks.append(blk)
-            self.set_pos((x, y, op.z_ret))
-            self.p_true = (x, y, op.z_ret)
+            self.set_pos((x, y, z_ret))
+            self.p_true = (x, y, z_ret)
         self.blocks.append(CycleEnd())
         self.state.end_cycle()
 
@@ -190,6 +211,10 @@ def _guvenli_z(ops, dialect: Dialect, safe_z: float | None, stock_top: float | N
             _yazilabilir(op)
         elif isinstance(op, DrillOp):
             op.validate()
+        elif cevrim_op(op):
+            op.validate()
+            if op.kind == "G84" and not (dialect.canned_cycles and dialect.rigid_tap):
+                raise CamError(f"'{op.name}': {dialect.name} kılavuz çekemez (eşzamanlı iş mili / G84 yok)")
         else:
             raise CamError(f"Yazılamayan op tipi: {type(op).__name__}")
     z_top = max((op.start[2] for op in ops), default=0.0)
@@ -214,19 +239,24 @@ def plan(
     safe_z: float | None = None,
     stock_top: float | None = None,
     tool_change_z: float | None = None,
+    wcs: str | None = None,
+    length_offsets: dict[int, float] | None = None,
 ) -> list[Block]:
     """Dilden bağımsız blok planı; koordinat basamağı `dialect.decimals`.
 
     Parametreler `cam.gcode.write` ile aynı anlamdadır. `tool_change_z` (makine koordinatı) verilirse
-    her takım değişiminden önce (ilki dahil) `MachineZ`."""
+    her takım değişiminden önce (ilki dahil) `MachineZ`. `wcs` (SPEC 14) baş satırdaki G54'ün yerine;
+    `length_offsets` (SPEC 14, GRBL) her takım değişiminden sonra `ToolLength`."""
     if tool_change_z is not None:
         import math
 
         if not math.isfinite(tool_change_z):
             raise CamError(f"tool_change_z sonlu olmalı ({tool_change_z})")
     z_s = _guvenli_z(ops, dialect, safe_z, stock_top)
-    p = _Planner(dialect, z_s, tool_change_z)
-    p.blocks.append(Start(program_no))
+    if length_offsets is not None:
+        _ofsetler(length_offsets, ops, dialect)
+    p = _Planner(dialect, z_s, tool_change_z, length_offsets)
+    p.blocks.append(Start(program_no) if wcs is None else Start(program_no, wcs))
     for op in ops:
         if isinstance(op, Toolpath):
             p.toolpath(op)
@@ -273,8 +303,9 @@ class _Formatter:
         lines = [h.format(program_no=b.program_no) for h in self.d.header]
         if b.wcs != "G54":
             i = next((k for k, ln in enumerate(lines) if "G54" in ln.split()), None)
-            if i is None:
-                lines[-1] = f"{lines[-1]} {b.wcs}"
+            if i is None:  # G54'süz başlık (GRBL): G21'li satırın sonuna (SPEC 14)
+                k = next((k for k, ln in enumerate(lines) if "G21" in ln.split()), len(lines) - 1)
+                lines[k] = f"{lines[k]} {b.wcs}"
             else:
                 lines[i] = " ".join(b.wcs if w == "G54" else w for w in lines[i].split())
         for ln in lines:
@@ -318,11 +349,20 @@ class _Formatter:
                 words = [b.retract, b.kind] + self.axes(b, ("x", "y", "z", "r"))
                 if b.q is not None:
                     words.append(f"Q{self.c(b.q)}")
+                if b.p is not None:
+                    words.append(f"P{round(b.p * 1000)}" if d.dwell_ms else f"P{fmt(b.p, 3)}")
                 words += self.feed(b.F)
             else:
                 words = self.axes(b, ("x", "y"))
             self.motion = b.kind
             self.emit(words)
+        elif isinstance(b, RigidTap):
+            if d.rigid_tap == "m29":
+                self.emit(["M29", f"S{b.rpm}"])
+            elif d.rigid_tap != "g84":
+                raise CamError(f"{d.name}: rijit kılavuz yok")
+        elif isinstance(b, Dwell):
+            self.emit(["G4", f"P{fmt(b.seconds, 3)}"])
         elif isinstance(b, CycleEnd):
             self.emit(["G80"])
             self.motion = None
