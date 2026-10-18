@@ -19,13 +19,20 @@ import pytest
 
 from cam.model import CamError, Tool, ToolKind
 
-# Konik takımda (SPEC 06b) tip_angle zorunlu; ToolKind.CONE yoksa bu ayar kullanılmaz.
-TIP_ANGLE_CONE = 90.0
+# Konik (SPEC 06b), punta ve havşa (cam/model Ek 3) takımlarında tip_angle zorunlu;
+# kılavuzda (Ek 3) pitch ve lead zorunlu. Tür main'de yoksa ilgili ayar kullanılmaz (ada göre bakılır).
+TIP_ANGLE = 90.0  # derece; Ø6–Ø8 takımda kesici ağız boyu (D/2)·cot(45°) ≤ 4 mm < flute_length
+TAP_PITCH = 1.0  # mm, diş adımı
+TAP_LEAD = 3.0  # diş sayısı; lead·pitch = 3 mm < flute_length
 
 
 def kind_kw(kind: ToolKind) -> dict:
-    """Takım tipinin zorunlu ek alanları (CONE: tip_angle)."""
-    return {"tip_angle": TIP_ANGLE_CONE} if kind.name == "CONE" else {}
+    """Takım tipinin zorunlu ek alanları (CONE/SPOT/CHAMFER: tip_angle; TAP: pitch, lead)."""
+    if kind.name in ("CONE", "SPOT", "CHAMFER"):
+        return {"tip_angle": TIP_ANGLE}
+    if kind.name == "TAP":
+        return {"pitch": TAP_PITCH, "lead": TAP_LEAD}
+    return {}
 
 
 def make_tool(kind: ToolKind = ToolKind.FLAT, **kw) -> Tool:
