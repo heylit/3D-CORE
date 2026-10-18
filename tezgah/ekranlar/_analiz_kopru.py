@@ -51,7 +51,7 @@ YAKINSAMA_ORANLARI = (1.0, 1.5, 2.25)  # h, h/1.5, h/2.25
 ANALITIK_ESIK = 0.10  # |fark| > eşik → analitik_sapma uyari
 YAKINSAMA_ESIK = 0.05  # son iki ağın vm_max bağıl farkı > eşik → yakinsama uyari
 AG_HACMI_ESIK = 1e-2  # ag hacmi ↔ Part.volume bağıl farkı > eşik → uyari
-BILESENLER = ("vm", "sxx", "syy", "szz", "sxy", "syz", "sxz", "s1", "s2", "s3")  # sonda bileşenleri
+BILESENLER = ("vm", "sxx", "syy", "szz", "sxy", "sxz", "syz", "s1", "s2", "s3")  # sonda bileşenleri
 
 
 @dataclass(frozen=True)
@@ -123,7 +123,7 @@ class Cozum:
     """Çözüm sonucu: düğüm sırası `Ag.kimlik` ile aynı."""
 
     u: np.ndarray  # (nd, 3)
-    sigma: np.ndarray  # (nd, 6) düğüm gerilme tensörü (sxx, syy, szz, sxy, syz, sxz)
+    sigma: np.ndarray  # (nd, 6) düğüm gerilme tensörü Voigt (xx, yy, zz, xy, xz, yz), core.post sırası
     vm: np.ndarray  # (nd,)
     asal: np.ndarray  # (nd, 3) azalan sırada
     ozet: dict = field(default_factory=dict)  # Analiz["cozum"] sözlüğü
