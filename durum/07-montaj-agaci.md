@@ -3,7 +3,7 @@
 Dal: `claude/spec-07-montaj-agaci-ejmdg5` · Oturum: bulut
 
 ## Sıradaki adım
-SPEC metninin kullanıcı onayı; onaydan sonra `assy/model.py`'ye `Node` ekleyen ayrı arayüz PR'ı, sonra testler (ayrı oturum) ve kod.
+Testler "Montaj ağacı testleri (SPEC 07)" thread'inden, `Node` "Dalga 2 arayüz ekleri" thread'inin PR'ından gelecek; ikisi gelince kod ayrı commit'te.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
@@ -11,6 +11,10 @@ SPEC metninin kullanıcı onayı; onaydan sonra `assy/model.py`'ye `Node` ekleye
 | 2026-10-18 | — | — | SPEC taslağı; test ve kod yok |
 
 ## Son oturum
+**2026-10-18 — onay ve iskelet**
+- SPEC metni kullanıcı tarafından onaylandı (proje sohbeti kartı, 08:29 UTC: Node arayüz PR'ı, ardından testler ve kod).
+- `assy/tree.py`, `assy/bom.py`, `fileio/step_montaj.py` iskeletleri (`NotImplementedError`) eklendi.
+
 **2026-10-18**
 - `specs/07-montaj-agaci.md` taslağı yazıldı.
 - Ön deneme (OCCT XCAF, `STEPCAFControl_Writer/Reader`): ürün adı = tanım, oluşum adı = düğüm adı ve
@@ -19,5 +23,4 @@ SPEC metninin kullanıcı onayı; onaydan sonra `assy/model.py`'ye `Node` ekleye
   şekli paylaşan ikinci oluşumun adını `=>[0:1:1:3]` yapıyor. Bu yüzden XCAF doğrudan kullanılacak.
 
 ## Açık sorular
-- Ağaç düğümü (`Node`) `assy/model.py`'ye girmeli mi (önerilen, ayrı arayüz PR'ı), yoksa `assy/tree.py` içinde mi kalmalı?
-- OCCT'li montaj STEP kodu `fileio/step_montaj.py`'de (önerilen) mi, `assy/` içinde mi?
+_(yok; Node assy/model.py'de, STEP kodu fileio/step_montaj.py'de; kullanıcı onayı 08:29 UTC)_
