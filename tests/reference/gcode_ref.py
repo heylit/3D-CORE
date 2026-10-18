@@ -8,7 +8,10 @@ belgesinden kurar:
     - LinuxCNC G-code referansı (G0–G3, G17, G21, G43, G54, G80–G83, G90/G91, G90.1/G91.1, G98/G99)
     - LinuxCNC "Order of Execution" (aynı satırda: F, S, T, M6, M3/M4/M5, G43/G49, G54, G90/G91,
       G98/G99, hareket, M0/M2/M30 sırası)
-    - Smid, CNC Programming Handbook, Bölüm 21–22 (G81/G83 çevrimleri)
+    - Smid, CNC Programming Handbook, Bölüm 21–22 (G81/G82/G83/G84 çevrimleri)
+    - LinuxCNC G82 (dipte P saniye bekleme), G84 (sağ el kılavuz: dipte iş mili ters, ilerlemeyle
+      R'ye dönüş, iş mili ileri), G4 (bekleme). Fanuc `M29 S` (rijit kılavuz modu) bayrak olarak
+      kaydedilir (SPEC 04b).
 
 Çıktı: tezgâhın gerçekten yapacağı hareketlerin listesi (`Canon`) ve olaylar (`Event`: takım
 değişimi, iş mili, duruş, program sonu). Her hareket o anki makine durumunu (iş mili, devir, takım,
@@ -22,6 +25,8 @@ Bilerek basit tutulan noktalar:
       DURDURMAZ (GRBL 1.1).
     - G83 geri çekilme payı tezgâh parametresidir (LinuxCNC 0.254 mm, bizim diller 0.5 mm);
       `peck_clearance` ile verilir.
+    - Bekleme (G82 P, G4 P) hareket değildir: `dwell` olayı olarak, P dilin yazdığı birimde (Fanuc
+      milisaniye, LinuxCNC / GRBL / Haas saniye) olduğu gibi kaydedilir.
 Bilinmeyen kelime veya kod sessizce atlanmaz: `RefError`.
 """
 
@@ -118,7 +123,18 @@ def _tokens(raw: str) -> list[tuple[str, float]]:
 class RefMachine:
     """Basit 3 eksen dik işleme tezgâhı. `run(text)` -> `Trace`."""
 
-    MOTION = {0.0: "G0", 1.0: "G1", 2.0: "G2", 3.0: "G3", 80.0: "G80", 81.0: "G81", 83.0: "G83"}
+    MOTION = {
+        0.0: "G0",
+        1.0: "G1",
+        2.0: "G2",
+        3.0: "G3",
+        80.0: "G80",
+        81.0: "G81",
+        82.0: "G82",
+        83.0: "G83",
+        84.0: "G84",
+    }
+    CYCLES = ("G81", "G82", "G83", "G84")
 
     def __init__(
         self, tool_change: str = "M6", peck_clearance: float = 0.254, arc_tol: float = 0.005
@@ -140,7 +156,8 @@ class RefMachine:
         self.tlo: int | None = None
         self.wcs: str | None = None
         self.retract_r = False  # G99
-        self.cyc_z = self.cyc_r = self.cyc_q = None
+        self.cyc_z = self.cyc_r = self.cyc_q = self.cyc_p = None
+        self.rigid_rpm: float | None = None  # son M29 S değeri (Fanuc rijit kılavuz)
         self.cyc_old_z: float | None = None
         self.ended = False
         self.trace = Trace()
@@ -224,9 +241,11 @@ class RefMachine:
                 raise RefError(f"{k} satırda iki kez")
             w[k] = v
         motion = None
-        g43 = g49 = False
+        g43 = g49 = g4 = False
         for g in gs:
-            if g in self.MOTION:
+            if g == 4:
+                g4 = True
+            elif g in self.MOTION:
                 if motion is not None:
                     raise RefError("satırda iki hareket kodu")
                 motion = self.MOTION[g]
@@ -253,7 +272,7 @@ class RefMachine:
             else:
                 raise RefError(f"desteklenmeyen G{g:g}")
         for m in ms:
-            if m not in (0, 1, 2, 3, 5, 6, 7, 8, 9, 30):
+            if m not in (0, 1, 2, 3, 5, 6, 7, 8, 9, 29, 30):
                 raise RefError(f"desteklenmeyen M{m:g}")
         if 4 in ms:
             raise RefError("M4 desteklenmiyor")
@@ -281,6 +300,11 @@ class RefMachine:
         if 5 in ms:
             self.spindle_on = False
             self._event("spindle", on=False)
+        if 29 in ms:
+            if "S" not in w:
+                raise RefError("M29 için S gerekli")
+            self.rigid_rpm = w["S"]
+            self._event("rigid_tap", rpm=w["S"])
         if g49:
             self.tlo = None
         if g43:
@@ -290,16 +314,23 @@ class RefMachine:
         elif "H" in w:
             raise RefError("G43 olmadan H")
 
-        if motion == "G80":
+        if g4:
+            if motion is not None or any(k in w for k in "XYZIJRQ"):
+                raise RefError("G4 satırında hareket kelimesi")
+            if "P" not in w or w["P"] < 0:
+                raise RefError("G4: P (bekleme) gerekli")
+            self._event("dwell", p=w["P"])
+        elif motion == "G80":
             if any(k in w for k in "XYZRQ"):
                 raise RefError("G80 satırında eksen kelimesi")
             self.motion = None
             self.cyc_old_z = None
         elif motion is not None:
-            if motion not in ("G81", "G83") or self.motion not in ("G81", "G83"):
+            if motion not in self.CYCLES or self.motion not in self.CYCLES:
                 self.cyc_old_z = None  # yeni çevrim (veya çevrim iptali)
             self.motion = motion
-        self._motion(w)
+        if not g4:
+            self._motion(w)
 
         if 0 in ms or 1 in ms:
             self._event("stop")
@@ -327,9 +358,11 @@ class RefMachine:
     # ------------------------------------------------------------------ hareketler
     def _motion(self, w: dict[str, float]) -> None:
         mo = self.motion
-        if mo in ("G81", "G83"):
-            if any(k in w for k in "IJP"):
+        if mo in self.CYCLES:
+            if any(k in w for k in "IJ") or ("P" in w and mo != "G82"):
                 raise RefError("çevrimde I/J/P")
+            if "Q" in w and mo in ("G82", "G84"):
+                raise RefError(f"{mo}: Q yok (gagalı kılavuz / gagalı bekleme kapsam dışı)")
             if any(k in w for k in "XYZR"):
                 self._cycle(w)
             return
@@ -396,7 +429,7 @@ class RefMachine:
         return ((p0[0] + p1[0]) / 2 + s * nx, (p0[1] + p1[1]) / 2 + s * ny)
 
     def _cycle(self, w: dict[str, float]) -> None:
-        """G81/G83, LinuxCNC tanımı (sadece G90)."""
+        """G81/G82/G83/G84, LinuxCNC tanımı (sadece G90)."""
         if not self.absolute:
             raise RefError("çevrim G91 altında desteklenmiyor")
         p = self._p()
@@ -408,6 +441,12 @@ class RefMachine:
             self.cyc_q = w.get("Q", self.cyc_q)
             if self.cyc_q is None or self.cyc_q <= 0:
                 raise RefError("G83: Q pozitif olmalı")
+        if self.motion == "G82":
+            self.cyc_p = w.get("P", self.cyc_p)
+            if self.cyc_p is None or self.cyc_p < 0:
+                raise RefError("G82: P (bekleme) gerekli")
+        if self.motion == "G84" and not self.spindle_on:
+            raise RefError("G84: iş mili dönmüyor")
         if self.cyc_z is None or self.cyc_r is None:
             raise RefError("çevrimde Z veya R yok")
         z, r = self.cyc_z, self.cyc_r
@@ -424,6 +463,15 @@ class RefMachine:
         self._move("rapid", (x, y, r))
         if self.motion == "G81":
             self._move("feed", (x, y, z), feed=feed)
+        elif self.motion == "G82":
+            self._move("feed", (x, y, z), feed=feed)
+            self._event("dwell", p=self.cyc_p)
+        elif self.motion == "G84":
+            # LinuxCNC G84: dipte iş mili ters döner, aynı ilerlemeyle R'ye çıkılır, iş mili ileri döner
+            self._move("feed", (x, y, z), feed=feed)
+            self._event("spindle_reverse")
+            self._move("feed", (x, y, r), feed=feed)
+            self._event("spindle_forward")
         else:
             depth = r
             while depth > z:
