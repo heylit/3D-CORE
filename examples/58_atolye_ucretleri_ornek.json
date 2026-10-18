@@ -1,0 +1,15 @@
+{
+  "aciklama": "UYDURMA ÖRNEK, gerçek ücret değildir. Gerçek dosya: yerel_parcalar/atolye-ucretleri.json (repoya girmez).",
+  "sema": 1,
+  "para_birimi": "EUR",
+  "iscilik_saat": 30.0,
+  "operator_orani": 1.0,
+  "genel_gider": 0.2,
+  "kar_payi": 0.15,
+  "fire_orani": 0.05,
+  "tezgah_saat": { "ORNEK-VMC": 60.0, "ORNEK-TORNA": 45.0 },
+  "varsayilan_sureler": { "yukle_s": 60.0, "hazirlik_s": 1800.0 },
+  "malzeme_fiyati": { "1.0503": 1.5 },
+  "takim": { "D10 parmak freze": { "kenar_eur": 12.0, "kenar_omru_dk": 30.0 } },
+  "kesim_payi": { "prizma_mm": 2.0, "testere_mm": 3.0, "alin_mm": 1.0 }
+}
