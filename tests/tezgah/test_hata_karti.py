@@ -88,18 +88,20 @@ def test_card_technical_detail():
 
 
 def test_card_technical_detail_is_limited():
-    def derin(n: int):
-        if n == 0:
-            raise ModelError(BICIMLI)
-        derin(n - 1)
+    """Uzun istisna zinciri: teknik ayrıntı yalnız son 20 parçayı taşır.
 
-    try:
-        derin(60)
-    except ModelError as e:
-        k = hata.hata_karti(e)
-        satirlar = traceback.format_exception(e)
+    Özyineleme kullanılmaz: Python yinelenen çerçeveleri "[Previous line repeated …]" diye katlar.
+    Bunun yerine 25 halkalı `raise … from` zinciri kurulur; her halka ayrı parçalar üretir.
+    """
+    e: BaseException | None = None
+    for i in range(25):
+        e = _firlat(RuntimeError(f"halka {i}"), neden=e)
+    e = _firlat(ModelError(BICIMLI), neden=e)
+    satirlar = traceback.format_exception(e)
     assert len(satirlar) > hata.TEKNIK_SATIR
+    k = hata.hata_karti(e)
     assert k["teknik"] == "\n".join(satirlar[-hata.TEKNIK_SATIR :])
+    assert "halka 0" not in k["teknik"]  # en eski halka kesildi
     assert hata.TEKNIK_SATIR == 20
 
 
