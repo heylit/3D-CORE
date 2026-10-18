@@ -31,3 +31,8 @@ yerel_parcalar/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Tezgah ön yüzü (SPEC 24)
+node_modules/
+tezgah/arayuz/test-results/
+tezgah/arayuz/playwright-report/
