@@ -5,7 +5,7 @@
 > (kurallar: `BASLANGIC.md` bölüm 7). Sıra ve paralellik: `docs/yol-haritasi.md` → "Paralel çalışma: dalgalar".
 
 ## Açık dalga
-**Dalga 2 tamamlandı** (05, 06, 07, 11, 14, 15, 16, 20, 23). **Dalga 3 sürüyor:** 09, 12, 13, 21 ve 24 tamamlandı; 17'de yalnız arayüz birleşti. Dalga 5'in SPEC metinleri onaylandı. Dalga 1 tamamlandı (01, 02, 03, 04, 08).
+**Dalga 2 tamamlandı** (05, 06, 07, 11, 14, 15, 16, 20, 23). **Dalga 3 sürüyor:** 09, 12, 13, 21, 24 ve 27 tamamlandı; 17'de yalnız arayüz birleşti. Dalga 5'in SPEC metinleri onaylandı. Dalga 1 tamamlandı (01, 02, 03, 04, 08).
 
 ## SPEC tablosu
 | SPEC | Dalga | Durum | Kimde (dal / oturum) | Ayrıntı |
@@ -32,10 +32,11 @@
 | 09-girisim | 3 | tamamlandı (PR #43, `af45f60`) | — | `durum/09-girisim.md` |
 | 12-gmsh | 3 | tamamlandı (PR #61, `df5d352`) | — | `durum/12-gmsh.md` |
 | 21-torna-gcode | 3 | tamamlandı (PR #42, `11c7414`) | — | `durum/21-torna-gcode.md` |
+| 27-ozellik-tanima | 3 | tamamlandı (PR #46, `8918a0a`) | — | `durum/27-ozellik-tanima.md` |
 | 10-montaj-cam | 3 → 5 | Dalga 5'e alındı | — | — |
 | 22-torna-sim | 4 | SPEC onaylı (2026-10-18 10:38) | — | — |
 | 18-ozellik-agaci, 19-adaptif-kaba | 4 → 5 | Dalga 5'e alındı | — | — |
-| 03b-cep-kalan-malzeme, 06b-cam-3d-ek, 25-tezgah-torna-montaj, 26-tezgah-modelleme, 27-ozellik-tanima, 28-torna-profili, 30-tezgah-profili, 31-sinumerik-heidenhain, 41-kinematik-3arti2, 42-bes-eksen-yol, 43-tri-dexel, 44-tezgah-carpisma | — | SPEC onaylı (2026-10-18 10:38); dalgası henüz atanmadı. | — | — |
+| 03b-cep-kalan-malzeme, 06b-cam-3d-ek, 25-tezgah-torna-montaj, 26-tezgah-modelleme, 28-torna-profili, 30-tezgah-profili, 31-sinumerik-heidenhain, 41-kinematik-3arti2, 42-bes-eksen-yol, 43-tri-dexel, 44-tezgah-carpisma | — | SPEC onaylı (2026-10-18 10:38); dalgası henüz atanmadı. | — | — |
 | 29-islem-plani | — | SPEC metni onaylı ve birleşti (PR #58, `94989a3`); kod bekliyor | — | `durum/29-islem-plani.md` |
 | Dalga 5: 4 arayüz PR'ı + 03c, 04b, 10, 18, 19, 32, 33, 34, 35, 36, 37, 38, 39, 40, 45, 46, 47 | 5 | kapsam onaylı (2026-10-18 10:51); SPEC metinleri onaylı (35 ve 46 ~11:16, diğerleri 11:13) | — | — |
 
@@ -82,6 +83,7 @@
 | 21-torna-gcode | Fanuc torna G-code yazıcı ve okuyucu (PR #42) | 2026-10-18 | 120 |
 | 09-girisim | Boolean API, montaj girişim / temas / boşluk kontrolü (PR #43) | 2026-10-18 | 84 |
 | 12-gmsh | `Part`'tan gmsh ile tet4 ağı, sınır seçimi, tutarlı yükler (PR #61) | 2026-10-18 | 87 |
+| 27-ozellik-tanima | Özellik tanıma (PR #46) | 2026-10-18 | 52 |
 | — | `pyproject.toml`: `atolye*` ve `analiz*` paketleri (PR #80, `b62c3a7`) | 2026-10-18 | — |
 | 05-cam-sim | Talaş simülasyonu: z-map, dexel, süre, çarpışma, oyma (PR #54) | 2026-10-18 | 175 |
 | 17-kroki | `sketch/model.py` eskiz veri modeli arayüzü (PR #55, `fb99eb6`) | 2026-10-18 | 138 |
