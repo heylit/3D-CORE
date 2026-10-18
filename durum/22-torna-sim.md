@@ -18,4 +18,4 @@ SPEC 05 `main`'e girince `NotImplementedError` iskeleti; testler ayrı oturumda.
 
 ## Açık sorular
 - Arayüz eki: `LatheTool.edge_len`, `LatheTool.holder` (`LatheHolder`) — "CAM model arayüzü" thread'ine önerildi.
-- Katı parçadan dönel profil çıkarma bu SPEC'te değil (ayrı SPEC önerisi); kullanıcı kararı bekliyor.
+- Katı parçadan profil çıkarma ayrı SPEC'e taşındı (koordinatör, 09:44 UTC).

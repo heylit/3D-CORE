@@ -244,8 +244,9 @@ Testlerde uydurma geometri; beklenen değerin kaynağı test yorumunda. Tolerans
   10 s'den uzun testler `@pytest.mark.slow`
 
 ## Kapsam dışı
-- **Katı parçadan dönel profil çıkarma** (doğru + yay `Profile` olarak, SPEC 20 girdisi): ayrı SPEC. Burada parça yalnız
-  simülasyon haritası (`part_rmap`) olarak okunur. Dönel simetrik olmayan parçalar.
+- **Katı parçadan dönel profil çıkarma** (doğru + yay `Profile` olarak, SPEC 20 girdisi): ayrı SPEC ("Katı parçadan torna
+  profili" thread'i). Bu SPEC parçayı yalnız simülasyon haritası olarak okur: o SPEC'in ürettiği SPEC 20 `Profile`'ı
+  (kapalı bölge olarak) `profile_rmap` ile ya da ağdan `part_rmap` ile. Dönel simetrik olmayan parçalar.
 - Uç kalınlığı, uç talaş açısı, merkez yüksekliği hatası; uçun `y ≠ 0` konumları (Y eksenli torna), C ekseni, canlı takım.
 - Punta ucu konisi, gezer / sabit yatak, parçanın bağlamada sehimi; bağlama elemanları yalnız `CylinderStock` halkaları.
 - Ters bağlamada otomatik dönüşüm (`z → −z`): `initial` ile elle verilen haritayla yapılabilir; dönüşüm fonksiyonu ayrı iş.
