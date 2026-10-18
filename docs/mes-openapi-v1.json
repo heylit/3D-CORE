@@ -1,0 +1,1024 @@
+{
+  "components": {
+    "schemas": {
+      "Ciktilar": {
+        "description": "`hazir` anında dondurulan çıktıların sha256 özetleri.",
+        "properties": {
+          "foy_ozeti": {
+            "title": "Foy Ozeti",
+            "type": "string"
+          },
+          "program_ozeti": {
+            "title": "Program Ozeti",
+            "type": "string"
+          }
+        },
+        "required": [
+          "program_ozeti",
+          "foy_ozeti"
+        ],
+        "title": "Ciktilar",
+        "type": "object"
+      },
+      "GonderimKaydi": {
+        "additionalProperties": true,
+        "description": "SPEC 63 §5 gönderim kaydı + mes_id + sira (63'ün kaydı büyüyebilir: ek alanlara izin verilir).",
+        "properties": {
+          "hedef": {
+            "title": "Hedef",
+            "type": "string"
+          },
+          "mes_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mes Id"
+          },
+          "operator": {
+            "title": "Operator",
+            "type": "string"
+          },
+          "profil": {
+            "$ref": "#/components/schemas/GonderimProfil"
+          },
+          "program": {
+            "$ref": "#/components/schemas/GonderimProgram"
+          },
+          "sira": {
+            "title": "Sira",
+            "type": "integer"
+          },
+          "sonuc": {
+            "title": "Sonuc",
+            "type": "string"
+          },
+          "zaman": {
+            "title": "Zaman",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sira",
+          "mes_id",
+          "zaman",
+          "operator",
+          "profil",
+          "program",
+          "hedef",
+          "sonuc"
+        ],
+        "title": "GonderimKaydi",
+        "type": "object"
+      },
+      "GonderimProfil": {
+        "additionalProperties": true,
+        "properties": {
+          "ad": {
+            "title": "Ad",
+            "type": "string"
+          },
+          "ozet": {
+            "title": "Ozet",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ad",
+          "ozet"
+        ],
+        "title": "GonderimProfil",
+        "type": "object"
+      },
+      "GonderimProgram": {
+        "additionalProperties": true,
+        "properties": {
+          "ad": {
+            "title": "Ad",
+            "type": "string"
+          },
+          "lehce": {
+            "title": "Lehce",
+            "type": "string"
+          },
+          "ozet": {
+            "title": "Ozet",
+            "type": "string"
+          },
+          "program_no": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Program No"
+          }
+        },
+        "required": [
+          "ad",
+          "ozet",
+          "lehce"
+        ],
+        "title": "GonderimProgram",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "IptalIstek": {
+        "additionalProperties": false,
+        "properties": {
+          "gerekce": {
+            "minLength": 1,
+            "title": "Gerekce",
+            "type": "string"
+          }
+        },
+        "required": [
+          "gerekce"
+        ],
+        "title": "IptalIstek",
+        "type": "object"
+      },
+      "IsEmri": {
+        "additionalProperties": false,
+        "description": "MES'in verdiği iş emri (§2). Bilinmeyen alan → 422.",
+        "properties": {
+          "adet": {
+            "minimum": 1.0,
+            "title": "Adet",
+            "type": "integer"
+          },
+          "malzeme_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Malzeme Id"
+          },
+          "mes_id": {
+            "pattern": "^[A-Za-z0-9_.-]{1,40}$",
+            "title": "Mes Id",
+            "type": "string"
+          },
+          "notlar": {
+            "default": "",
+            "title": "Notlar",
+            "type": "string"
+          },
+          "parca_no": {
+            "title": "Parca No",
+            "type": "string"
+          },
+          "parca_rev": {
+            "title": "Parca Rev",
+            "type": "string"
+          },
+          "proje": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proje"
+          },
+          "revizyon": {
+            "minimum": 1.0,
+            "title": "Revizyon",
+            "type": "integer"
+          },
+          "termin": {
+            "anyOf": [
+              {
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Termin"
+          },
+          "tezgah": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tezgah"
+          }
+        },
+        "required": [
+          "mes_id",
+          "revizyon",
+          "parca_no",
+          "parca_rev",
+          "adet"
+        ],
+        "title": "IsEmri",
+        "type": "object"
+      },
+      "IsEmriDurumu": {
+        "properties": {
+          "ciktilar": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Ciktilar"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "degisiklik": {
+            "title": "Degisiklik",
+            "type": "integer"
+          },
+          "durum": {
+            "enum": [
+              "alindi",
+              "baglandi",
+              "hazir",
+              "gonderildi",
+              "iptal"
+            ],
+            "title": "Durum",
+            "type": "string"
+          },
+          "is_adi": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Adi"
+          },
+          "is_emri": {
+            "$ref": "#/components/schemas/IsEmri"
+          },
+          "uyarilar": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Uyarilar",
+            "type": "array"
+          }
+        },
+        "required": [
+          "is_emri",
+          "durum",
+          "degisiklik"
+        ],
+        "title": "IsEmriDurumu",
+        "type": "object"
+      },
+      "Kalem": {
+        "description": "SPEC 58 Kalem.",
+        "properties": {
+          "aciklama": {
+            "title": "Aciklama",
+            "type": "string"
+          },
+          "ad": {
+            "title": "Ad",
+            "type": "string"
+          },
+          "tutar_eur": {
+            "title": "Tutar Eur",
+            "type": "number"
+          }
+        },
+        "required": [
+          "ad",
+          "aciklama",
+          "tutar_eur"
+        ],
+        "title": "Kalem",
+        "type": "object"
+      },
+      "Maliyet": {
+        "description": "SPEC 58 Maliyet (n = adet).",
+        "properties": {
+          "ara_toplam_eur": {
+            "title": "Ara Toplam Eur",
+            "type": "number"
+          },
+          "fiyat_eur": {
+            "title": "Fiyat Eur",
+            "type": "number"
+          },
+          "kalemler": {
+            "items": {
+              "$ref": "#/components/schemas/Kalem"
+            },
+            "title": "Kalemler",
+            "type": "array"
+          },
+          "n": {
+            "title": "N",
+            "type": "integer"
+          },
+          "t_parca_s": {
+            "title": "T Parca S",
+            "type": "number"
+          },
+          "uyarilar": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Uyarilar",
+            "type": "array"
+          }
+        },
+        "required": [
+          "n",
+          "t_parca_s",
+          "kalemler",
+          "ara_toplam_eur",
+          "fiyat_eur",
+          "uyarilar"
+        ],
+        "title": "Maliyet",
+        "type": "object"
+      },
+      "Saglik": {
+        "properties": {
+          "api": {
+            "const": "v1",
+            "default": "v1",
+            "title": "Api",
+            "type": "string"
+          },
+          "sema_ozeti": {
+            "title": "Sema Ozeti",
+            "type": "string"
+          },
+          "tezgah_surum": {
+            "title": "Tezgah Surum",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tezgah_surum",
+          "sema_ozeti"
+        ],
+        "title": "Saglik",
+        "type": "object"
+      },
+      "Sure": {
+        "description": "SPEC 58 §1 parça başı süre (n = adet).",
+        "properties": {
+          "t_hazirlik_s": {
+            "title": "T Hazirlik S",
+            "type": "number"
+          },
+          "t_isleme_s": {
+            "title": "T Isleme S",
+            "type": "number"
+          },
+          "t_parca_s": {
+            "title": "T Parca S",
+            "type": "number"
+          },
+          "t_yukle_s": {
+            "title": "T Yukle S",
+            "type": "number"
+          }
+        },
+        "required": [
+          "t_isleme_s",
+          "t_yukle_s",
+          "t_hazirlik_s",
+          "t_parca_s"
+        ],
+        "title": "Sure",
+        "type": "object"
+      },
+      "Takim": {
+        "description": "SPEC 38 ToolRow'dan bir satır.",
+        "properties": {
+          "D": {
+            "title": "D",
+            "type": "number"
+          },
+          "ad": {
+            "title": "Ad",
+            "type": "string"
+          },
+          "boy": {
+            "title": "Boy",
+            "type": "number"
+          },
+          "sure_s": {
+            "title": "Sure S",
+            "type": "number"
+          },
+          "t_no": {
+            "title": "T No",
+            "type": "integer"
+          },
+          "tur": {
+            "title": "Tur",
+            "type": "string"
+          },
+          "tutucu": {
+            "title": "Tutucu",
+            "type": "string"
+          }
+        },
+        "required": [
+          "t_no",
+          "ad",
+          "tur",
+          "D",
+          "boy",
+          "tutucu",
+          "sure_s"
+        ],
+        "title": "Takim",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "paths": {
+    "/api/mes/v1/gonderimler": {
+      "get": {
+        "operationId": "gonderimler_api_mes_v1_gonderimler_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "sonra",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Sonra",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/GonderimKaydi"
+                  },
+                  "title": "Response Gonderimler Api Mes V1 Gonderimler Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Gonderimler",
+        "tags": [
+          "mes"
+        ]
+      }
+    },
+    "/api/mes/v1/is-emirleri": {
+      "get": {
+        "operationId": "is_emirleri_api_mes_v1_is_emirleri_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "durum",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "alindi",
+                    "baglandi",
+                    "hazir",
+                    "gonderildi",
+                    "iptal"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Durum"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sonra",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Sonra",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/IsEmriDurumu"
+                  },
+                  "title": "Response Is Emirleri Api Mes V1 Is Emirleri Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Is Emirleri",
+        "tags": [
+          "mes"
+        ]
+      }
+    },
+    "/api/mes/v1/is-emirleri/{mes_id}": {
+      "get": {
+        "operationId": "is_emri_api_mes_v1_is_emirleri__mes_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mes_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9_.-]{1,40}$",
+              "title": "Mes Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IsEmriDurumu"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Is Emri",
+        "tags": [
+          "mes"
+        ]
+      },
+      "put": {
+        "description": "Oluşturur ya da yeni revizyon; eş-etkili. Yoldaki mes_id gövdedekiyle aynı olmalı (değilse 422).",
+        "operationId": "is_emri_koy_api_mes_v1_is_emirleri__mes_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mes_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9_.-]{1,40}$",
+              "title": "Mes Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IsEmri"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IsEmriDurumu"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Is Emri Koy",
+        "tags": [
+          "mes"
+        ]
+      }
+    },
+    "/api/mes/v1/is-emirleri/{mes_id}/iptal": {
+      "post": {
+        "operationId": "is_emri_iptal_api_mes_v1_is_emirleri__mes_id__iptal_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mes_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9_.-]{1,40}$",
+              "title": "Mes Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IptalIstek"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IsEmriDurumu"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Is Emri Iptal",
+        "tags": [
+          "mes"
+        ]
+      }
+    },
+    "/api/mes/v1/is-emirleri/{mes_id}/is-foyu.html": {
+      "get": {
+        "operationId": "is_foyu_api_mes_v1_is_emirleri__mes_id__is_foyu_html_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mes_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9_.-]{1,40}$",
+              "title": "Mes Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Is Foyu",
+        "tags": [
+          "mes"
+        ]
+      }
+    },
+    "/api/mes/v1/is-emirleri/{mes_id}/maliyet": {
+      "get": {
+        "operationId": "maliyet_api_mes_v1_is_emirleri__mes_id__maliyet_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mes_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9_.-]{1,40}$",
+              "title": "Mes Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Maliyet"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Maliyet",
+        "tags": [
+          "mes"
+        ]
+      }
+    },
+    "/api/mes/v1/is-emirleri/{mes_id}/program": {
+      "get": {
+        "description": "Dondurulmuş NC programı (text/plain), başlık X-Sha256; yalnız hazir / gonderildi, değilse 409.",
+        "operationId": "program_api_mes_v1_is_emirleri__mes_id__program_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mes_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9_.-]{1,40}$",
+              "title": "Mes Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Program",
+        "tags": [
+          "mes"
+        ]
+      }
+    },
+    "/api/mes/v1/is-emirleri/{mes_id}/sure": {
+      "get": {
+        "operationId": "sure_api_mes_v1_is_emirleri__mes_id__sure_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mes_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9_.-]{1,40}$",
+              "title": "Mes Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Sure"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sure",
+        "tags": [
+          "mes"
+        ]
+      }
+    },
+    "/api/mes/v1/is-emirleri/{mes_id}/takimlar": {
+      "get": {
+        "operationId": "takimlar_api_mes_v1_is_emirleri__mes_id__takimlar_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mes_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9_.-]{1,40}$",
+              "title": "Mes Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Takim"
+                  },
+                  "title": "Response Takimlar Api Mes V1 Is Emirleri  Mes Id  Takimlar Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Takimlar",
+        "tags": [
+          "mes"
+        ]
+      }
+    },
+    "/api/mes/v1/saglik": {
+      "get": {
+        "operationId": "saglik_api_mes_v1_saglik_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Saglik"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Saglik",
+        "tags": [
+          "mes"
+        ]
+      }
+    }
+  }
+}
