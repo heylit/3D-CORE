@@ -98,6 +98,10 @@ def sahte_paket(tmp_path, monkeypatch):
     kok = tmp_path / "sahte_ekranlar"
     kok.mkdir()
     monkeypatch.setattr(paket, "__path__", [str(kok)])
+    # Önceden import edilmiş gerçek ekranlar (ör. başka testin topladığı analiz) sahtelerin yerine geçmesin;
+    # monkeypatch teardown'da onları geri koyar.
+    for k in [k for k in sys.modules if k.startswith(f"{paket.__name__}.")]:
+        monkeypatch.delitem(sys.modules, k)
     onceki = set(sys.modules)
     importlib.invalidate_caches()
     yield kok
