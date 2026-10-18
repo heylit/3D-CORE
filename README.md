@@ -9,7 +9,10 @@
 
 ## Kurulum (Windows, bir kez)
 
-PowerShell'de proje klasöründe:
+**Tek tık (operatör, PowerShell gerekmez):** `kurulum\kur.bat`'a çift tıklayın; masaüstüne `Tezgah.bat`
+koyar. Ayrıntı: [`kurulum/BENIOKU.md`](kurulum/BENIOKU.md) (SPEC 55).
+
+Geliştirici kurulumu, PowerShell'de proje klasöründe:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File _kurulum\yerlestir.ps1   # ajanları ve CI dosyasını yerine koyar
