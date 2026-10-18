@@ -30,6 +30,7 @@ import "../src/kanca";
 const EPS = 5e-4; // mm (K2 / K3 toleransı)
 
 interface TornaKanca {
+  hazir: boolean;
   kesitAcik(): boolean;
   capModu(): boolean;
   seciliIslem(): number | null;
@@ -41,6 +42,7 @@ interface TornaKanca {
 }
 
 interface MontajKanca {
+  hazir: boolean;
   montajU(): number;
   montajPoz(yol: string): number[];
 }
@@ -88,6 +90,16 @@ async function hazir(page: Page): Promise<void> {
   await page.waitForFunction(() => (window as unknown as { __tezgah?: Kanca25 }).__tezgah?.hazir === true, null, {
     timeout: 30_000,
   });
+}
+
+/** Hedef ekranın kendi kancası hazır olana dek bekler. Sekme değişince adres hemen değişir ama kabuk ekranı
+ * biraz sonra açar; o arada `__tezgah.hazir` önceki ekranınkidir (freze), o yüzden ekranın `hazir`'ına bakılır. */
+async function ekranHazir(page: Page, ad: string): Promise<void> {
+  await page.waitForFunction(
+    (a) => (window as unknown as { __tezgah?: Record<string, { hazir?: boolean } | undefined> }).__tezgah?.[a]?.hazir === true,
+    ad,
+    { timeout: 30_000 },
+  );
 }
 
 async function ikili(page: Page, yol: string): Promise<ArrayBuffer> {
@@ -149,19 +161,20 @@ test.describe("Tezgah torna ve montaj uçtan uca @slow", () => {
   test("1/2/3 sekmeleri ve adresler", async ({ page }) => {
     await page.keyboard.press("2");
     await expect.poll(() => etkin(page)).toBe("torna");
-    await hazir(page); // adres hemen değişir; ekranın verisi yüklenene dek bekle
+    await ekranHazir(page, "torna");
     expect(new URL(page.url()).hash).toBe("#/torna");
     await page.keyboard.press("3");
     await expect.poll(() => etkin(page)).toBe("montaj");
-    await hazir(page); // adres hemen değişir; ekranın verisi yüklenene dek bekle
+    await ekranHazir(page, "montaj");
     expect(new URL(page.url()).hash).toBe("#/montaj");
     await page.keyboard.press("1");
     await expect.poll(() => etkin(page)).toBe("freze");
-    await hazir(page); // adres hemen değişir; ekranın verisi yüklenene dek bekle
+    await hazir(page); // freze: kabuğun üst düzey kancası
     expect(new URL(page.url()).hash).toBe("#/freze");
     await page.goto("/#/montaj");
     await hazir(page);
     expect(etkin(page)).toBe("montaj");
+    await ekranHazir(page, "montaj");
     for (const s of ["freze", "torna", "montaj"]) {
       await expect(page.locator(`[data-testid="ekran-sekmesi"][data-ekran="${s}"]`)).toBeVisible();
     }
@@ -172,6 +185,7 @@ test.describe("Tezgah torna ve montaj uçtan uca @slow", () => {
     await page.goto("/#/torna?is=kademeli_mil");
     await hazir(page);
     expect(etkin(page)).toBe("torna");
+    await ekranHazir(page, "torna");
     await expect.poll(() => kanca(page, (k) => k.torna.gcodeSatirSayisi())).toBe(is.gcode.length);
     expect(await kanca(page, (k) => k.torna.toplamSure())).toBeCloseTo(is.sure.toplam, 9);
   });
@@ -183,7 +197,7 @@ test.describe("Tezgah torna ve montaj uçtan uca @slow", () => {
     const is: Is = await (await request.get("/api/ekran/torna/is/kademeli_mil")).json();
     await page.keyboard.press("2");
     await expect.poll(() => etkin(page)).toBe("torna");
-    await hazir(page); // adres hemen değişir; ekranın verisi yüklenene dek bekle
+    await ekranHazir(page, "torna");
     await expect.poll(() => kanca(page, (k) => k.torna.gcodeSatirSayisi())).toBe(is.gcode.length);
     expect(await kanca(page, (k) => k.torna.toplamSure())).toBeCloseTo(is.sure.toplam, 9);
     expect(await kanca(page, (k) => k.torna.capModu())).toBe(true);
@@ -245,7 +259,7 @@ test.describe("Tezgah torna ve montaj uçtan uca @slow", () => {
     const N = M.sira.length;
     await page.keyboard.press("3");
     await expect.poll(() => etkin(page)).toBe("montaj");
-    await hazir(page); // adres hemen değişir; ekranın verisi yüklenene dek bekle
+    await ekranHazir(page, "montaj");
 
     const serit = page.getByTestId("montaj-seridi");
     await seritSurukle(page, serit, -1); // şeridin soluna taşma: başa kırpılır
@@ -288,7 +302,7 @@ test.describe("Tezgah torna ve montaj uçtan uca @slow", () => {
     expect(M.girisimler.length).toBe(1);
     await page.keyboard.press("3");
     await expect.poll(() => etkin(page)).toBe("montaj");
-    await hazir(page); // adres hemen değişir; ekranın verisi yüklenene dek bekle
+    await ekranHazir(page, "montaj");
     const kart = page.getByTestId("girisim-karti");
     await expect(kart).toBeVisible();
     await expect(kart).not.toContainText(/temiz/i);
@@ -312,7 +326,7 @@ test.describe("Tezgah torna ve montaj uçtan uca @slow", () => {
 
     await page.getByTestId("tornada-goster").click();
     await expect.poll(() => etkin(page)).toBe("torna");
-    await hazir(page); // adres hemen değişir; ekranın verisi yüklenene dek bekle
+    await ekranHazir(page, "torna");
     const [yol, sorgu] = new URL(page.url()).hash.split("?");
     expect(yol).toBe("#/torna");
     const q = new URLSearchParams(sorgu ?? "");
@@ -332,7 +346,7 @@ test.describe("Tezgah torna ve montaj uçtan uca @slow", () => {
     ]) {
       await page.keyboard.press(tus);
       await expect.poll(() => etkin(page)).toBe(ad);
-      await hazir(page); // adres hemen değişir; ekranın verisi yüklenene dek bekle
+      await ekranHazir(page, ad);
       for (const genislik of [400, 1440]) {
         await page.setViewportSize({ width: genislik, height: 900 });
         await page.waitForTimeout(200);
@@ -355,7 +369,7 @@ test.describe("Tezgah torna ve montaj uçtan uca @slow", () => {
     ]) {
       await page.keyboard.press(tus);
       await expect.poll(() => etkin(page)).toBe(ad);
-      await hazir(page); // adres hemen değişir; ekranın verisi yüklenene dek bekle
+      await ekranHazir(page, ad);
       const gorulen = new Set<string>();
       for (let i = 0; i < 25; i++) {
         await page.keyboard.press("Tab");
