@@ -82,6 +82,7 @@ def test_centrifugal_total_full_disk(order):
     assert np.linalg.norm(F) <= 1e-3 * RHO * OMEGA**2 * B_R * V
 
 
+@pytest.mark.slow
 def test_centrifugal_total_octant():
     """1/8 modelde toplam yine ρ ω² Σ_e V_e r⊥(merkez_e) (tet10, eğri kenar elemanları dahil)."""
     m = _ag(True, 2)
