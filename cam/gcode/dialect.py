@@ -9,6 +9,9 @@ Kontrolör dilleri (son işlemci ayarları): GRBL 1.1, Fanuc (0i/31i tipi) ve Ha
 GRBL 1.1'de G43 yok (yalnız G43.1); takım boyu operatörün Z sıfırlamasına kalır.
 `tool_change_text`: takım değişim kelimesinin yazılışı (Haas `M06`); None → `tool_change`.
 `h_digits`: G43 satırındaki H numarasının en az hane sayısı (Haas `H01`).
+`rigid_tap` (SPEC 04b): 'm29' → G84'ten önce `M29 S<rpm>` (Fanuc); 'g84' → G84 doğrudan rijit (Haas);
+'' → bu dil kılavuz çekemez (GRBL: eşzamanlı iş mili yok).
+`dwell_ms`: G82 `P` tam sayı milisaniye (Fanuc `P500`); değilse ondalıklı saniye (Haas `P0.5`).
 `header` satırlarında `{program_no}` yer tutucusu `write(..., program_no)` ile doldurulur.
 """
 
@@ -32,6 +35,8 @@ class Dialect:
     tool_length_comp: bool = False  # takım değişiminden sonra G43 H<n> yazılsın mı
     tool_change_text: str | None = None  # 'M06' gibi yazılış; None → tool_change
     h_digits: int = 1  # H numarası en az hane
+    rigid_tap: str = ""  # 'm29' | 'g84' | '' (yukarıya bakınız)
+    dwell_ms: bool = False  # G82 P milisaniye mi
 
 
 GRBL = Dialect(
@@ -59,6 +64,8 @@ FANUC = Dialect(
     canned_cycles=True,
     peck_clearance=0.5,
     tool_length_comp=True,
+    rigid_tap="m29",
+    dwell_ms=True,
 )
 
 HAAS = Dialect(
@@ -75,4 +82,5 @@ HAAS = Dialect(
     tool_length_comp=True,
     tool_change_text="M06",
     h_digits=2,
+    rigid_tap="g84",
 )
