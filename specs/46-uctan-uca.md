@@ -1,6 +1,12 @@
 # SPEC 46 — Uçtan uca altın senaryo: flanş + mil, modelden G-code'a ve montaja
 
-> **Durum: TASLAK** (kullanıcı onayı bekliyor). Onaylanmadan test yazılmaz.
+> **Durum: ONAYLANDI** (kullanıcı, 2026-10-18 11:14 UTC proje sohbeti: "beni bekleyen bir şey varsa 2 dk'dan fazla
+> geçerse öneriyi kabul et"; koordinatörün 11:16 onay sorusu yanıtsız kaldı → önerilen varsayılanlarla onaylı).
+> Açık soruların yanıtı (öneriler): gelecek halkaların testleri SPEC birleşince yazılır; mil düz Ø20 + pah;
+> 31 ve 41–44 zincir dışı (ek SPEC 46b).
+> Testler yazılırken düzeltilen iki tutarsızlık (SPEC 14 / 20 ile uyum, kapsam değişmedi): K3 delme dibi `z = 0`
+> (SPEC 14 stok altına inmeyi yasaklar); K7 hayali uç yerine burun merkezi ölçütü (alında hayali uç eksenin
+> `−r` ötesine iner, pahta `x < 9` olur; doğru ölçü burun dairesinin parçaya girmemesidir).
 > Dalga 5, hat H17 (`/mnt/project-files/yol-haritasi/dalga-5-onerisi.md`). Kullanıcı Dalga 5'i 2026-10-18 10:51 UTC'de
 > tam kapsamla seçti.
 
@@ -43,12 +49,13 @@ kesitin dönmesi, Pappus: alan `c²/2`, ağırlık merkezi yarıçapı `r − c/
 |---|---|---|---|
 | 1 | `FLAT` | D 16, kesici boy 30 | alın |
 | 2 | `FLAT` | D 10, kesici boy 25 | merkez delik (dairesel cep, boydan) |
-| 3 | `DRILL` | D 6.6, kesici boy 30 | köşe delikleri (`DrillOp`, boydan, taşma 1 mm) |
+| 3 | `DRILL` | D 6.6, kesici boy 30 | köşe delikleri (`DrillOp`, dip `z = 0`: SPEC 14 stok altına inilmez) |
 | 11 | dış torna kalemi (`LatheTool`) | uç radyusu 0.4 | alın, kaba, finiş |
 
 **Elle işlem listesi** (SPEC 29 yokken zincirin kaynağı): flanş için `ops2d.face` (T1, `z 15 → 12`),
-`ops2d.pocket` (T2, Ø20 daire bölge, `z 12 → 0`), `DrillOp` (T3, dört delik); mil için `lathe_ops.face`
-(`z 61 → 60`), `lathe_ops.rough` + `lathe_ops.finish` (profil: `(r = 9, z = 60) → (10, 59) → (10, 0)`, dış).
+`ops2d.pocket` (T2, Ø20 daire bölge, `z 12 → 0`), `DrillOp` (T3, dört delik, dip `z = 0`); mil için
+`lathe_ops.face` (`z 61 → 60`), `lathe_ops.rough` (pay 0.2) + `lathe_ops.finish` alından sonraki çubukta
+(`zmax = 60`; SPEC 20: profil ön yüzden başlar), profil `(z, x)`: `(60, 9) → (59, 10) → (0, 10) → (0, 12)`, dış.
 Devir ve ilerleme `cam.cutting.milling` / `cam.cutting.css` ile kütüphaneden alınır (sabit sayı yazılmaz).
 
 **Montaj:** kök düğüm altında `flans` (sabit) ve `mil`. Kısıtlar: `CONCENTRIC` (flanş merkez delik ekseni
@@ -140,7 +147,7 @@ Bugün `main`'de olan halkalar (bu PR'da yazılır, yeşil olmalı):
   `check_setup(setup, freze_ops)` hata vermez; işlemlerin devri ve ilerlemesi `milling(tool, "Al")` ile aynı.
   (`test_h02_kurulum.py`)
 - [ ] **K3 Freze yolları (H3):** alın yolunun kesme hareketleri `z = 12`'ye iner, altına inmez; cep yolu Ø20 dairenin
-  `r − D/2 = 5` içinde kalır, en derin kesme `z = 0`; dört `DrillOp` delik merkezlerinde, dip `z = −1`.
+  `r − D/2 = 5` içinde kalır, en derin kesme `z = 0`; dört delik `DrillOp` ile delik merkezlerinde, dip `z = 0`.
   (`test_h03_freze_yol.py`)
 - [ ] **K4 Freze simülasyonu (H4):** `simulate(freze_ops, stok, cell = 0.5, part_z = part_zmap(flans, …))`:
   `collisions == []` (çarpışma ve çakma yok), kaldırılan hacim §4 sınırı içinde. (`test_h04_freze_sim.py`)
@@ -150,9 +157,10 @@ Bugün `main`'de olan halkalar (bu PR'da yazılır, yeşil olmalı):
 - [ ] **K6 Montaj (H6):** `flatten` + `solve` yakınsar (artık `≤ 1e-10`), `dof == 1`; `world(kök, "mil")`
   ötelemesi `(40, 40, 0)` `abs 1e-9`, mil ekseni `+Z`; `apply` sonrası ağaç `validate`'ten geçer.
   (`test_h06_montaj.py`)
-- [ ] **K7 Torna yolları (H7):** alın yolu `z = 60`'a iner; finiş yolu uç radyusu telafili profile `abs 1e-6`
-  uyar (Ø20 bölgede kesici ucun izlediği yarıçap `10`, pahta 45° doğru); hiçbir kesme hareketi `r < 9` veya
-  `z < 0`'a girmez. (`test_h07_torna_yol.py`)
+- [ ] **K7 Torna yolları (H7):** alın yolu `z = 60`'a iner; finiş yolunun Ø20 bölümünde hayali uç `x = 10`
+  (`abs 1e-6`); alın, kaba ve finiş kesme hareketlerinde burun merkezinin (`C = P − q_T`) parça yarı kesitine
+  uzaklığı `≥ r + δ` (kaba `δ = 0.2`, diğerleri `0`), finişte en küçük uzaklık tam `r` (profile değer).
+  (`test_h07_torna_yol.py`)
 
 Bağlı SPEC birleşince yazılacak halkalar (o zamana dek §3 kuralıyla atlanır):
 - [ ] **K8 Girişim (H8, SPEC 09):** `check(montaj, parts)` → yalnız `flans`–`mil` için `TEMAS`, `GIRISIM` yok;
