@@ -224,3 +224,51 @@ N110 M5
 N120 M30
 %
 ```
+
+## Ek B — Tezgâh güvenliği (inceleme 2026-10-18, bulgular K1–K3)
+Kod incelemesi (`inceleme/2026-10-18-kod-ve-sistem.md`) bugünkü çıktının tezgâha gönderilirse parça
+veya takım kırabileceği üç kusur buldu. Kullanıcı düzeltmelerin başlatılmasını seçti; bu ek SPEC'i
+günceller ve **Ek A'daki Fanuc altın metnini ve çok takımlı beklentileri geçersiz kılar** (yeni metinler
+`tests/cam/test_gcode_safety.py` ve güncellenen `test_gcode_writer.py`'de).
+
+**B1 — Çok kısa yay (K1).** Yuvarlanmış bitiş XY'de yuvarlanmış başlangıçla aynıysa metin tam daire
+okunur. Modelde başlangıç ≠ bitiş ve süpürme < π ise (G3'te `v0 × v1 > 0`, G2'de `< 0`; `v0`, `v1`
+merkezden uçlara) yay `G1` olarak yazılır (kiriş ≤ 2ε, sapma ihmal edilebilir; helisin Z'si korunur).
+Süpürme > π ise tam daire yazmak doğrudur (boy farkı ≤ 2ε). Kabul: r = 10, 0.0004 mm'lik yay geri
+okununca boy ≤ 1e-3 mm (önce 62.8 mm).
+
+**B2 — Güvenli Z (K2).** `write(ops, dialect=GRBL, program_no=1, safe_z=None)`.
+- `safe_z` verilmezse op başlarının (`Toolpath.start`, `DrillOp.start`) en yüksek Z'si. Bir op başından
+  alçak `safe_z` → `CamError`. (`cam/model.py`'ye alan eklenmedi; ileride kurulum SPEC'i (14) taşıyabilir.)
+- Her op başında takım güvenli Z'nin altındaysa önce `G0 Z<safe_z>`; sonra takım/devir; sonra
+  `G0 X Y Z<safe_z>` (üç eksen, Ek A kuralı); op başı daha alçaksa iniş ayrı satır (`Z<z0>`).
+- Takım değişimi: iş mili dönüyorsa önce `M5` (GRBL'de M0 iş milini durdurmaz), sonra `T<n> M6/M0`.
+- Program sonunda da `M5`'ten önce güvenli Z'ye geri çekme.
+- Okuyucu açısından geri çekmeler sıradan `G0` hareketleridir: gidiş-dönüşte yolun sonuna (veya op
+  geçişine) bir `G0` eklenir.
+
+**B3 — Fanuc iş koordinatı ve takım boyu (K3).** Fanuc başı `G21 G90 G17 G94 G40 G49 G80 G54`.
+`Dialect.tool_length_comp` (Fanuc `True`, GRBL `False`) ise takım değişiminden sonraki ilk satır
+`G0 G43 X Y Z H<n>` (H, Z'den sonra; n = takım numarası). Okuyucu `G43` ve `H`'yi kabul eder ama
+denetler: biri olmadan öteki veya etkin takımdan farklı `H` → `CamError`. GRBL 1.1'de G43 yok
+(yalnız G43.1); takım boyu operatörün Z sıfırlamasına kalır (Açık soru).
+
+Yeni Fanuc altın metni (Ek A yolu):
+```
+%
+O0001
+N10 G21 G90 G17 G94 G40 G49 G80 G54
+N20 T1 M6
+N30 S10000 M3
+N40 G0 G43 X0. Y0. Z5. H1
+N50 G1 Z-1. F100.
+N60 X10. F300.
+N70 Y10.
+N80 G3 X0. I-5. J0.
+N90 G1 Y0.
+N100 G0 Z5.
+N110 M5
+N120 M30
+%
+```
+GRBL altın metni değişmedi (yol zaten güvenli Z'de bitiyor).
