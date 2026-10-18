@@ -1,5 +1,7 @@
 # SPEC 03b — Kalan malzeme denetimli cep: D/2 < s ≤ D yan paso
 
+> Onaylandı: kullanıcı, 2026-10-18 10:24 (proje sohbeti kartı "Onayla") ve 10:38 (yazılı onay).
+
 ## Amaç
 Kontur-paralel cebin (`cam.ops2d.pocket`) `r < s ≤ D` yan pasoyu yeniden kabul etmesi; her halka seviyesinde
 kesilmemiş malzeme kalıp kalmadığının **kesin** (ofset aritmetiğiyle, örneklemesiz) denetlenmesi ve kalıyorsa
@@ -136,7 +138,7 @@ Tolerans aksi yazılmadıkça mutlak `1e-9 mm`; "kalan malzeme yok" ölçütünd
 
 ## Kapsam dışı
 - Rampa / helis giriş ve giriş-çıkış yayları: SPEC 03 ve Ek A2 bunları "03b" diye anıyordu; bu SPEC'ten ayrı
-  tutulur (önerilen ad 03c). Merkezden kesmeyen takımla cep Ek A2'deki gibi `CamError` kalır.
+  tutulur; adı 03c (koordinatör kararı, 2026-10-18). Merkezden kesmeyen takımla cep Ek A2'deki gibi `CamError` kalır.
 - Seviye içinde yerel ek halka / temizleme pasosu (yalnız kalan bölgeyi kesen kısa yollar): adım küçültme
   kanıtlı ve hareket kurallarını değiştirmediği için seçildi; yerel temizleme ileride ayrı SPEC olabilir.
 - Önceki takımdan kalan malzeme (rest machining, küçük takımla köşe temizliği), zigzag / trokoidal cep (19).

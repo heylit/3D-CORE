@@ -3,7 +3,7 @@
 Dal: `claude/project-thread-aeemx5` · Oturum: bulut
 
 ## Sıradaki adım
-SPEC metni kullanıcı onayı bekliyor. Onaydan sonra (ve PR #33 `main`'e birleşince) `NotImplementedError` iskeleti,
+SPEC onaylandı (kullanıcı, 2026-10-18 10:24 kart, 10:38 yazılı). PR #33 `main`'de; `NotImplementedError` iskeleti,
 ardından ayrı test oturumu, sonra kod.
 
 ## Test durumu
@@ -19,4 +19,4 @@ ardından ayrı test oturumu, sonra kod.
   (dikdörtgen, L, adalı, içbükey) `s ∈ {0,5 … 1,0}D` için 0,25 mm ızgarada kalan 0.
 
 ## Açık sorular
-- Rampa / helis giriş SPEC 03'te "03b" diye anılıyordu; bu SPEC'ten ayrı, önerilen ad 03c.
+_(yok)_ — rampa / helis giriş ayrı SPEC 03c (koordinatör kararı).
