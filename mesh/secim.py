@@ -1,5 +1,5 @@
 """
-Tet4 ağının sınır yüzeyi ve geometrik seçim (gmsh / OCCT gerektirmez).
+Tet4 / tet10 ağının sınır yüzeyi ve geometrik seçim (gmsh / OCCT gerektirmez).
 
 Teori: specs/12-gmsh.md
 """
@@ -17,6 +17,12 @@ Tahmin = Callable[[np.ndarray], np.ndarray]  # (n, 3) noktalar -> (n,) bool
 
 # Pozitif yönlü tet (a, b, c, d) için dışa bakan yüzler: (a, c, b), (a, b, d), (a, d, c), (b, c, d)
 DIS_YUZLER = np.array([[0, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3]])
+
+# tet10 (C3D10) dış yüzleri, 6 düğümlü üçgen: 3 köşe, sonra kenarlar (1–2, 2–3, 3–1)
+DIS_YUZLER_TET10 = np.array([[0, 2, 1, 6, 5, 4], [0, 1, 3, 4, 8, 7], [0, 3, 2, 7, 9, 6], [1, 2, 3, 5, 9, 8]])
+
+# Sol el tet10'da köşe 2 ↔ 3 ve buna bağlı kenarlar (mesh/gmsh_ag.py ile aynı)
+SOL_EL_TET10 = np.array([0, 2, 1, 3, 6, 5, 4, 7, 9, 8])
 
 
 def _koordinatlar(model: Model) -> tuple[np.ndarray, np.ndarray]:
@@ -38,26 +44,39 @@ def _ucgenler(tris) -> np.ndarray:
     T = np.asarray(tris, dtype=np.int64)
     if T.size == 0:
         return T.reshape(0, 3)
-    if T.ndim != 2 or T.shape[1] != 3:
-        raise ModelError(f"Üçgen dizisi (k, 3) olmalı (şekil {T.shape})")
+    if T.ndim != 2 or T.shape[1] not in (3, 6):
+        raise ModelError(f"Üçgen dizisi (k, 3) veya (k, 6) olmalı (şekil {T.shape})")
     return T
 
 
 def boundary_triangles(model: Model) -> np.ndarray:
-    """Sınır üçgenleri (m, 3), düğüm id'leri, dışa bakan sırada."""
+    """Sınır üçgenleri, düğüm id'leri, dışa bakan sırada: tet4 → (m, 3), tet10 → (m, 6).
+
+    tet10 üçgeni: 3 köşe, sonra (1–2, 2–3, 3–1) kenar düğümleri. Karışık tet4 + tet10 → ModelError.
+    """
     if not model.elements:
         return np.zeros((0, 3), dtype=np.int64)
+    tipler = {e.type for e in model.elements}
+    if tipler == {"tet4"} or tipler == {"tet10"}:
+        n = 4 if tipler == {"tet4"} else 10
+    elif tipler <= {"tet4", "tet10"}:
+        raise ModelError("boundary_triangles: tet4 ve tet10 aynı ağda karışık olamaz")
+    else:
+        raise ModelError(f"boundary_triangles sadece tet4 / tet10 elemanlarla çalışır ({sorted(tipler)})")
+    if any(len(e.nodes) != n for e in model.elements):
+        raise ModelError(f"boundary_triangles: her eleman {n} düğümlü olmalı")
     E = np.array([e.nodes for e in model.elements], dtype=np.int64)
-    if E.ndim != 2 or E.shape[1] != 4:
-        raise ModelError("boundary_triangles sadece dört düğümlü (tet4) elemanlarla çalışır")
-    P = _xyz(model, E)
+    P = _xyz(model, E[:, :4])
     det = np.einsum("ij,ij->i", P[:, 1] - P[:, 0], np.cross(P[:, 2] - P[:, 0], P[:, 3] - P[:, 0]))
     sol = det < 0
     E = E.copy()
-    E[sol, 1], E[sol, 2] = E[sol, 2].copy(), E[sol, 1].copy()  # sol el -> sağ el, dış normal korunur
-
-    F = E[:, DIS_YUZLER].reshape(-1, 3)  # eleman ve yüz sırasıyla
-    anahtar = np.sort(F, axis=1)
+    if n == 4:
+        E[sol, 1], E[sol, 2] = E[sol, 2].copy(), E[sol, 1].copy()  # sol el -> sağ el, dış normal korunur
+        F = E[:, DIS_YUZLER].reshape(-1, 3)  # eleman ve yüz sırasıyla
+    else:
+        E[sol] = E[sol][:, SOL_EL_TET10]
+        F = E[:, DIS_YUZLER_TET10].reshape(-1, 6)
+    anahtar = np.sort(F[:, :3], axis=1)
     _, ters, sayi = np.unique(anahtar, axis=0, return_inverse=True, return_counts=True)
     tek = sayi[ters.ravel()] == 1
     return F[tek]
@@ -122,18 +141,18 @@ def select_nodes(model: Model, pred: Tahmin) -> list[int]:
 
 
 def select_triangles(model: Model, pred: Tahmin) -> np.ndarray:
-    """Üç köşesi de pred'i sağlayan sınır üçgenleri (k, 3)."""
+    """Üç köşesi de pred'i sağlayan sınır üçgenleri (k, 3) veya (k, 6); karar köşe düğümlerine göre."""
     T = boundary_triangles(model)
     if len(T) == 0:
         return T
     ids, X = _koordinatlar(model)
     secili = dict(zip(ids.tolist(), np.asarray(pred(X), dtype=bool).tolist(), strict=True))
-    maske = np.array([secili[a] and secili[b] and secili[c] for a, b, c in T.tolist()], dtype=bool)
+    maske = np.array([secili[a] and secili[b] and secili[c] for a, b, c in T[:, :3].tolist()], dtype=bool)
     return T[maske]
 
 
 def _capraz(model: Model, tris) -> np.ndarray:
-    """(x_j − x_i) × (x_k − x_i), boyu 2A, yönü dış normal (k, 3)."""
+    """(x_j − x_i) × (x_k − x_i) köşelerden, boyu 2A (düz üçgen), yönü dış normal (k, 3)."""
     T = _ucgenler(tris)
     if len(T) == 0:
         return np.zeros((0, 3))
