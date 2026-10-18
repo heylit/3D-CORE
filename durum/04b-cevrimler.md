@@ -3,7 +3,7 @@
 Dal: `claude/spec-04b-cevrimler-9qxeq6` · Oturum: bulut
 
 ## Sıradaki adım
-SPEC metni kullanıcı onayı bekliyor (açık sorular 1–2); onaydan sonra `NotImplementedError` iskeleti.
+Onaylandı (11:13). İskelet push edildi; test thread'inin commit'i ve A0 + SPEC 30 blok ekleri bekleniyor.
 
 ## Test durumu
 | Tarih | Geçen | Kalan | Not |
@@ -15,7 +15,7 @@ SPEC metni kullanıcı onayı bekliyor (açık sorular 1–2); onaydan sonra `No
 - `specs/04b-cevrimler.md` taslağı yazıldı (K1–K14, Örnek A/B altın metinleri).
 - Arayüz eki A0 isteği (ToolKind SPOT/CHAMFER/TAP; Tool.tip_d, pitch, lead) ve SPEC 30/31 blok ekleri listesi
   koordinatöre gönderildi.
+- Onay işlendi; `cam/cevrimler.py` NotImplementedError iskeleti.
 
 ## Açık sorular
-1. Sinumerik / Heidenhain'de kılavuz: `CamError` (öneri) mi, doğal `CYCLE84` / `CYCL DEF 207` mi?
-2. Fanuc: her `G84`'ten önce `M29 S` (öneri) mi, parametreye mi bırakılsın?
+_(yok; 11:13 onayı: Sinumerik/Heidenhain kılavuzu CamError, Fanuc'ta her G84'ten önce M29 S)_
