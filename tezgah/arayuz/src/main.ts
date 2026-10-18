@@ -19,6 +19,7 @@ const serit = new Serit($<HTMLCanvasElement>("#seritTuval"));
 
 let sekmeler: Sekme[] = [];
 let etkin: Sekme | null = null;
+let aciliyor = false; // etkin ekranın ac()'ı sürüyor
 let acilis = 0; // yarışan sekme değişimlerinde yalnız sonuncusu geçerli
 let kabukHazir = false;
 let dinamikKomutlar: Komut[] = [];
@@ -59,7 +60,10 @@ function freze<T>(alan: string, yedek: T): T {
 
 const kanca: TezgahKanca = {
   get hazir() {
-    if (!kabukHazir || !etkin) return false;
+    if (!kabukHazir || !etkin || aciliyor) return false;
+    // Adres başka ekranı gösteriyorsa (hashchange henüz işlenmedi) önceki ekranın sinyali geçmez.
+    const a = adresCoz();
+    if (a && a.ad !== etkin.ad) return false;
     const h = (kanca[etkin.ad] as Record<string, unknown> | undefined)?.hazir;
     return h === undefined ? true : h === true;
   },
@@ -200,11 +204,14 @@ async function ac(s: Sekme, secim?: string): Promise<void> {
   alanlariBosalt();
   etkin = s;
   sekmeleriCiz();
+  aciliyor = true;
   try {
     await s.modul!.ac($("#sol"), kabukFor(s.ad), secim);
   } catch (e) {
     if (no !== acilis) return;
     hataGoster(`${s.baslik} açılamadı: ${e instanceof SunucuHatasi ? e.message : String(e)}`);
+  } finally {
+    if (no === acilis) aciliyor = false; // yalnız son açılış bayrağı indirir
   }
 }
 

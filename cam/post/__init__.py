@@ -14,6 +14,7 @@ from dataclasses import replace
 
 from cam.gcode.cycles import DrillOp
 from cam.gcode.dialect import FANUC, GRBL, Dialect
+from cam.gcode.lathe import FANUC_TORNA, LatheDialect
 from cam.gcode.reader import _read
 from cam.model import AxisLimits, CamError, MachineProfile, Setup, Tool, Toolpath
 from cam.post.blocks import (
@@ -35,6 +36,7 @@ from cam.post.check import check_machine, check_safe_z, machine_extents
 from cam.post.format_heidenhain import HEIDENHAIN, format_heidenhain
 from cam.post.format_iso import HAAS, _guvenli_z, format, plan
 from cam.post.format_sinumerik import SINUMERIK, format_sinumerik
+from cam.post.lathe import check_lathe, post_lathe
 from cam.post.machine import builtin_machines, load_machine, save_machine
 from cam.post.read_heidenhain import read_heidenhain
 from cam.post.read_sinumerik import read_sinumerik
@@ -59,6 +61,7 @@ __all__ = [
     "ToolChange",
     "ToolLength",
     "builtin_machines",
+    "check_lathe",
     "check_machine",
     "dialect_for",
     "format",
@@ -68,6 +71,7 @@ __all__ = [
     "machine_extents",
     "plan",
     "post",
+    "post_lathe",
     "read_heidenhain",
     "read_program",
     "read_sinumerik",
@@ -79,8 +83,11 @@ UYARI = "DOGRULANMAMIS PROFIL - ILK PARCADA KURU CALISTIRIN"
 DILLER = {"grbl": GRBL, "fanuc": FANUC, "haas": HAAS, "sinumerik": SINUMERIK, "heidenhain": HEIDENHAIN}
 
 
-def dialect_for(machine: MachineProfile) -> Dialect:
-    """grbl → GRBL, fanuc → FANUC, haas → HAAS, sinumerik → SINUMERIK, heidenhain → HEIDENHAIN (SPEC 31)."""
+def dialect_for(machine: MachineProfile) -> Dialect | LatheDialect:
+    """grbl → GRBL, fanuc → FANUC, haas → HAAS, sinumerik → SINUMERIK, heidenhain → HEIDENHAIN (SPEC 31);
+    torna profili (kind = "lathe", SPEC 40 Ek E2) → FANUC_TORNA."""
+    if machine.kind == "lathe":
+        return FANUC_TORNA
     d = DILLER.get(machine.controller)
     if d is None:
         raise CamError(f"Tezgâh profili '{machine.name}': {machine.controller} dili henüz yok (SPEC 31)")
@@ -99,6 +106,8 @@ def post(
     """Denetim + plan + biçim. İş sıfırı kodu `setup.wcs.code` (yoksa G54); koordinat basamağı profilden.
 
     Önce bütün denetimler: ihlalde CamError, metin üretilmez."""
+    if machine.kind == "lathe":
+        raise CamError(f"Tezgâh profili '{machine.name}' torna profili; post_lathe kullanın")
     if length_offsets is not None:
         raise CamError("length_offsets (G43.1 takım boyu farkı) henüz desteklenmiyor (SPEC 14)")
     check_machine(machine, ops, setup, program_no)
