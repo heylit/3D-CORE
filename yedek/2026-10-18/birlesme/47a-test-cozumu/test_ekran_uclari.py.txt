@@ -1,0 +1,645 @@
+"""
+SPEC 47 — ekran uçları (`/api/ekran/<ad>/...`) ve A3 kaydı: K1, K6, K7, K13, K20, K21.
+
+Her ekranın kısmı ayrı fonksiyonlardadır (47a Plan, 47b Çok eksen, 47c Analiz alt PR'ları).
+`[web]` (fastapi + httpx) yoksa atlanır. Beklenen yanıtlar köprü ve örnek fonksiyonlarından ayrıca hesaplanır;
+Plan'da ayrıca doğrudan SPEC 29 çağrılarıyla (`plan_ortak.planla`).
+"""
+
+from __future__ import annotations
+
+import importlib
+import sys
+
+import pytest
+
+from tests.tezgah.ekranlar import plan_ortak as ort
+from tests.tezgah.ekranlar.cok_eksen_ortak import CEKIRDEK, cekirdek, json_tur, moduller
+
+OCTET = "application/octet-stream"
+
+
+def _web():
+    pytest.importorskip("fastapi")
+    pytest.importorskip("httpx")
+
+
+# ================================================================ 47b Çok eksen
+
+COK = "/api/ekran/cok_eksen"
+
+
+def _cok_eksen_ekrani():
+    _web()
+    from tezgah.ekranlar.cok_eksen import EKRAN
+
+    return EKRAN
+
+
+def _cok_istemci():
+    """Yalnız çok eksen ekranı bağlı, statik dosyasız uygulama; ekran başlangıç durumunda."""
+    EKRAN = _cok_eksen_ekrani()
+    from fastapi.testclient import TestClient
+
+    from tezgah.sunucu import uygulama
+
+    EKRAN.sifirla()
+    return TestClient(uygulama(dist=None, ekranlar=[EKRAN]))
+
+
+def _cekirdek_var() -> bool:
+    for modul, _ in CEKIRDEK:
+        try:
+            importlib.import_module(modul)
+        except ImportError:
+            return False
+    return True
+
+
+def _kesif(ekranlar):
+    """A3 keşfi; keşfin bu testte import ettiği başka ekran modülleri sonra `sys.modules`'tan silinir
+    (A3 testlerinin sahte paket keşfi eski modül nesnelerini görmesin)."""
+    onceki = set(sys.modules)
+    try:
+        return ekranlar()
+    finally:
+        for k in list(sys.modules):
+            if k.startswith("tezgah.ekranlar.") and k not in onceki:
+                del sys.modules[k]
+        importlib.invalidate_caches()
+
+
+def test_kayit_cok_eksen():
+    """K1 (çok eksen): A3 kaydı; çekirdek yokken `hazir` nedeni eksik modülleri sayar."""
+    EKRAN = _cok_eksen_ekrani()
+    from tezgah.ekranlar import Ekran, ekranlar
+
+    assert isinstance(EKRAN, Ekran)
+    assert (EKRAN.ad, EKRAN.tus, EKRAN.sira) == ("cok_eksen", "5", 50)
+    assert EKRAN.baslik == "Çok eksen"
+    assert EKRAN.router is not None and callable(EKRAN.hazir) and callable(EKRAN.sifirla)
+    liste = _kesif(ekranlar)
+    kayit = [e for e in liste if e.ad == "cok_eksen"]
+    assert len(kayit) == 1 and kayit[0].tus == "5"
+    # Yardımcı modüller ayrı ekran olarak listelenmez.
+    assert not [e.ad for e in liste if "cok_eksen" in e.ad and e.ad != "cok_eksen"]
+
+    neden = EKRAN.hazir()
+    eksik = []
+    for modul, spec in CEKIRDEK:
+        try:
+            importlib.import_module(modul)
+        except ImportError:
+            eksik.append((modul, spec))
+    if not eksik:
+        assert neden is None
+    else:
+        assert isinstance(neden, str) and neden
+        for modul, spec in eksik:
+            assert modul in neden and spec in neden
+
+
+def test_cok_eksen_hazir_degil_503():
+    """K1: çekirdek yokken kabuk açılır, ekran listede kullanılamaz görünür, uçları 503 ve neden metni."""
+    if _cekirdek_var():
+        pytest.skip("SPEC 41–44 kurulu: ekran hazır")
+    istemci = _cok_istemci()
+    EKRAN = _cok_eksen_ekrani()
+    r = istemci.get("/api/ekranlar")
+    assert r.status_code == 200
+    satir = [e for e in r.json()["ekranlar"] if e["ad"] == "cok_eksen"]
+    assert len(satir) == 1
+    assert satir[0]["hazir"] is False and satir[0]["neden"] == EKRAN.hazir()
+    r = istemci.get(f"{COK}/ornekler")
+    assert r.status_code == 503
+    assert r.json()["detail"] == EKRAN.hazir()
+
+
+def test_cok_eksen_uclar():
+    """Uçlar köprünün çıktısını aynen verir (JSON ve ikili)."""
+    cekirdek()
+    kopru, orn = moduller()
+    istemci = _cok_istemci()
+
+    r = istemci.get(f"{COK}/ornekler")
+    assert r.status_code == 200
+    J = r.json()
+    assert J["sema"] == 1
+    assert [o["ad"] for o in J["ornekler"]] == list(orn.ORNEKLER)
+    for o in J["ornekler"]:
+        is_ = orn.ornek(o["ad"])
+        assert (o["tur"], o["profil"]) == (is_.tur, is_.profil)
+
+    for ad in orn.ORNEKLER:
+        is_ = orn.ornek(ad)
+        r = istemci.get(f"{COK}/{ad}")
+        assert r.status_code == 200
+        assert r.json() == json_tur(kopru.cok_json(is_))
+        ikililer = {u: getattr(kopru, f"{u}_ikili") for u in ("noktalar", "pozlar", "sapma")}
+        for uc, fn in ikililer.items():
+            r = istemci.get(f"{COK}/{ad}/{uc}")
+            assert r.status_code == 200, uc
+            assert r.headers["content-type"].startswith(OCTET)
+            assert r.content == fn(is_), (ad, uc)
+        # Simülasyon yokken dexel yok.
+        assert istemci.get(f"{COK}/{ad}/dexel").status_code == 409
+        for g in kopru.cok_json(is_)["tezgah"]["govdeler"]:
+            r = istemci.get(f"{COK}/{ad}/govde/{g['ad']}")
+            assert r.status_code == 200
+            assert r.content == kopru.govde_ikili(is_.model, g["ad"])
+        r = istemci.get(f"{COK}/{ad}/govde/olmayan_govde")
+        assert 400 <= r.status_code < 500
+
+    assert istemci.get(f"{COK}/olmayan_ornek").status_code == 404
+    assert istemci.get(f"{COK}/olmayan_ornek/noktalar").status_code == 404
+
+
+def test_cok_eksen_parametre():
+    """K13: `tilt` değişince yeni iş ve `sure_farki` iki işin ayrı hesaplanan sürelerinin farkı;
+    sunucu durumu yeni işte kalır."""
+    cekirdek()
+    kopru, orn = moduller()
+    istemci = _cok_istemci()
+    ad = "kubbe_5eksen"
+    eski = orn.ornek(ad)
+    yeni = orn.ornek(ad, tilt=15.0)
+
+    r = istemci.post(f"{COK}/{ad}/parametre", json={"anahtar": "tilt", "deger": 15.0})
+    assert r.status_code == 200
+    J = r.json()
+    assert J["sema"] == 1
+    assert J["is"] == json_tur(kopru.cok_json(yeni))
+    assert J["is"]["parametreler"]["tilt"] == 15.0
+    assert J["sure_farki"] == pytest.approx(kopru.sure(yeni) - kopru.sure(eski), rel=1e-12, abs=1e-12)
+    # Sunucu durumu yeni işte.
+    assert istemci.get(f"{COK}/{ad}").json() == J["is"]
+    assert istemci.get(f"{COK}/{ad}/noktalar").content == kopru.noktalar_ikili(yeni)
+
+
+@pytest.mark.parametrize(("anahtar", "deger"), [("tol_p", 0.0), ("tol_p", -1e-3), ("L", 0.0), ("L", -10.0)])
+def test_cok_eksen_hatalar(anahtar, deger):
+    """K13: geçersiz parametre → 422 ve çekirdeğin metni; iş değişmez."""
+    cekirdek()
+    kopru, orn = moduller()
+    from cam.model import CamError
+
+    istemci = _cok_istemci()
+    ad = "kubbe_5eksen"
+    with pytest.raises(CamError) as hata:
+        orn.ornek(ad, **{anahtar: deger})
+    once = istemci.get(f"{COK}/{ad}").json()
+    r = istemci.post(f"{COK}/{ad}/parametre", json={"anahtar": anahtar, "deger": deger})
+    assert r.status_code == 422
+    assert r.json()["detail"] == str(hata.value)
+    assert istemci.get(f"{COK}/{ad}").json() == once
+
+
+def test_cok_eksen_hatalar_anahtar():
+    """K13: bilinmeyen parametre anahtarı → 422."""
+    cekirdek()
+    istemci = _cok_istemci()
+    r = istemci.post(f"{COK}/kubbe_5eksen/parametre", json={"anahtar": "olmayan", "deger": 1.0})
+    assert r.status_code == 422
+
+
+def test_cok_eksen_hatalar_kuresel_olmayan_takim():
+    """K13: küresel olmayan takımla `finish5` çekirdekte CamError; ekranın ucu bunu 422 + metinle verir."""
+    cekirdek()
+    kopru, orn = moduller()
+    from cam.model import CamError, Tool, ToolKind
+    from cam.ops3d import Raster
+
+    is_ = orn.ornek("kubbe_5eksen", "ac_besik")
+    from cam.multiaxis.toolpath5 import Orientation, finish5
+
+    duz = Tool(id=99, name="duz6", kind=ToolKind.FLAT, D=6.0, flute_length=20.0)
+    raster = Raster(
+        xmin=-10, xmax=10, ymin=-10, ymax=10, stepover=2, ds=1, tol=0.01, ds_min=0.1,
+        feed=1000, plunge_feed=300, rpm=8000, z_safe=50,
+    )  # fmt: skip
+    with pytest.raises(CamError) as hata:
+        finish5(is_.part, duz, raster, Orientation("normal", lead=0.0, tilt=10.0))
+    metin = str(hata.value)
+
+    # Köprü çekirdek hatasını geçirir: parametre uygulanırken çekirdek CamError fırlatırsa uç 422 + metin.
+    import tezgah.ekranlar.cok_eksen as ekran_modulu
+
+    def sahte(*_a, **_k):
+        raise CamError(metin)
+
+    istemci = _cok_istemci()
+    mp = pytest.MonkeyPatch()
+    try:
+        mp.setattr(kopru, "parametre_uygula", sahte)
+        if hasattr(ekran_modulu, "parametre_uygula"):
+            mp.setattr(ekran_modulu, "parametre_uygula", sahte)
+        r = istemci.post(f"{COK}/kubbe_5eksen/parametre", json={"anahtar": "tilt", "deger": 12.0})
+    finally:
+        mp.undo()
+    assert r.status_code == 422
+    assert r.json()["detail"] == metin
+
+
+@pytest.mark.slow
+def test_onbellek_sifirla_cok_eksen(monkeypatch):
+    """K21 (çok eksen): aynı girdiyle ikinci `simule` çekirdeği yeniden çağırmaz ve aynı yanıtı verir;
+    girdi değişince yeniden hesaplar; `POST /api/sifirla` örnekleri başlangıca döndürür.
+    K12: `/simule` ve `/dexel` uçları."""
+    cekirdek()
+    kopru, orn = moduller()
+    import tezgah.ekranlar.cok_eksen as ekran_modulu
+
+    sayac = {"n": 0}
+    gercek = kopru.simule
+
+    def sayan(*a, **k):
+        sayac["n"] += 1
+        return gercek(*a, **k)
+
+    monkeypatch.setattr(kopru, "simule", sayan)
+    if hasattr(ekran_modulu, "simule") and ekran_modulu.simule is gercek:
+        monkeypatch.setattr(ekran_modulu, "simule", sayan)
+
+    istemci = _cok_istemci()
+    ad = "egik_yuz_3arti2"
+    is_ = orn.ornek(ad)
+    sims = gercek(is_)
+    beklenen = json_tur(kopru.cok_json(is_, sims))
+
+    r1 = istemci.post(f"{COK}/{ad}/simule")
+    assert r1.status_code == 200
+    assert r1.json() == beklenen
+    assert r1.json()["sim"] is not None
+    assert sayac["n"] == 1
+    r2 = istemci.post(f"{COK}/{ad}/simule")
+    assert r2.json() == r1.json()
+    assert sayac["n"] == 1
+    # Simülasyon sonrası GET /{ad} sim dolu, /dexel işlem sonu görüntüleri.
+    assert istemci.get(f"{COK}/{ad}").json() == beklenen
+    r = istemci.get(f"{COK}/{ad}/dexel")
+    assert r.status_code == 200
+    assert r.content == kopru.dexel_ikili([s.tridexel for s in sims])
+
+    # Girdi değişince yeniden hesaplar.
+    r = istemci.post(f"{COK}/{ad}/parametre", json={"anahtar": "clearance", "deger": 1.0})
+    assert r.status_code == 200
+    istemci.post(f"{COK}/{ad}/simule")
+    assert sayac["n"] == 2
+
+    # Sıfırlama: parametre başlangıçta, simülasyon yok.
+    assert istemci.post("/api/sifirla").status_code == 200
+    J = istemci.get(f"{COK}/{ad}").json()
+    assert J == json_tur(kopru.cok_json(orn.ornek(ad)))
+    assert J["parametreler"]["clearance"] == orn.CLEARANCE
+    assert J["sim"] is None
+    assert istemci.get(f"{COK}/{ad}/dexel").status_code == 409
+
+
+# ================================================================ 47a Plan
+
+P = ort.PLAN
+PARAMETRE_ADLARI = {"D", "F", "rpm", "a_p", "stepover"}
+
+
+def _plan():
+    """(plan ekran modülü, `_plan_kopru`, `_plan_ornekler`); `[web]` ya da 47a iskeleti yoksa atlanır."""
+    _web()
+    plan_ekrani = pytest.importorskip(
+        "tezgah.ekranlar.plan",
+        reason="A3 ekran kaydı (tezgah.ekranlar.Ekran) henüz yok",
+        exc_type=ImportError,
+    )
+    pk = pytest.importorskip("tezgah.ekranlar._plan_kopru", reason="47a iskeleti (_plan_kopru) yok")
+    po = pytest.importorskip("tezgah.ekranlar._plan_ornekler", reason="47a iskeleti (_plan_ornekler) yok")
+    return plan_ekrani, pk, po
+
+
+def _occt() -> bool:
+    import importlib.util
+
+    return importlib.util.find_spec("build123d") is not None
+
+
+class _Uygulanmamis:
+    """A3 iskeletiyken (NotImplementedError) hata testin içinde doğsun: "uygulanmamış" sayılır (conftest)."""
+
+    def __init__(self, e: NotImplementedError):
+        self.e = e
+
+    def __getattr__(self, ad):
+        raise self.e
+
+
+@pytest.fixture
+def istemci():
+    """Keşifle kurulan kabuk (A3); her test başlangıç durumundan başlar (`POST /api/sifirla`). Keşfin
+    yüklediği ekran modülleri sonra `sys.modules`'tan silinir (A3 testlerinin sahte paket keşfi için)."""
+    onceki = set(sys.modules)
+    try:
+        _plan()
+        from fastapi.testclient import TestClient
+
+        from tezgah.sunucu import uygulama
+
+        try:
+            c = TestClient(uygulama(dist=None))
+            assert c.post("/api/sifirla").status_code == 200
+        except NotImplementedError as e:
+            yield _Uygulanmamis(e)
+            return
+        yield c
+        c.post("/api/sifirla")
+    finally:
+        for k in list(sys.modules):
+            if k.startswith("tezgah.ekranlar.") and k not in onceki:
+                del sys.modules[k]
+        importlib.invalidate_caches()
+
+
+def _taze(ad: str) -> dict:
+    """Başlangıç durumundaki örneğin `Plan`'ı (köprüden, sunucusuz)."""
+    _, pk, po = _plan()
+    return ort.jt(pk.PlanOturumu(po.ornek(ad)).json())
+
+
+# ---------------------------------------------------------------- K1: kayıt ve örnek listesi
+
+
+def test_kayit_plan(istemci):
+    plan_ekrani, _, po = _plan()
+    E = plan_ekrani.EKRAN
+    assert (E.ad, E.baslik, E.tus) == ("plan", "Plan", "4")
+    assert E.router is not None and callable(E.hazir) and callable(E.sifirla)
+
+    import importlib.util
+
+    var29 = importlib.util.find_spec("cam.plan") is not None
+    neden = E.hazir()
+    if var29:
+        assert neden is None
+    else:
+        assert isinstance(neden, str) and neden.strip()
+
+    r = istemci.get("/api/ekranlar")
+    assert r.status_code == 200
+    satir = [e for e in r.json()["ekranlar"] if e["ad"] == "plan"]
+    assert len(satir) == 1
+    assert (satir[0]["tus"], satir[0]["hazir"]) == ("4", neden is None)
+
+    r = istemci.get(f"{P}/ornekler")
+    if neden is not None:
+        assert r.status_code == 503  # kullanılamaz ekranın uçları (A3)
+        pytest.skip(f"Plan ekranı kullanılamaz: {neden}")
+    assert r.status_code == 200
+    J = r.json()
+    assert J["sema"] == 1
+    assert list(po.ORNEKLER) == ["plan_blogu", "plan_engelli", "plan_mili"]
+    assert [x["ad"] for x in J["ornekler"]] == list(po.ORNEKLER)
+    x = {e["ad"]: e for e in J["ornekler"]}
+    for ad, tur in (("plan_blogu", "freze"), ("plan_engelli", "freze"), ("plan_mili", "torna")):
+        assert {"ad", "tur", "aciklama", "hazir", "neden"} <= set(x[ad]), x[ad]
+        assert x[ad]["tur"] == tur
+        assert x[ad]["aciklama"].strip()
+        assert x[ad]["hazir"] == (po.hazir(ad) is None)
+        assert x[ad]["neden"] == po.hazir(ad)
+    # OCCT'siz örnek her kurulumda çalışır; OCCT'li örnekler OCCT yokken nedeniyle kapalı
+    assert x["plan_engelli"]["hazir"] is True
+    assert x["plan_blogu"]["hazir"] is _occt()
+    if not _occt():
+        for ad in ("plan_blogu", "plan_mili"):
+            assert x[ad]["hazir"] is False
+            assert "OCCT" in x[ad]["neden"]
+    with pytest.raises(KeyError):
+        po.ornek("yok")
+
+
+# ---------------------------------------------------------------- uçlar = köprü
+
+
+@pytest.mark.parametrize("ad", ort.HEPSI)
+def test_plan_get(istemci, ad):
+    ort.girdi(ad)
+    r = istemci.get(f"{P}/{ad}")
+    assert r.status_code == 200
+    assert r.json() == _taze(ad)
+
+
+def test_plan_ag_yok(istemci):
+    """`plan_engelli`'de parça yok (özellik geometrisi çizilir): `/ag` 404."""
+    ort.girdi("plan_engelli")
+    assert istemci.get(f"{P}/plan_engelli/ag").status_code == 404
+
+
+@pytest.mark.occt
+def test_plan_ag(istemci):
+    _, pk, _ = _plan()
+    g = ort.girdi("plan_blogu")
+    r = istemci.get(f"{P}/plan_blogu/ag")
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith(OCTET)
+    V, T = pk.ag_coz(r.content)
+    assert V.ndim == 2 and V.shape[1] == 3 and len(V) > 0
+    assert T.ndim == 2 and T.shape[1] == 3 and len(T) > 0
+    assert int(T.max()) < len(V)
+    lo, hi = g.part.bbox
+    assert V.min(axis=0) == pytest.approx(lo, abs=1e-4)
+    assert V.max(axis=0) == pytest.approx(hi, abs=1e-4)
+
+
+def test_plan_ne_olurdu_ucu(istemci):
+    """`POST /ne_olurdu` köprünün yanıtını verir ve durum kalıcıdır (`GET` yeni planı döner)."""
+    _, pk, _ = _plan()
+    g = ort.girdi("plan_engelli")
+    govde = {"takim_kapat": [11], "secenek": {"rest": False}}
+    r = istemci.post(f"{P}/plan_engelli/ne_olurdu", json=govde)
+    assert r.status_code == 200
+    J = r.json()
+    beklenen = ort.jt(pk.PlanOturumu(g).ne_olurdu(takim_kapat=[11], secenek={"rest": False}))
+    assert J["plan"] == beklenen["plan"]
+    assert J["fark"] == beklenen["fark"]
+    assert istemci.get(f"{P}/plan_engelli").json() == J["plan"]
+    r = istemci.post(f"{P}/plan_engelli/ne_olurdu", json={"takim_ac": [11]})
+    assert r.status_code == 200
+    assert r.json()["plan"]["secenekler"]["rest"] is False  # seçenek kalıcı, takım yeniden açık
+    assert {t["id"]: t["acik"] for t in r.json()["plan"]["takimlar"]}[11] is True
+
+
+@pytest.mark.slow
+@pytest.mark.occt
+def test_plan_dogrula_ucu(istemci):
+    _, pk, _ = _plan()
+    g = ort.girdi("plan_blogu")
+    r1 = istemci.post(f"{P}/plan_blogu/dogrula")
+    assert r1.status_code == 200
+    J = r1.json()
+    assert J["dogrulama"] is not None
+    assert J == ort.jt(pk.PlanOturumu(g).dogrula())
+    r2 = istemci.post(f"{P}/plan_blogu/dogrula")
+    assert r2.json() == J
+
+
+# ---------------------------------------------------------------- K6: freze / tornada aç
+
+
+def _hareket_anahtari(hs: list[dict]) -> list[tuple]:
+    return [(h["g"], h["a"], h["b"], h.get("c"), h["F"], h["islem"]) for h in hs]
+
+
+def _beklenen_is(g, plan, bag: int, ad: str):
+    """Bağlama `bag`'ın işlemleri sırasıyla (SPEC 47 "Freze ekranında aç"); hareketler parametresiz."""
+    from tezgah import kopru
+
+    ops = [op for op in plan.ops if op.setup == bag]
+    assert [op.op for op in ops] == plan.ops_for(bag)
+    return kopru.IsTanimi(
+        ad=ad,
+        kurulum=plan.setups[bag],
+        malzeme=g.malzeme,
+        islemler=[kopru.Islem(anahtar=op.kind, ad=op.name, op=op.op) for op in ops],
+    )
+
+
+def _ac_ve_denetle(istemci, g, plan, bag: int) -> dict:
+    from tezgah import kopru
+
+    ad = f"{g.ad}-{bag + 1}"
+    r = istemci.post(f"{P}/{g.ad}/ac", json={"bag": bag})
+    assert r.status_code == 200
+    assert r.json()["adres"] == f"#/freze?is={ad}"
+    assert ad in istemci.get("/api/isler").json()["isler"]
+    r = istemci.get(f"/api/is/{ad}")
+    assert r.status_code == 200
+    J = r.json()
+    beklenen = _beklenen_is(g, plan, bag, ad)
+    assert _hareket_anahtari(J["hareketler"]) == _hareket_anahtari(ort.jt(kopru.hareketler(beklenen)))
+    ops = [op for op in plan.ops if op.setup == bag]
+    assert [i["ad"] for i in J["islemler"]] == [op.name for op in ops]
+    assert [i["anahtar"] for i in J["islemler"]] == [op.kind for op in ops]
+    for i, op in zip(J["islemler"], ops, strict=True):
+        assert set(i["parametreler"]) <= PARAMETRE_ADLARI
+        assert i["parametreler"]["D"] == g.lib.get(op.tool_id).D
+    s = plan.setups[bag]
+    assert J["kurulum"]["wcs"] == s.wcs.code
+    stok = J["kurulum"]["stok"]
+    st = s.stock
+    assert (stok["x0"], stok["x1"], stok["y0"], stok["y1"], stok["z0"], stok["z1"]) == (
+        st.xmin,
+        st.xmax,
+        st.ymin,
+        st.ymax,
+        st.zmin,
+        st.zmax,
+    )
+    return J
+
+
+def test_plan_ac_engelli(istemci):
+    """OCCT'siz: `plan_engelli` bağlama 1'i freze iş deposuna girer, hareketleri `ops_for(0)` ile birebir."""
+    g = ort.girdi("plan_engelli")
+    _ac_ve_denetle(istemci, g, ort.planla(g), 0)
+
+
+@pytest.mark.occt
+def test_plan_ac(istemci):
+    """`plan_blogu`: iki bağlama iki iş; hedef parça ağı geçer → SPEC 24 `cakma` kontrolü `tamam`."""
+    g = ort.girdi("plan_blogu")
+    plan = ort.planla(g)
+    assert len(plan.setups) == 2
+    J = _ac_ve_denetle(istemci, g, plan, 0)
+    cakma = [k for k in J["kontroller"] if k["kimlik"] == "cakma"]
+    assert len(cakma) == 1 and cakma[0]["durum"] == "tamam", cakma
+    _ac_ve_denetle(istemci, g, plan, 1)
+
+
+@pytest.mark.occt
+def test_plan_ac_torna(istemci):
+    """`plan_mili`: torna planı torna ekranında açılır (`#/torna?is=...`) ve iş listesinde görünür."""
+    ort.girdi("plan_mili")
+    r = istemci.post(f"{P}/plan_mili/ac", json={"bag": 0})
+    assert r.status_code == 200
+    adres = r.json()["adres"]
+    assert adres == "#/torna?is=plan_mili-1"
+    assert "plan_mili-1" in istemci.get("/api/isler").json()["isler"]
+
+
+@pytest.mark.parametrize("bag", [1, 5, -1])
+def test_plan_ac_bilinmeyen_baglama(istemci, bag):
+    """`plan_engelli` tek bağlamalı: bilinmeyen bağlama → 422, iş eklenmez."""
+    g = ort.girdi("plan_engelli")
+    assert len(ort.planla(g).setups) == 1
+    once = istemci.get("/api/isler").json()["isler"]
+    r = istemci.post(f"{P}/plan_engelli/ac", json={"bag": bag})
+    assert r.status_code == 422
+    assert istemci.get("/api/isler").json()["isler"] == once
+
+
+# ---------------------------------------------------------------- K7: plan hataları
+
+
+def _cam_hatasi(f) -> str:
+    from cam.model import CamError
+
+    with pytest.raises(CamError) as e:
+        f()
+    return str(e.value)
+
+
+@pytest.mark.parametrize(
+    "secenek",
+    [{"n_max": 0}, {"n_max": -100.0}, {"plunge_ratio": 0}, {"strict": True}],
+    ids=["n_max0", "n_max_negatif", "plunge0", "strict"],
+)
+def test_plan_hatalar_secenek(istemci, secenek):
+    """Geçersiz seçenek ve `strict` + planlanamayan → 422, metin çekirdeğin `CamError`'ı; durum değişmez."""
+    g = ort.girdi("plan_engelli")
+    once = istemci.get(f"{P}/plan_engelli").json()
+    metin = _cam_hatasi(lambda: ort.planla(g, secenekler=secenek))
+    r = istemci.post(f"{P}/plan_engelli/ne_olurdu", json={"secenek": secenek})
+    assert r.status_code == 422
+    assert r.json()["detail"] == metin
+    assert istemci.get(f"{P}/plan_engelli").json() == once
+
+
+def test_plan_hatalar_takim(istemci):
+    _, pk, _ = _plan()
+    g = ort.girdi("plan_engelli")
+    once = istemci.get(f"{P}/plan_engelli").json()
+    metin = _cam_hatasi(lambda: pk.kutuphane_suz(g.lib, frozenset({999})))
+    r = istemci.post(f"{P}/plan_engelli/ne_olurdu", json={"takim_kapat": [999]})
+    assert r.status_code == 422
+    assert r.json()["detail"] == metin
+    assert istemci.get(f"{P}/plan_engelli").json() == once
+
+
+@pytest.mark.parametrize(
+    "yontem, yol, govde",
+    [
+        ("get", "/yok", None),
+        ("get", "/yok/ag", None),
+        ("post", "/yok/ne_olurdu", {}),
+        ("post", "/yok/dogrula", None),
+        ("post", "/yok/ac", {"bag": 0}),
+    ],
+)
+def test_plan_bilinmeyen_ornek(istemci, yontem, yol, govde):
+    ort.spec29()
+    r = getattr(istemci, yontem)(f"{P}{yol}", **({} if govde is None else {"json": govde}))
+    assert r.status_code == 404
+
+
+# ---------------------------------------------------------------- K21: sıfırlama
+
+
+def test_plan_sifirla(istemci):
+    """`POST /api/sifirla` sonrası örnek başlangıçta: kapatılan takım açık, seçenekler örnekteki gibi."""
+    g = ort.girdi("plan_engelli")
+    r = istemci.post(f"{P}/plan_engelli/ne_olurdu", json={"takim_kapat": [11], "secenek": {"rest": False}})
+    assert r.status_code == 200
+    assert istemci.post(f"{P}/plan_engelli/ac", json={"bag": 0}).status_code == 200
+    assert istemci.post("/api/sifirla").status_code == 200
+    J = istemci.get(f"{P}/plan_engelli").json()
+    assert J == _taze("plan_engelli")
+    assert all(t["acik"] for t in J["takimlar"])
+    for k, v in g.secenekler.items():
+        assert J["secenekler"][k] == v
+    assert "plan_engelli-1" not in istemci.get("/api/isler").json()["isler"]  # dinamik iş silinir (A3)

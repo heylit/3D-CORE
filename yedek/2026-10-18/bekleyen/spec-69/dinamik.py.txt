@@ -1,0 +1,416 @@
+"""
+SPEC 69 — Mekanizma dinamiği: ters dinamik, eklem kuvvetleri ve motor torku.
+
+Sürücü eklemlerin hareketi q(t) verilir; her anda sürücü torku/kuvveti ve eklem tepkileri bulunur.
+Birimler: t, mm, s → kuvvet N, moment N·mm, atalet t·mm², güç N·mm/s (mW).
+
+Hız koordinatları SPEC 08/33 ile aynı: hareketli cisim başına ẋ_i = [ṫ_i, ω_i]
+(ṫ: bileşen çerçevesi orijininin dünya hızı, ω: dünya açısal hızı). Cisim üstündeki p noktası için
+    ṗ = ṫ + ω × (p − t).
+Konum: SPEC 33 `drive` ile her t'de çözülür. Hız: [Φ_q; Φ_q,sürücü] ẋ = [0; q̇] doğrusal sistemi.
+İvme: hız çözümünün t etrafında merkezi farkı (beş noktalı, h = 1e-4·T, T = t aralığı; hata O(h⁴)).
+Analitik γ = −(Φ_q q̇)_q q̇ − 2Φ_qt q̇ − Φ_tt yerine bu basitleştirme SPEC 69'da onaylıdır.
+
+Newton–Euler (her hareketli cisim i, dünya çerçevesinde, r_i = R_i c_i):
+    a_c = ẗ + ω̇ × r + ω × (ω × r)
+    F_i = m_i a_c − m_i g − F_dış,i
+    M_i = J_w ω̇ + ω × J_w ω − M_dış,i          (J_w = R J Rᵀ, kütle merkezi etrafında)
+ẋ_i ile eşlenik genelleştirilmiş kuvvet (güç: F·v_c + M·ω = F·ṫ + (r × F + M)·ω):
+    Q_i = [F_i, r_i × F_i + M_i]
+Kısıtların bu kuvveti sağlaması gerekir:  Aᵀ λ = Q   (A = [Φ_q; Φ_q,sürücü]).
+Sürücü satırı θ̇ (rad/s) ya da ṡ (mm/s) verdiği için çarpanı doğrudan tork (N·mm) ya da kuvvettir (N).
+Kaynak: Shabana, Computational Dynamics, 3. baskı, Bölüm 6–7; Nikravesh, Computer-Aided Analysis of
+Mechanical Systems, Bölüm 11.
+
+Sürtünme yok (SPEC 69 karar 3). Dış kuvvet F kütle merkezine, M serbest moment olarak, dünya
+çerçevesinde verilir. Bu modül OCCT import etmez; parça köprüsü geometry'yi geç import eder.
+"""
+
+from __future__ import annotations
+
+import copy
+import math
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+import numpy as np
+
+from assy.kinematik import drive, joint_jacobian, joint_value, mobility
+from assy.mates import jacobian as mate_jacobian
+from assy.model import Assembly, AssyError, Joint, JointKind
+from core.model import ModelError
+
+if TYPE_CHECKING:
+    from geometry.part import Part
+
+# Dünya yerçekimi, mm/s²
+G_DUNYA = 9810.0
+# İvme farkı adımı: h = _H_ORAN · T
+_H_ORAN = 1e-4
+# Sürme çözüm toleransı (SPEC 33 drive): ivme farkında gürültü küçük kalsın
+_TOL_SURME = 1e-12
+# Atalet tensörü denetimi: simetri ve negatif özdeğer payı (göreli)
+_TOL_J = 1e-9
+# Beş noktalı merkezi fark: f'(t) ≈ Σ w_k f(t + k h) / h
+_FARK = ((-2, 1 / 12), (-1, -8 / 12), (1, 8 / 12), (2, -1 / 12))
+
+
+@dataclass(frozen=True)
+class Kutle:
+    """Bileşenin kütle özellikleri, bileşenin yerel çerçevesinde."""
+
+    m: float  # t
+    c: np.ndarray  # (3,) mm, kütle merkezi
+    J: np.ndarray  # (3, 3) t·mm², c etrafında
+
+
+@dataclass(frozen=True)
+class Surucu:
+    """Sürücü eklem: q(t) derece (döner) ya da mm (kayar)."""
+
+    joint: str
+    q: Callable[[float], float]
+
+    @staticmethod
+    def sabit_hiz(joint: str, q0: float, hiz: float) -> Surucu:
+        """q(t) = q0 + hiz·t  (derece/s ya da mm/s)."""
+        q0, hiz = float(q0), float(hiz)
+        return Surucu(joint, lambda t: q0 + hiz * t)
+
+    @staticmethod
+    def tablo(joint: str, t: Sequence[float], q: Sequence[float]) -> Surucu:
+        """Tablodan kübik spline (scipy.interpolate.CubicSpline, 'not-a-knot' uçlar)."""
+        from scipy.interpolate import CubicSpline
+
+        t = np.asarray(t, dtype=float)
+        if t.ndim != 1 or len(t) < 2 or np.any(np.diff(t) <= 0):
+            raise ModelError(f"Sürücü '{joint}': tablo zamanı en az 2 noktalı ve artan olmalı")
+        spline = CubicSpline(t, np.asarray(q, dtype=float))
+        return Surucu(joint, lambda s: float(spline(s)))
+
+
+@dataclass(frozen=True)
+class DinamikSonuc:
+    t: np.ndarray  # (s,)
+    q: Mapping[str, np.ndarray]  # eklem → (s,)
+    tork: Mapping[str, np.ndarray]  # sürücü → (s,) N·mm ya da N
+    eklem_kuvveti: Mapping[str, np.ndarray]  # eklem → (s, 3) N, eklemin a çerçevesinde
+    eklem_momenti: Mapping[str, np.ndarray]  # eklem → (s, 3) N·mm
+    guc: np.ndarray  # (s,) N·mm/s (mW)
+    belirsiz: bool  # fazla kısıtlı → tepkiler en küçük kareler
+
+    def en_kotu(self, ad: str) -> tuple[float, float]:
+        """(t, |değer| maks): ad bir sürücü ise |tork|, eklem ise |kuvvet|."""
+        if ad in self.tork:
+            deger = np.abs(np.asarray(self.tork[ad]))
+        elif ad in self.eklem_kuvveti:
+            deger = np.linalg.norm(np.asarray(self.eklem_kuvveti[ad]), axis=1)
+        else:
+            raise ModelError(f"Bilinmeyen sürücü / eklem: {ad!r}")
+        k = int(np.argmax(deger))
+        return float(self.t[k]), float(deger[k])
+
+
+# ---------- Girdi denetimi ----------
+
+
+def _kutle_denetle(ad: str, k: Kutle) -> tuple[float, np.ndarray, np.ndarray]:
+    """m > 0, c (3,), J (3,3) simetrik ve yarı pozitif tanımlı (noktasal kütle J = 0 olabilir)."""
+    m = float(k.m)
+    c = np.asarray(k.c, dtype=float)
+    J = np.asarray(k.J, dtype=float)
+    if not (math.isfinite(m) and m > 0):
+        raise ModelError(f"Bileşen '{ad}': kütle m > 0 olmalı (m={m})")
+    if c.shape != (3,) or not np.all(np.isfinite(c)):
+        raise ModelError(f"Bileşen '{ad}': kütle merkezi c sonlu (3,) olmalı")
+    if J.shape != (3, 3) or not np.all(np.isfinite(J)):
+        raise ModelError(f"Bileşen '{ad}': atalet J sonlu (3, 3) olmalı")
+    olcek = max(1.0, float(np.max(np.abs(J))))
+    if np.max(np.abs(J - J.T)) > _TOL_J * olcek:
+        raise ModelError(f"Bileşen '{ad}': atalet J simetrik değil")
+    lam = np.linalg.eigvalsh(0.5 * (J + J.T))
+    if lam[0] < -_TOL_J * olcek:
+        raise ModelError(f"Bileşen '{ad}': atalet J pozitif tanımlı değil (özdeğer {lam[0]:.3e})")
+    return m, c, 0.5 * (J + J.T)
+
+
+def _zaman(t: Sequence[float]) -> np.ndarray:
+    t = np.asarray(t, dtype=float)
+    if t.ndim != 1 or len(t) == 0 or not np.all(np.isfinite(t)):
+        raise ModelError("Zaman dizisi t boş olmayan, sonlu (s,) olmalı")
+    if np.any(np.diff(t) <= 0):
+        raise ModelError("Zaman dizisi t kesin artan olmalı")
+    return t
+
+
+def _eklem_bul(assembly: Assembly, ad: str) -> Joint:
+    for j in assembly.joints:
+        if j.name == ad:
+            return j
+    raise ModelError(f"Sürücü: bilinmeyen eklem {ad!r}")
+
+
+# ---------- Kinematik ----------
+
+
+def _cerceve(asm: Assembly, j: Joint, side: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Eklem ucunun dünya çerçevesi (p, z, x)."""
+    o, z, x = j.axis_frame(side)
+    ref = j.a if side == "a" else j.b
+    T = asm.component(ref.component).T
+    R = T[:3, :3]
+    return R @ o + T[:3, 3], R @ z, R @ x
+
+
+def _surucu_satiri(asm: Assembly, j: Joint, unknowns: list[str]) -> np.ndarray:
+    """Sürücü koordinatının hız satırı: q̇ = a · ẋ.
+
+    Döner:  θ̇ = z_a · (ω_b − ω_a)                                         (rad/s)
+    Kayar:  s = (p_b − p_a)·z_a  →  ṡ = z_a·(ṗ_b − ṗ_a) + (p_b − p_a)·(ω_a × z_a)
+            ṗ = ṫ + ω × (p − t)  ⇒  ∂ṡ/∂ω_b = (p_b − t_b) × z_a,
+            ∂ṡ/∂ω_a = −(p_a − t_a) × z_a + z_a × (p_b − p_a)
+    """
+    pa, za, _ = _cerceve(asm, j, "a")
+    pb, _, _ = _cerceve(asm, j, "b")
+    satir = np.zeros(6 * len(unknowns))
+
+    def ekle(ad: str, dt: np.ndarray, dw: np.ndarray) -> None:
+        if ad in unknowns:
+            i = unknowns.index(ad)
+            satir[6 * i : 6 * i + 3] += dt
+            satir[6 * i + 3 : 6 * i + 6] += dw
+
+    a, b = j.a.component, j.b.component
+    if j.kind is JointKind.REVOLUTE:
+        ekle(b, np.zeros(3), za)
+        ekle(a, np.zeros(3), -za)
+    else:  # PRISMATIC
+        ta, tb = asm.component(a).T[:3, 3], asm.component(b).T[:3, 3]
+        ekle(b, za, np.cross(pb - tb, za))
+        ekle(a, -za, -np.cross(pa - ta, za) + np.cross(za, pb - pa))
+    return satir
+
+
+@dataclass
+class _Satirlar:
+    """A = [mate satırları; eklem satırları; sürücü satırları] ve eklemlerin satır aralıkları."""
+
+    A: np.ndarray
+    eklem: dict[str, slice]
+    surucu: slice
+
+
+def _satirlar(asm: Assembly, unknowns: list[str], suruculer: list[Joint]) -> _Satirlar:
+    n = 6 * len(unknowns)
+    bloklar = [np.zeros((0, n))]
+    bloklar += [mate_jacobian(asm, m, unknowns) for m in asm.mates]
+    i0 = sum(b.shape[0] for b in bloklar)
+    eklem = {}
+    for j in asm.joints:
+        Jj = joint_jacobian(asm, j, unknowns)
+        eklem[j.name] = slice(i0, i0 + Jj.shape[0])
+        i0 += Jj.shape[0]
+        bloklar.append(Jj)
+    bloklar += [_surucu_satiri(asm, j, unknowns)[None, :] for j in suruculer]
+    return _Satirlar(np.vstack(bloklar), eklem, slice(i0, i0 + len(suruculer)))
+
+
+def _qdot(s: Surucu, j: Joint, t: float, h: float) -> float:
+    """Sürücü hızı (beş noktalı fark); döner eklemde rad/s, kayarda mm/s."""
+    qd = sum(w * float(s.q(t + k * h)) for k, w in _FARK) / h
+    return math.radians(qd) if j.kind is JointKind.REVOLUTE else qd
+
+
+def _hiz(asm: Assembly, unknowns, suruculer, joints, t: float, h: float) -> np.ndarray:
+    """[Φ_q; Φ_q,sürücü] ẋ = [0; q̇] çözümü (en küçük kareler; tutarlı sistemde tam)."""
+    S = _satirlar(asm, unknowns, joints)
+    b = np.zeros(S.A.shape[0])
+    b[S.surucu] = [_qdot(s, j, t, h) for s, j in zip(suruculer, joints, strict=True)]
+    return np.linalg.lstsq(S.A, b, rcond=None)[0]
+
+
+def _konum(asm: Assembly, suruculer, t: float) -> dict[str, np.ndarray]:
+    """SPEC 33 drive ile t anındaki konum (mevcut konumdan başlar)."""
+    degerler = {s.joint: float(s.q(t)) for s in suruculer}
+    try:
+        return drive(asm, degerler, tol=_TOL_SURME).T
+    except AssyError as e:
+        raise AssyError(f"t = {t:.9g} s, sürücüler {degerler}: {e}") from e
+
+
+def _ata(asm: Assembly, T: Mapping[str, np.ndarray]) -> None:
+    for ad, Ti in T.items():
+        asm.component(ad).T = np.array(Ti, dtype=float)
+
+
+# ---------- Ters dinamik ----------
+
+
+def ters_dinamik(
+    assembly: Assembly,
+    kutleler: Mapping[str, Kutle],
+    suruculer: Sequence[Surucu],
+    t: Sequence[float],
+    *,
+    g=(0.0, 0.0, -G_DUNYA),
+    dis_kuvvetler: Mapping[str, Callable[[float], tuple[np.ndarray, np.ndarray]]] | None = None,
+) -> DinamikSonuc:
+    """Ters dinamik: her t için sürücü torku ve eklem tepkileri. Girdiyi değiştirmez."""
+    t = _zaman(t)
+    g = np.asarray(g, dtype=float)
+    dis_kuvvetler = dis_kuvvetler or {}
+    assembly.validate()
+    work = copy.deepcopy(assembly)
+    unknowns = [c.name for c in work.components if not c.fixed]
+
+    # Kütleler (sabit bileşenlerinki kullanılmaz)
+    kutle = {}
+    for ad in unknowns:
+        if ad not in kutleler:
+            raise ModelError(f"Hareketli bileşen '{ad}' için kütle (Kutle) verilmedi")
+        kutle[ad] = _kutle_denetle(ad, kutleler[ad])
+
+    # Sürücüler: döner / kayar, tekil, sayısı = serbestlik
+    suruculer = list(suruculer)
+    joints = [_eklem_bul(work, s.joint) for s in suruculer]
+    for j in joints:
+        if j.kind not in (JointKind.REVOLUTE, JointKind.PRISMATIC):
+            raise ModelError(
+                f"Sürücü eklem '{j.name}' ({j.kind.name}): yalnız döner ya da kayar eklem sürülür"
+            )
+    if len({j.name for j in joints}) != len(joints):
+        raise ModelError("Aynı eklem iki kez sürülemez")
+    mob = mobility(work)
+    if len(joints) != mob.dof:
+        raise ModelError(
+            f"Sürücü sayısı ({len(joints)}) mobiliteye eşit değil: mobilite = {mob.dof} "
+            f"(Grübler {mob.gruebler}); eksik sürücü → hareket belirsiz, fazla → çelişki"
+        )
+    belirsiz = mob.redundant > 0
+
+    span = float(t[-1] - t[0])
+    h = _H_ORAN * (span if span > 0 else 1.0)
+    yardimci = copy.deepcopy(work)
+    s_n = len(t)
+    koordinatli = [j for j in work.joints if j.kind in (JointKind.REVOLUTE, JointKind.PRISMATIC)]
+    q_out = {j.name: np.zeros(s_n) for j in koordinatli}
+    tork = {j.name: np.zeros(s_n) for j in joints}
+    kuvvet = {j.name: np.zeros((s_n, 3)) for j in work.joints}
+    moment = {j.name: np.zeros((s_n, 3)) for j in work.joints}
+    guc = np.zeros(s_n)
+
+    for k, tk in enumerate(t):
+        _ata(work, _konum(work, suruculer, tk))
+        xd = _hiz(work, unknowns, suruculer, joints, tk, h)
+
+        # İvme: hız çözümünün beş noktalı merkezi farkı
+        xdd = np.zeros_like(xd)
+        for m_, w in _FARK:
+            _ata(yardimci, {c.name: c.T for c in work.components})
+            _ata(yardimci, _konum(yardimci, suruculer, tk + m_ * h))
+            xdd += w * _hiz(yardimci, unknowns, suruculer, joints, tk + m_ * h, h)
+        xdd /= h
+
+        Q = _genel_kuvvet(work, unknowns, kutle, xd, xdd, g, dis_kuvvetler, tk)
+        S = _satirlar(work, unknowns, joints)
+        lam = np.linalg.lstsq(S.A.T, Q, rcond=None)[0]
+
+        lam_d = lam[S.surucu]
+        for i, j in enumerate(joints):
+            tork[j.name][k] = lam_d[i]
+        guc[k] = float(lam_d @ (S.A[S.surucu] @ xd))
+        for j in work.joints:
+            F, M = _eklem_tepkisi(work, j, unknowns, S.A[S.eklem[j.name]], lam[S.eklem[j.name]])
+            kuvvet[j.name][k], moment[j.name][k] = F, M
+        for j in koordinatli:
+            q_out[j.name][k] = float(joint_value(work, j))
+
+    # Sürülen eklemlerin q'su verilen değerdir (sarılmamış); diğer açılar sürekli olsun diye açılır
+    for s, j in zip(suruculer, joints, strict=True):
+        q_out[j.name] = np.array([float(s.q(tk)) for tk in t])
+    for j in koordinatli:
+        if j.kind is JointKind.REVOLUTE and j.name not in tork:
+            q_out[j.name] = np.degrees(np.unwrap(np.radians(q_out[j.name])))
+
+    return DinamikSonuc(
+        t=t, q=q_out, tork=tork, eklem_kuvveti=kuvvet, eklem_momenti=moment, guc=guc, belirsiz=belirsiz
+    )
+
+
+def _genel_kuvvet(asm, unknowns, kutle, xd, xdd, g, dis_kuvvetler, t) -> np.ndarray:
+    """Kısıtların sağlaması gereken genelleştirilmiş kuvvet Q_i = [F_i, r_i × F_i + M_i]."""
+    Q = np.zeros(6 * len(unknowns))
+    for i, ad in enumerate(unknowns):
+        m, c, J = kutle[ad]
+        R = asm.component(ad).T[:3, :3]
+        r = R @ c
+        Jw = R @ J @ R.T
+        w, wd = xd[6 * i + 3 : 6 * i + 6], xdd[6 * i + 3 : 6 * i + 6]
+        tdd = xdd[6 * i : 6 * i + 3]
+        a_c = tdd + np.cross(wd, r) + np.cross(w, np.cross(w, r))
+        F_dis, M_dis = np.zeros(3), np.zeros(3)
+        if ad in dis_kuvvetler:
+            F_dis, M_dis = (np.asarray(v, dtype=float) for v in dis_kuvvetler[ad](t))
+        F = m * a_c - m * g - F_dis
+        M = Jw @ wd + np.cross(w, Jw @ w) - M_dis
+        Q[6 * i : 6 * i + 3] = F
+        Q[6 * i + 3 : 6 * i + 6] = np.cross(r, F) + M
+    return Q
+
+
+def _eklem_tepkisi(
+    asm, j: Joint, unknowns, Aj: np.ndarray, lam_j: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
+    """a'nın b'ye uyguladığı kuvvet ve eklem noktası etrafındaki moment, eklemin a çerçevesinde.
+
+    Cisme gelen kısıt kuvveti Aᵀλ = [F, M_t] (M_t: bileşen orijini t etrafında);
+    eklem noktası p etrafında  M_p = M_t − (p − t) × F.
+    """
+    pa, za, xa = _cerceve(asm, j, "a")
+    pb, _, _ = _cerceve(asm, j, "b")
+    a, b = j.a.component, j.b.component
+    if b in unknowns:
+        i, p, isaret = unknowns.index(b), pb, 1.0
+        t_ = asm.component(b).T[:3, 3]
+    elif a in unknowns:  # b sabit: b'ye gelen kuvvet = −(a'ya gelen)
+        i, p, isaret = unknowns.index(a), pa, -1.0
+        t_ = asm.component(a).T[:3, 3]
+    else:
+        return np.zeros(3), np.zeros(3)
+    W = Aj[:, 6 * i : 6 * i + 6].T @ lam_j
+    F, M_t = W[:3], W[3:]
+    M_p = M_t - np.cross(p - t_, F)
+    E = np.column_stack([xa, np.cross(za, xa), za])  # a çerçevesi: x_a, y_a = z_a × x_a, z_a
+    return isaret * (E.T @ F), isaret * (E.T @ M_p)
+
+
+def kutleler_parcadan(assembly: Assembly, parts: Mapping[str, Part], kutuphane) -> dict[str, Kutle]:
+    """66 köprüsü: hareketli her bileşen için Component.material → kutuphane[id].rho → mass_props → Kutle.
+
+    parts: bileşen adı → Part (bileşenin YEREL koordinatında). kutuphane: malzeme id → malzeme.model.Malzeme
+    (Mapping). mass_props kütle merkezini ve ağırlık merkezine göre ataleti parçanın eksenlerinde verir; parça
+    yerel çerçevede olduğundan Kutle.c ve Kutle.J doğrudan yerel çerçevededir. Sabit bileşenler atlanır.
+    """
+    from geometry.props import mass_props  # OCCT: geç import (K9)
+
+    kutleler: dict[str, Kutle] = {}
+    for c in assembly.components:
+        if c.fixed:
+            continue
+        if c.material is None:
+            raise ModelError(f"Hareketli bileşen '{c.name}' için malzeme atanmamış (Component.material)")
+        if c.name not in parts:
+            raise ModelError(f"Hareketli bileşen '{c.name}' için parça (Part) verilmedi")
+        try:
+            malzeme = kutuphane[c.material]
+        except KeyError as e:
+            raise ModelError(f"Bileşen '{c.name}': malzeme {c.material!r} kütüphanede yok") from e
+        rho = getattr(malzeme, "rho", None)
+        if rho is None:
+            raise ModelError(f"Bileşen '{c.name}': malzeme {c.material!r} yoğunluğu (rho) yok")
+        mp = mass_props(parts[c.name], float(rho))
+        kutleler[c.name] = Kutle(
+            m=float(mp.m), c=np.asarray(mp.com, dtype=float), J=np.asarray(mp.I, dtype=float)
+        )
+    return kutleler

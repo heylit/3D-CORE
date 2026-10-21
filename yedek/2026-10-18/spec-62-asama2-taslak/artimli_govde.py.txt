@@ -1,0 +1,126 @@
+# artimli.py gövdeleri (taslak). Ek importlar: copy, hashlib, json, math, OrderedDict, GeometryError,
+# from cam.features import recognize; from cam.plan import DEFAULT_OPTIONS, plan_mill_features;
+# from tezgah.modelleme import ADIMLAR, HATALAR, AdimRaporu, _Kurulum ; SketchError
+
+
+def _ozet(nesne) -> str:
+    metin = json.dumps(nesne, sort_keys=True, separators=(",", ":"), default=repr)
+    return hashlib.sha256(metin.encode()).hexdigest()
+
+
+class _Durum:
+    """k adımdan sonraki kurulum durumunun anlık görüntüsü."""
+
+    def __init__(self, kur: _Kurulum) -> None:
+        self.parca = kur.parca
+        self.eskizler = dict(kur.eskizler)
+        self.adimlar = list(kur.rapor.adimlar)
+        self.kontroller = list(kur.rapor.kontroller)
+        self.kesimler = list(kur.rapor.kesimler)
+
+    def yukle(self, kur: _Kurulum) -> None:
+        kur.parca = self.parca
+        kur.eskizler = dict(self.eskizler)
+        kur.rapor = Rapor(list(self.adimlar), list(self.kontroller), list(self.kesimler))
+
+
+class Onbellek:
+    """En son kullanılan `boyut` katı durumu ve `boyut` planı tutar (LRU)."""
+
+    def __init__(self, boyut: int = 64) -> None:
+        if isinstance(boyut, bool) or not isinstance(boyut, int) or boyut < 1:
+            raise GeometryError(f"Önbellek boyu pozitif tamsayı olmalı ({boyut!r})")
+        self.boyut = boyut
+        self._adim: OrderedDict[str, _Durum] = OrderedDict()
+        self._plan: OrderedDict[str, MillPlan] = OrderedDict()
+        self._sayac = dict.fromkeys(("adim_isabet", "adim_kacirma", "plan_isabet", "plan_kacirma"), 0)
+
+    @staticmethod
+    def _koy(d: OrderedDict, anahtar: str, deger, boyut: int) -> None:
+        d[anahtar] = deger
+        d.move_to_end(anahtar)
+        while len(d) > boyut:
+            d.popitem(last=False)
+
+    def insa(self, model: dict) -> tuple[Part | None, Rapor]:
+        """Önbellekli `modelleme.insa(model)`; parça ve rapor önbelleksiz kurulumla aynı."""
+        kur = _Kurulum(model)
+        adimlar = model.get("adimlar", [])
+        P = model.get("parametreler", {})
+        anahtar = [_ozet([P, adimlar[:k]]) for k in range(len(adimlar) + 1)]
+        k0 = 0
+        for k in range(len(adimlar), 0, -1):
+            if anahtar[k] in self._adim:
+                self._adim.move_to_end(anahtar[k])
+                self._adim[anahtar[k]].yukle(kur)
+                k0 = k
+                break
+        self._sayac["adim_isabet"] += k0
+        for k in range(k0, len(adimlar)):
+            adim = adimlar[k]
+            ar = AdimRaporu(kimlik=str(adim.get("kimlik", "")), tur=str(adim.get("tur", "")))
+            kur.rapor.adimlar.append(ar)
+            self._sayac["adim_kacirma"] += 1
+            try:
+                if ar.tur not in ADIMLAR:
+                    raise SketchError(f"Bilinmeyen adım türü: {ar.tur!r}")
+                ADIMLAR[ar.tur](kur, adim, ar)
+            except HATALAR as e:
+                ar.hata = str(e) or type(e).__name__
+                if isinstance(e, SketchError):
+                    ar.celiski = tuple(e.constraints)
+                break
+            self._koy(self._adim, anahtar[k + 1], _Durum(kur), self.boyut)
+        return kur.parca, kur.rapor
+
+    def insa_ve_planla(self, model, stok, kutuphane, malzeme, **kw):
+        parca, rapor = self.insa(model)
+        if rapor.hata is not None:
+            raise GeometryError(f"Model kurulamadı: adım {rapor.hata.kimlik!r}: {rapor.hata.hata}")
+        if parca is None:
+            raise GeometryError("Model katı üretmedi")
+        o = kw.get("options", DEFAULT_OPTIONS)
+        ozellik = recognize(parca, stok, tol=o.tol, hole_d_max=o.hole_d_max)
+        z_alt = float(parca.bbox[0][2])
+        anahtar = _ozet([repr(ozellik), z_alt, repr(stok), repr(kutuphane), malzeme, repr(sorted(kw.items()))])
+        plan = self._plan.get(anahtar)
+        if plan is None:
+            self._sayac["plan_kacirma"] += 1
+            plan = plan_mill_features(ozellik, z_alt, stok, kutuphane, malzeme, **kw)
+        else:
+            self._sayac["plan_isabet"] += 1
+        self._koy(self._plan, anahtar, plan, self.boyut)
+        return parca, plan, rapor
+
+    def istatistik(self) -> dict:
+        return dict(self._sayac)
+
+    def temizle(self) -> None:
+        self._adim.clear()
+        self._plan.clear()
+        for k in self._sayac:
+            self._sayac[k] = 0
+
+
+def olcu_degistir(model: dict, adim: str, olcu: str, deger: float | str) -> dict:
+    if isinstance(deger, bool) or not isinstance(deger, int | float | str):
+        raise GeometryError(f"Ölçü değeri sayı ya da ifade olmalı ({deger!r})")
+    if isinstance(deger, str) and not deger.strip():
+        raise GeometryError("Ölçü ifadesi boş")
+    if not isinstance(deger, str) and not math.isfinite(deger):
+        raise GeometryError(f"Ölçü değeri sonlu olmalı ({deger!r})")
+    yeni = copy.deepcopy(model)
+    hedef = next((a for a in yeni.get("adimlar", []) if a.get("kimlik") == adim), None)
+    if hedef is None:
+        raise GeometryError(f"Bilinmeyen adım: {adim!r}")
+    if olcu.startswith("olculer/"):
+        sira = olcu.removeprefix("olculer/")
+        kisitlar = hedef.get("eskiz", {}).get("constraints", []) if hedef.get("tur") == "eskiz" else []
+        if not (sira.isdigit() and int(sira) < len(kisitlar) and kisitlar[int(sira)].get("value") is not None):
+            raise GeometryError(f"Adım {adim!r}: {olcu!r} ölçüsü yok")
+        hedef.setdefault("olculer", {})[str(int(sira))] = deger
+    else:
+        if olcu not in hedef or olcu in ("kimlik", "tur") or isinstance(hedef[olcu], dict | list | bool):
+            raise GeometryError(f"Adım {adim!r}: {olcu!r} ölçüsü yok")
+        hedef[olcu] = deger
+    return yeni

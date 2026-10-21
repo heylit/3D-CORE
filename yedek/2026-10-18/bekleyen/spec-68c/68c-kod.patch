@@ -1,0 +1,250 @@
+diff --git a/core/harmonik.py b/core/harmonik.py
+index 70c7036..c1f5206 100644
+--- a/core/harmonik.py
++++ b/core/harmonik.py
+@@ -11,12 +11,22 @@ Teori: specs/68c-harmonik-tepki.md (Ewins, Modal Testing, bölüm 2).
+ 
+ from __future__ import annotations
+ 
++import numbers
+ from collections.abc import Sequence
+ from dataclasses import dataclass
+ 
+ import numpy as np
++import scipy.linalg as sla
++import scipy.sparse as sp
++import scipy.sparse.linalg as spla
+ 
+-from core.model import Model
++from core.assembly import assemble_F, assemble_K, assemble_M
++from core.modal import YOGUN_SINIRI, _kutle_kontrol, _serbest_tutulu, modal
++from core.model import Model, ModelError
++from core.solver import _cozumle
++
++# Sönümsüz doğrudan çözümde |λ_r − ω²| ≤ RESONANS_ORANI · max(ω², λ_r) ise tam rezonans sayılır (tekil)
++RESONANS_ORANI = 1e-9
+ 
+ 
+ @dataclass(frozen=True)
+@@ -28,37 +38,155 @@ class FRF:
+ 
+     def nokta(self, model: Model, node_id: int, dof: str) -> np.ndarray:
+         """(q,) karmaşık genlik, o düğüm / DOF."""
+-        raise NotImplementedError("SPEC 68c: FRF.nokta")
++        return self.U[:, model.dof_index(node_id, dof)]
+ 
+     def genlik(self, model: Model, node_id: int, dof: str) -> np.ndarray:
+         """|U| (q,) [mm]."""
+-        raise NotImplementedError("SPEC 68c: FRF.genlik")
++        return np.abs(self.nokta(model, node_id, dof))
+ 
+     def faz(self, model: Model, node_id: int, dof: str) -> np.ndarray:
+         """Faz açısı (q,) [derece], (−180, 180]."""
+-        raise NotImplementedError("SPEC 68c: FRF.faz")
++        faz = np.degrees(np.angle(self.nokta(model, node_id, dof)))
++        return np.where(faz <= -180.0, faz + 360.0, faz)
++
++
++def _frekanslar(f: Sequence[float]) -> np.ndarray:
++    """Frekans dizisi [Hz] → ω [rad/s]. Boş, sonlu olmayan ya da negatif → ModelError."""
++    f = np.asarray(f, dtype=float).ravel()
++    if f.size == 0:
++        raise ModelError("Frekans listesi boş")
++    if not np.all(np.isfinite(f)) or np.any(f < 0.0):
++        raise ModelError(f"Frekanslar sonlu ve ≥ 0 olmalı (f={f.tolist()})")
++    return f
++
++
++def _yuk(model: Model, f: np.ndarray) -> np.ndarray:
++    """Serbest DOF'lardaki yük genliği F_f. Yük yok → ModelError."""
++    if not model.loads:
++        raise ModelError("Modelde yük yok: harmonik tepki için kuvvet genliği gerekli")
++    F_f = assemble_F(model)[f]
++    if not np.any(F_f):
++        raise ModelError("Bütün yükler tutulu DOF'larda: serbest DOF'larda kuvvet yok")
++    return F_f
++
++
++def _zeta(zeta: float | Sequence[float] | None, k: int) -> np.ndarray:
++    """Mod başına ζ_r (k,). Verilmemiş, 0 < ζ < 1 dışında ya da boyu yanlış → ModelError."""
++    if zeta is None:
++        raise ModelError("Modal sönüm oranı zeta verilmedi (tipik 0.01–0.05; kod varsaymaz)")
++    if isinstance(zeta, numbers.Real) and not isinstance(zeta, bool):
++        z = np.full(k, float(zeta))
++    else:
++        z = np.asarray(zeta, dtype=float).ravel()
++        if z.size != k:
++            raise ModelError(f"zeta mod başına verildiyse boyu n_modes={k} olmalı (boy {z.size})")
++    if not np.all(np.isfinite(z)) or np.any(z <= 0.0) or np.any(z >= 1.0):
++        raise ModelError(f"zeta 0 < ζ < 1 olmalı (zeta={z.tolist()})")
++    return z
+ 
+ 
+ def harmonic_modal(
+     model: Model,
+     f: Sequence[float],
+     *,
+-    zeta: float | Sequence[float],
++    zeta: float | Sequence[float] | None = None,
+     n_modes: int,
+     residual: bool = True,
+ ) -> FRF:
+     """Modal süperpozisyon (SPEC 45 modları, φᵀMφ = 1); residual=True ise kalıntı esneklik düzeltmesi.
+ 
+     zeta: sabit ya da mod başına (n_modes uzunlukta), 0 < ζ < 1; verilmezse ModelError.
++    U(ω) = Σ_r φ_r q_r / (ω_r² − ω² + 2iζ_r ω_r ω),  q_r = φ_rᵀ F
++    kalıntı: + (K_ff⁻¹ F_f − Σ_r φ_r q_r / ω_r²)  (frekanstan bağımsız, statik sınırı tam yapar)
+     """
+-    raise NotImplementedError("SPEC 68c: harmonic_modal")
++    fr = _frekanslar(f)
++    model.validate()
++    serbest, _ = _serbest_tutulu(model)
++    F_f = _yuk(model, serbest)
++    sonuc = modal(model, n_modes)
++    z = _zeta(zeta, len(sonuc.omega))
++
++    phi = sonuc.modes[serbest]  # (n_f, k)
++    lam, w_r = sonuc.omega2, sonuc.omega
++    q = phi.T @ F_f  # (k,)
++    w = 2.0 * np.pi * fr
++    payda = lam[None, :] - w[:, None] ** 2 + 2j * z[None, :] * w_r[None, :] * w[:, None]  # (q, k)
++    if np.any(payda == 0.0):
++        raise ModelError("Modal paydada sıfır: rijit cisim modunda ω = 0")
++    U_f = (q[None, :] / payda) @ phi.T  # (q, n_f)
++
++    if residual:
++        if np.any(lam <= 0.0):
++            raise ModelError("Kalıntı esneklik için K_ff tekil olmamalı (rijit cisim modu var)")
++        u_s = _cozumle(assemble_K(model)[serbest][:, serbest], F_f)
++        U_f = U_f + (u_s - phi @ (q / lam))[None, :]
++
++    U = np.zeros((len(fr), model.n_dof), dtype=complex)
++    U[:, serbest] = U_f
++    if not np.all(np.isfinite(U)):
++        raise ModelError("Harmonik tepki sonlu değil")
++    return FRF(f=fr, U=U)
++
++
++def _rezonans_denetle(K_ff: sp.csr_matrix, M_ff: sp.csr_matrix, w2: np.ndarray) -> None:
++    """Sönümsüz çözümde ω² bir öz değere (tam rezonans) denk geliyorsa ModelError."""
++    n_f = K_ff.shape[0]
++    if n_f <= YOGUN_SINIRI:
++        lam = sla.eigh(K_ff.toarray(), M_ff.toarray(), eigvals_only=True)
++        for w2_i in w2:
++            if np.any(np.abs(lam - w2_i) <= RESONANS_ORANI * np.maximum(np.abs(lam), w2_i)):
++                raise ModelError(f"Sönümsüz doğrudan çözüm tam rezonansta (ω² = {w2_i}): sistem tekil")
++        return
++    for w2_i in w2:
++        try:
++            lam = spla.eigsh(
++                K_ff.tocsc(), k=1, M=M_ff.tocsc(), sigma=w2_i, which="LM", return_eigenvectors=False
++            )
++        except (spla.ArpackError, RuntimeError):
++            raise ModelError(f"Sönümsüz doğrudan çözüm tam rezonansta (ω² = {w2_i}): sistem tekil") from None
++        if np.abs(lam[0] - w2_i) <= RESONANS_ORANI * max(abs(lam[0]), w2_i):
++            raise ModelError(f"Sönümsüz doğrudan çözüm tam rezonansta (ω² = {w2_i}): sistem tekil")
+ 
+ 
+ def harmonic_direct(model: Model, f: Sequence[float], *, alpha: float = 0.0, beta: float = 0.0) -> FRF:
+     """Doğrudan çözüm (K − ω² M + iω (αM + βK)) U = F; sönümsüz tam rezonans (tekil) → ModelError."""
+-    raise NotImplementedError("SPEC 68c: harmonic_direct")
++    fr = _frekanslar(f)
++    for ad, deger in (("alpha", alpha), ("beta", beta)):
++        if not np.isfinite(deger) or deger < 0.0:
++            raise ModelError(f"Rayleigh katsayısı {ad} sonlu ve ≥ 0 olmalı ({ad}={deger})")
++    model.validate()
++    _kutle_kontrol(model)
++    serbest, _ = _serbest_tutulu(model)
++    if len(serbest) == 0:
++        raise ModelError("Serbest DOF yok: harmonik tepki hesaplanamaz")
++    F_f = _yuk(model, serbest)
++    K_ff = assemble_K(model)[serbest][:, serbest]
++    M_ff = assemble_M(model)[serbest][:, serbest]
++    w = 2.0 * np.pi * fr
++    if alpha == 0.0 and beta == 0.0:
++        _rezonans_denetle(K_ff, M_ff, w**2)
++
++    U = np.zeros((len(fr), model.n_dof), dtype=complex)
++    for i, w_i in enumerate(w):
++        A = (K_ff - w_i**2 * M_ff + 1j * w_i * (alpha * M_ff + beta * K_ff)).tocsc()
++        try:
++            U_f = spla.splu(A).solve(F_f.astype(complex))
++        except RuntimeError as hata:
++            raise ModelError(f"Doğrudan harmonik çözüm tekil (f = {fr[i]} Hz): {hata}") from None
++        if not np.all(np.isfinite(U_f)):
++            raise ModelError(f"Doğrudan harmonik çözüm sonlu değil (f = {fr[i]} Hz): sistem tekil")
++        U[i, serbest] = U_f
++    return FRF(f=fr, U=U)
+ 
+ 
+ def rayleigh_from_zeta(f1: float, f2: float, zeta: float) -> tuple[float, float]:
+-    """f1 ve f2 [Hz] frekanslarında tam ζ veren Rayleigh katsayıları (α, β): ζ(ω) = α/(2ω) + βω/2."""
+-    raise NotImplementedError("SPEC 68c: rayleigh_from_zeta")
++    """f1 ve f2 [Hz] frekanslarında tam ζ veren Rayleigh katsayıları (α, β): ζ(ω) = α/(2ω) + βω/2.
++
++    α = 2ζ ω1 ω2 / (ω1 + ω2),  β = 2ζ / (ω1 + ω2)
++    """
++    if not (np.isfinite(f1) and np.isfinite(f2)) or f1 <= 0.0 or f2 <= 0.0 or f1 == f2:
++        raise ModelError(f"f1, f2 pozitif ve farklı olmalı (f1={f1}, f2={f2})")
++    if not np.isfinite(zeta) or not 0.0 < zeta < 1.0:
++        raise ModelError(f"zeta 0 < ζ < 1 olmalı (zeta={zeta})")
++    w1, w2 = 2.0 * np.pi * f1, 2.0 * np.pi * f2
++    return 2.0 * zeta * w1 * w2 / (w1 + w2), 2.0 * zeta / (w1 + w2)
+diff --git a/fileio/calculix.py b/fileio/calculix.py
+index ca318c4..a7c331b 100644
+--- a/fileio/calculix.py
++++ b/fileio/calculix.py
+@@ -134,4 +134,52 @@ def to_inp_steady_state(
+ 
+     Model bloğu to_inp ile aynı; yükler *CLOAD genlikleri. ρ ≤ 0 veya geçersiz girdi → ModelError.
+     """
+-    raise NotImplementedError("SPEC 68c: to_inp_steady_state")
++    for ad, deger in (("f_min", f_min), ("f_max", f_max), ("bias", bias), ("zeta", zeta)):
++        if not np.isfinite(deger):
++            raise ModelError(f"Harmonik girdi: {ad} sonlu olmalı ({ad}={deger})")
++    if not 0.0 <= f_min < f_max:
++        raise ModelError(f"Harmonik girdi: 0 ≤ f_min < f_max olmalı (f_min={f_min}, f_max={f_max})")
++    for ad, deger in (("n_points", n_points), ("n_modes", n_modes)):
++        if isinstance(deger, bool) or not isinstance(deger, int | np.integer) or deger < 1:
++            raise ModelError(f"Harmonik girdi: {ad} pozitif tamsayı olmalı ({ad}={deger!r})")
++    if not 0.0 < zeta < 1.0:
++        raise ModelError(f"Harmonik girdi: zeta 0 < ζ < 1 olmalı (zeta={zeta})")
++    if bias <= 0.0:
++        raise ModelError(f"Harmonik girdi: bias pozitif olmalı (bias={bias})")
++    if not model.loads:
++        raise ModelError("Harmonik girdi: modelde yük yok")
++    for m in model.materials:
++        if m.rho <= 0.0:
++            raise ModelError(f"Harmonik girdi: malzeme '{m.name}' için ρ > 0 olmalı (rho={m.rho})")
++
++    # Model bloğu to_inp'ten (adım öncesi); her *ELASTIC satırından sonra *DENSITY
++    statik = to_inp(model).splitlines()
++    adim = statik.index("*STEP")
++    out: list[str] = []
++    yogunluk = iter(m.rho for m in model.materials)
++    satirlar = iter(statik[:adim])
++    for satir in satirlar:
++        out.append(satir)
++        if satir == "*ELASTIC":
++            out += [next(satirlar), "*DENSITY", _g(next(yogunluk))]
++
++    # 1. adım: öz frekanslar (sonraki adım için saklanır), sınır koşulları burada
++    yuk_basi, cikti_basi = statik.index("*CLOAD"), statik.index("*NODE PRINT, NSET=NALL")
++    out += ["*STEP", "*FREQUENCY, STORAGE=YES", str(int(n_modes)), *statik[adim + 2 : yuk_basi], "*END STEP"]
++
++    # 2. adım: durağan harmonik tepki, modal sönüm, kuvvet genlikleri
++    yuk = statik[yuk_basi:cikti_basi]
++    out += [
++        "*STEP",
++        "*STEADY STATE DYNAMICS",
++        f"{_g(f_min)}, {_g(f_max)}, {int(n_points)}, {_g(bias)}",
++        "*MODAL DAMPING",
++        f"1, {int(n_modes)}, {_g(zeta)}",
++        *yuk,
++        "*NODE PRINT, NSET=NALL",
++        "U",
++        "*NODE FILE",
++        "U",
++        "*END STEP",
++    ]
++    return "\n".join(out) + "\n"

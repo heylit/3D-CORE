@@ -1,0 +1,211 @@
+# SPEC 71 — Chatter kararlılık lobu, ölçülmüş FRF ile (Dalga 7, A13)
+
+> Durum: **onaylı** (kullanıcı, 2026-10-18 16:19, önerilen cevaplarla; mesaj cmsg_01DTo5iWYb5RBUWgjk6xu1sGJGTUdh2rjZ3topbRjRQuit). Kullanıcı kararı (2026-10-18 11:07):
+> - lob, kullanıcının çekiç testi FRF ölçümüyle çizilir (Altintas sıfırıncı mertebe çözümü)
+> - ölçüm yoksa `ModelError` verilir
+>
+> Bağımlılık:
+> - SPEC 14 (`Tool`, `CuttingData`)
+> - SPEC 30 (tezgâh profili, devir sınırı)
+> - 32 (kesme kuvveti, Kienzle)
+> - B2/66 (`kc11`, `mc`)
+> - 68c yalnız kavramsal (FRF tanımı ortaktır, ölçüm yerine geçmez)
+
+## Amaç
+Tırlama (chatter), kendini besleyen titreşimdir; yüzeyi bozar, takımı kırar. Hangi devir ve paso derinliğinde
+oluşmayacağı **kararlılık lobu** diyagramından okunur. Lobun girdisi takım ucunun FRF'sidir. FRF tutucuya, takım boyuna ve
+tezgâha bağlıdır ve hesapla güvenilir biçimde tahmin edilemez. Bu yüzden ölçülür. Kullanıcı ölçümü iki biçimde getirir:
+- ham FRF tablosu (CSV)
+- ölçüm yazılımının modal uydurma sonucu (mod başına `f_n`, `ζ`, `k`)
+
+Bu SPEC şunları sağlar:
+- **frezeleme** için Altintas–Budak sıfırıncı mertebe çözümü (2 serbestlik, x–y)
+- **tornalama** için Tlusty tek yönlü çözümü (NLX/NTX torna tezgâhları için)
+- kullanıcının çalışma noktası (`n`, `ap`) için "kararlı / kararsız / sınırda" kararı ve en yakın kararlı devir önerisi
+
+## Teori
+
+### Birimler
+FRF mm/N, kesme katsayısı `K_t` N/mm² (MPa), paso `a` mm, devir `n` dev/dk, frekans Hz.
+
+### Kesme katsayıları
+Altintas modeli doğrusaldır: `F_t = K_t a h`, `F_r = K_r F_t`. 66'daki Kienzle katsayılarından ortalama talaş kalınlığında
+eşdeğer değer hesaplanır:
+```
+h_m = (fz / (φ_ex − φ_st)) · (cos φ_st − cos φ_ex)        (frezede ortalama talaş kalınlığı)
+K_t = kc11 · h_m^(−mc)
+```
+- `K_r` kayıtta yoktur. Kullanıcı verir; verilmezse `0.3` kullanılır ve rapor "varsayılan" diye yazar (Altintas'ın
+  çelik için tipik aralığı 0.2–0.4).
+- `K_t` ve `K_r` doğrudan da verilebilir. Bu, kullanıcının kendi kesme testi varsa öncelikli yoldur.
+
+### Frezeleme, sıfırıncı mertebe (Altintas–Budak 1995)
+Yönsel katsayılar, giriş ve çıkış açıları `φ_st`, `φ_ex` arasında:
+```
+α_xx = ½ [cos 2φ − 2K_r φ + K_r sin 2φ]
+α_xy = ½ [−sin 2φ − 2φ + K_r cos 2φ]
+α_yx = ½ [−sin 2φ + 2φ + K_r cos 2φ]
+α_yy = ½ [−cos 2φ − 2K_r φ − K_r sin 2φ]          (her biri φ_st'den φ_ex'e değerlendirilir)
+```
+Tırlama frekansı `ω_c` taranır. Her `ω_c` için:
+1. `Φ(iω_c) = [α] [G(iω_c)]` matrisinin özdeğerleri `λ = λ_R + i λ_I` bulunur (`G` 2×2: `G_xx`, `G_yy`; çapraz terim
+   ölçülmüşse dahil edilir).
+2. Paso sınırı ve devir (`det[I + Λ Φ] = 0` ⇒ `Λ = −1/λ`):
+   ```
+   Λ = Λ_R + i Λ_I = −1/λ
+   κ = Λ_I / Λ_R
+   a_lim = −2π Λ_R (1 + κ²) / (N K_t)
+   ψ = atan κ
+   ε = π − 2ψ
+   T = (ε + 2kπ)/ω_c
+   n = 60/(N T)
+   ```
+   `k = 0, 1, 2, …` lob numarasıdır.
+
+   Formülün kesin biçimi Altintas, *Manufacturing Automation*, 2. baskı, bölüm 3 (frezede kararlılık) ile birebir yazılır; kod PR'ı
+   işaret kuralını bu kaynaktan alır ve testle sabitler.
+3. Yalnız fiziksel çözümler (`a_lim > 0`) tutulur.
+
+Bütün loblar devir eksenine göre birleştirilir. Her `n` için en küçük `a_lim` kararlılık sınırıdır.
+
+### Tornalama (Tlusty, tek yönlü)
+Yönlendirilmiş FRF `G_or = Σ u_j G_j` (`u_j`: yön katsayıları, kesme kuvvetinin ve titreşim yönünün iz düşümü; kullanıcı
+verir ya da torna takımı yerleşiminden hesaplanır, varsayılan 1):
+```
+a_lim = −1 / (2 K_s Re[G_or(iω_c)])        Re[G_or] < 0 olan frekanslarda
+```
+SDOF (`k`, `ζ`) için en küçük değer:
+```
+a_kr = 2 k ζ (1 + ζ) / K_s
+```
+Örnek: `k = 2·10⁴` N/mm, `ζ = 0.03`, `K_s = 2000` MPa için `a_kr = 0.618` mm.
+
+Devir için faz `ε = 3π + 2 atan(Re G / Im G)`, iş mili frekansı `f_s = ω_c / (2π (k + ε/(2π)))` (Altintas, bölüm 2; aynı
+kural).
+
+### Ölçüm girdisi
+- **CSV:** `f_Hz, Re, Im` sütunları, mm/N, artan frekans. Doğrultu başına bir dosya (`xx`, `yy`, isteğe bağlı `xy`).
+  Kod birim dönüştürmez. Başlık satırında `# birim: mm/N` zorunludur; başka birim yazıyorsa `ModelError` verilir ve
+  mesaj kullanıcıya dönüştürmesini söyler (açık soru 1).
+- **Modal parametre:** mod başına `(f_n, ζ, k)`. `G(iω) = Σ 1 / (k_r (1 − r² + 2iζ_r r))`, `r = ω/ω_n`.
+- Ölçüm aralığı dışındaki frekansa **ekstrapolasyon yapılmaz**. Lob yalnız ölçülen bant içinde çizilir; dışı
+  "bilinmiyor" olarak raporlanır.
+
+Kaynak: Altintas, Y., Budak, E., "Analytical prediction of stability lobes in milling", *CIRP Annals* 44 (1995) 357–362;
+Altintas, *Manufacturing Automation*, 2. baskı (2012), bölüm 3; Tlusty, *Manufacturing Processes and Equipment* (2000),
+bölüm 9.
+
+## Dosyalar
+- **Yeni:**
+  - `cam/chatter.py`: saf numpy; `cam/model.py`'den yalnız `Tool` ve `CuttingData`
+  - `cam/frf.py`: CSV ve modal FRF okuma, saf Python
+  - `tests/cam/test_chatter_torna.py`, `tests/cam/test_chatter_freze.py`, `tests/cam/test_frf.py`
+  - `tests/cam/veri/frf_ornek_xx.csv`: uydurma SDOF, modal formülden üretilmiş
+  - `specs/71-chatter-lobu.md`, `durum/71-chatter-lobu.md`
+- **Değişecek:** `cam/__init__.py` (yeni adlar).
+- **Dokunulmayacak:** `cam/model.py` (arayüz değişmez; FRF takım kaydına girmez, ayrı dosyadır), `malzeme/`, `tezgah/`
+  (lob grafiği 47 ekidir).
+
+Paket: `cam/` önerilir, çünkü sonuç doğrudan kesme verisi kararıdır (devir ve `ap`). Kullanıcı kararında bu bir analiz
+maddesidir; açık soru 2.
+
+## Arayüz
+```python
+# cam/frf.py
+@dataclass(frozen=True)
+class FRF:
+    f: np.ndarray            # (q,) Hz, artan
+    G: np.ndarray            # (q,) karmaşık, mm/N
+    def at(self, f: np.ndarray) -> np.ndarray: ...   # ölçüm bandı içinde doğrusal ara değer; dışı → ModelError
+def frf_csv(yol) -> FRF: ...
+def frf_modal(modlar: Sequence[tuple[float, float, float]], f: np.ndarray) -> FRF: ...  # (f_n, ζ, k)
+
+@dataclass(frozen=True)
+class TakimFRF:
+    xx: FRF
+    yy: FRF
+    xy: FRF | None = None
+    yx: FRF | None = None
+
+# cam/chatter.py
+@dataclass(frozen=True)
+class Lob:
+    n: np.ndarray            # (p,) dev/dk, ızgara
+    a_lim: np.ndarray        # (p,) mm, bütün lobların zarfı; ölçüm bandı dışında değer yok, 'gecerli' maskesine bakılır
+    gecerli: np.ndarray      # (p,) bool, ölçüm bandından hesaplanabildi mi
+    loblar: tuple[tuple[np.ndarray, np.ndarray], ...]   # k başına (n, a)
+    K_t: float; K_r: float; varsayilan_Kr: bool
+
+def lob_freze(frf: TakimFRF | None, takim: Tool, *, ae: float, yon: Literal["karsi", "ayni"],
+              n_aralik: tuple[float, float], fz: float | None = None,
+              K_t: float | None = None, K_r: float | None = None, malzeme: Malzeme | None = None,
+              lob_sayisi: int = 10) -> Lob: ...
+def lob_torna(frf: FRF | None, *, K_s: float | None = None, malzeme=None, fn=None, u: float = 1.0,
+              n_aralik: tuple[float, float], lob_sayisi: int = 10) -> Lob: ...
+def karar(lob: Lob, n: float, ap: float, pay: float = 0.8) -> dict: ...
+    # {"durum": "kararli" | "sinirda" | "kararsiz" | "bilinmiyor", "a_lim": …, "oneri_n": …, "oneri_ap": …}
+    # sinirda: pay·a_lim < ap ≤ a_lim
+```
+Hatalar (`ModelError`):
+- **`frf is None`**: mesaj "Chatter lobu için takım ucunun çekiç testi FRF ölçümü gerekir" (kullanıcı kararı)
+- `K_t` yok ve malzeme `kc11`/`mc` içermiyor
+- `ae ≤ 0` ya da `ae > D`
+- `n_aralik` ters ya da tezgâh profilinin (30) en yüksek devrini aşıyor (profil verilirse)
+- CSV biriminin `mm/N` olmaması
+- frekans artan değil
+- `|G|` sonlu değil
+
+## Kabul kriterleri
+- [ ] **K1** Ölçüm zorunluluğu: `lob_freze(None, …)` ve `lob_torna(None, …)` `ModelError` verir; mesaj yukarıdaki metni
+  içerir. Sessiz bir varsayılan FRF yoktur (kod taraması: `frf_modal` çağrısı yalnız testlerde).
+- [ ] **K2** FRF okuma:
+  - Modal formülden üretilmiş örnek CSV, `frf_modal` ile 1e-12 içinde aynı `G` değerini verir.
+  - `# birim: m/N` başlığı `ModelError` verir.
+  - Azalan frekans `ModelError` verir.
+  - Bant dışı `at` `ModelError` verir.
+- [ ] **K3** Tornalama, SDOF kapalı form (`k = 2e4`, `ζ = 0.03`, `f_n = 800` Hz, `K_s = 2000`, ince frekans ızgarası):
+  - lob zarfının en küçük değeri `0.618` mm'ye göreli %0.5 içinde
+  - her lobun dibi `f_c ≈ f_n √(1 + 2ζ)` civarındadır (Re G minimumu; `±0.5 %`)
+- [ ] **K4** Tornalama devir kuralı: K3'te `k = 0` lobunun tabanındaki devir, `f_c` ve faz formülünden testte bağımsız
+  hesaplanan değere göreli 1e-6 içinde eşittir. Lob `k` arttıkça devir küçülür.
+- [ ] **K5** Frezeleme yönsel katsayıları:
+  - Tam kanal (`φ_st = 0`, `φ_ex = π`) için `α_xx = α_yy = −π K_r`, `α_xy = −π`, `α_yx = π` (abs 1e-12).
+  - Yarım daldırma karşı ve aynı yön için testte elle türetilmiş değerlerle aynı sonuç (abs 1e-12).
+- [ ] **K6** Frezeleme, izotrop tam kanal kapalı formu:
+  - `G_xx = G_yy = g(iω)` (SDOF), `G_xy = 0`.
+  - Özdeğerler `g · π(−K_r ± i)` olur.
+  - Lob zarfı, testte bu özdeğerlerden bağımsız türetilen `a_lim(ω_c)` ile göreli 1e-9 içinde aynıdır.
+  - En küçük paso pozitiftir.
+- [ ] **K7** Kienzle bağlantısı: malzeme (`kc11 = 1700`, `mc = 0.25`), `fz = 0.1`, yarım daldırma için `K_t` formülle
+  göreli 1e-12 içinde aynıdır. `K_r` verilmezse `varsayilan_Kr = True` olur.
+- [ ] **K8** Ölçüm bandı: FRF 400–1200 Hz ölçülmüşse bu banda karşılık gelmeyen devirlerde `gecerli = False` olur ve
+  `karar` "bilinmiyor" döndürür. Ekstrapolasyon yapılmaz.
+- [ ] **K9** Karar:
+  - K3 lobunda bir lob tepesinin altındaki `(n, ap)` "kararli", iki lob arası çukurdaki `(n, ap)` "kararsiz" olur.
+  - `pay = 0.8` bandı "sinirda" verir.
+  - `oneri_n` kullanıcı devrine en yakın, `ap`'yi kararlı yapan devirdir (aralık içinde).
+- [ ] **K10** `cam/chatter.py` ve `cam/frf.py` numpy, `math`, `csv` ve `cam.model` dışında import etmez. OCCT gerekmez.
+  `ruff` temiz.
+
+## Bağımlılık
+- 14 (birleşti).
+- 30 (profil devir sınırı, isteğe bağlı).
+- 32 (Kienzle tanımı ortak).
+- B2/66 (malzeme, isteğe bağlı; `K_t` doğrudan da verilebilir).
+
+## Kararlar (kullanıcı onayı 2026-10-18 16:19; önerilen cevaplar kabul edildi)
+1. **m/N CSV'yi okurken çevirelim mi?** Karar: hayır (CLAUDE.md kuralı). Hata mesajı "değerleri 1000 ile çarpıp mm/N
+   olarak kaydedin" der. Ölçüm yazılımı sayısı küçük olduğu için kullanıcıya dönüştürme betiği `scripts/` altında
+   verilebilir; bu ayrı ve küçük bir iştir.
+2. **Paket `cam/` mı, `analiz/` mı?** Karar: `cam/`, çünkü çıktısı devir ve paso kararıdır ve CAM işlem planına (29) devir
+   önerisi olarak girer. `analiz/` FEM köprüleri için kalır.
+3. **Birinci mertebe ve çok frekanslı çözüm (düşük daldırmada daha doğru)?** Karar: sonraki ek. Sıfırıncı mertebe çoğu
+   kaba frezelemede yeterlidir; düşük `ae/D`'de rapor "sıfırıncı mertebe düşük daldırmada iyimser olabilir" uyarısı
+   taşır (`ae/D < 0.1`).
+4. **Ölçüm Tezgah'a nasıl girer?** Karar: takım kütüphanesinde takım + tutucu + boy başına bir FRF dosyası eki. Bu 47/14
+   ekidir; şema ayrıca konuşulur.
+
+## Kapsam dışı
+- FRF'nin FEM ile tahmini (takım–tutucu–iş mili modeli, alıcı kuplajı / RCSA).
+- Zaman alanı chatter simülasyonu, süreç sönümü, değişken adımlı ve değişken devirli takımlar.
+- Ölçüm donanımı ve sinyal işleme (çekiç testinin kendisi).

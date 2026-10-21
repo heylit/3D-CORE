@@ -1,0 +1,1637 @@
+diff --git a/durum/47-tezgah-ekranlari.md b/durum/47-tezgah-ekranlari.md
+index f068595..20c0e72 100644
+--- a/durum/47-tezgah-ekranlari.md
++++ b/durum/47-tezgah-ekranlari.md
+@@ -3,13 +3,15 @@
+ Dal: `claude/spec-47-tezgah-ekranlari-59jujx` · Oturum: bulut
+ 
+ ## Sıradaki adım
+-47a Plan iskeleti push edildi; ayrı test oturumunun test commit'i bekleniyor, kod ayrı commit'te. Kod SPEC 29 (27, 28)
+-ve A3 kodu birleşince çalışır; `plan.py` A3'ün `tezgah.ekranlar.Ekran`'ını import eder (A3 gelene kadar import edilemez).
++47a kodu yazıldı (A3 + SPEC 22 main'de, SPEC 29 #84 dalı üstünde). Birleşme için bekleyen: SPEC 29 #84 main'e;
++SPEC 25 `tezgah.torna.TornaIsi` + A3 deposunun torna işi kabul etmesi (`test_plan_ac_torna`); test düzeltmesi
++`test_plan_ag` (`Part.bbox` özellik, çağrılmaz).
+ 
+ ## Test durumu
+ | Tarih | Geçen | Kalan | Not |
+ |---|---|---|---|
+ | 2026-10-18 | — | — | Yalnız SPEC metni; kod ve test yok |
++| 2026-10-18 | 87 / 89 (47a, + vitest 11/11) | 2 | `test_plan_ac_torna` (SPEC 25 yok), `test_plan_ag` (test hatası) |
+ 
+ ## Son oturum
+ **2026-10-18**
+@@ -21,5 +23,11 @@ ve A3 kodu birleşince çalışır; `plan.py` A3'ün `tezgah.ekranlar.Ekran`'ın
+ - 47a iskeleti: `tezgah/ekranlar/plan.py`, `plan_kopru.py`, `plan_ornekler.py`, `tezgah/arayuz/src/ekranlar/plan_yardim.ts`.
+   `plan.ts` (EkranModulu) A3'ün `tip.ts`'i gelince kod commit'inde eklenir (tsc kırılmasın diye).
+ 
++- 47a kodu: köprü (`_plan_kopru.py`), örnekler (`_plan_ornekler.py`), uçlar (`plan.py`), ön yüz (`plan.ts`,
++  `plan_yardim.ts`). Seçilen varsayılanlar: çakma `> 1e-9 mm³` → hata (SPEC 29 K12 gürültü sınırı); `kalan_malzeme`
++  sınırı `ozellikler` geometrisinden Σ P·Δ·H (freze Δ = 0.5, torna Δ = 0.25); `plan_blogu`'nun `opens[0]`
++  (`kesici_boy_yetmez`, SPEC 29 testinin onaylı varsayılanı) yüzünden `kalan_malzeme` `uyari`. Örnek torna
++  takımlarına SPEC 22 için `edge_len` eklendi (uydurma). Takım boyu için freze takımlarına Ek A testlerindeki tutucu.
++
+ ## Açık sorular
+ _(yok; beşi de önerilerle kapandı)_
+diff --git a/tezgah/arayuz/src/ekranlar/plan.ts b/tezgah/arayuz/src/ekranlar/plan.ts
+new file mode 100644
+index 0000000..f54fe49
+--- /dev/null
++++ b/tezgah/arayuz/src/ekranlar/plan.ts
+@@ -0,0 +1,393 @@
++// SPEC 47a — Plan ekranı: otomatik CAM planı (SPEC 29). Özellik listesi (önce planlanamayanlar), takım
++// kapatıp "Ne olurdu?" farkı, doğrulama ve freze / torna ekranında açma. Hesap yapmaz: her sayı sunucudan.
++// Sahneye yalnız "plan" katmanına çizer (parça ağı ya da özellik geometrisi).
++
++import * as THREE from "three";
++import type { Kontrol } from "../tipler";
++import { type Fark, farkRozetleri, gerekceMetni, ozellikSirala } from "./plan_yardim";
++import type { EkranModulu, Kabuk, Komut } from "./tip";
++
++const AD = "plan";
++
++interface Ozellik {
++  adres: string;
++  tur: string;
++  durum: "planlandi" | "planlanamadi";
++  islemler: string[];
++  kod?: string;
++  geometri: Record<string, unknown>;
++}
++
++interface Takim {
++  id: number;
++  ad: string;
++  tur: string;
++  D: number | null;
++  acik: boolean;
++}
++
++interface Plan {
++  sema: number;
++  ad: string;
++  tur: "freze" | "torna";
++  malzeme: string;
++  baglamalar: { i: number; wcs: string }[];
++  ozellikler: Ozellik[];
++  islemler: { name: string; kind: string; setup?: number; feature: string; tool_id: number; sure: number }[];
++  planlanamayan: { adres: string; kod: string; detay: string; metin: string }[];
++  notlar: { adres: string; kod: string; deger: number; detay: string; metin: string }[];
++  takim_degisimi: number;
++  takimlar: Takim[];
++  secenekler: Record<string, number | boolean | null>;
++  dogrulama: Record<string, unknown> | null;
++  gcode: string[][];
++  kontroller: Kontrol[];
++}
++
++interface Ornek {
++  ad: string;
++  tur: string;
++  aciklama: string;
++  hazir: boolean;
++  neden: string | null;
++}
++
++interface Durum {
++  K: Kabuk | null;
++  alan: HTMLElement | null;
++  ornekler: Ornek[];
++  ad: string;
++  plan: Plan | null;
++  fark: Fark | null;
++  secili: string | null;
++  mesgul: boolean;
++  hata: string | null;
++}
++
++const D: Durum = {
++  K: null,
++  alan: null,
++  ornekler: [],
++  ad: "",
++  plan: null,
++  fark: null,
++  secili: null,
++  mesgul: false,
++  hata: null,
++};
++
++function el<K extends keyof HTMLElementTagNameMap>(
++  etiket: K,
++  ozellik: Record<string, string> = {},
++  ...cocuk: (Node | string)[]
++): HTMLElementTagNameMap[K] {
++  const e = document.createElement(etiket);
++  for (const [k, v] of Object.entries(ozellik)) e.setAttribute(k, v);
++  e.append(...cocuk);
++  return e;
++}
++
++function sure(s: number): string {
++  return s >= 60 ? `${Math.floor(s / 60)} dk ${Math.round(s % 60)} s` : `${s.toFixed(1)} s`;
++}
++
++// ---------------------------------------------------------------- sunucu
++
++async function yukle(ad: string): Promise<void> {
++  const K = D.K!;
++  D.ad = ad;
++  D.fark = null;
++  D.secili = null;
++  D.hata = null;
++  D.plan = await K.api.getJson<Plan>(`/${ad}`);
++  await sahneCiz();
++  ciz();
++}
++
++async function istek(f: () => Promise<void>): Promise<void> {
++  if (D.mesgul) return;
++  D.mesgul = true;
++  D.hata = null;
++  ciz();
++  try {
++    await f();
++  } catch (e) {
++    D.hata = e instanceof Error ? e.message : String(e);
++  } finally {
++    D.mesgul = false;
++    ciz();
++  }
++}
++
++function neOlurdu(govde: Record<string, unknown>, etiket: string): Promise<void> {
++  return istek(async () => {
++    const r = await D.K!.api.postJson<{ plan: Plan; fark: Fark }>(`/${D.ad}/ne_olurdu`, govde, etiket);
++    D.plan = r.plan;
++    D.fark = r.fark;
++  });
++}
++
++function takimDegistir(t: Takim): Promise<void> {
++  const govde = t.acik ? { takim_kapat: [t.id] } : { takim_ac: [t.id] };
++  return neOlurdu(govde, `${t.acik ? "Kapat" : "Aç"}: T${t.id} ${t.ad}`);
++}
++
++function dogrula(): Promise<void> {
++  return istek(async () => {
++    D.plan = await D.K!.api.postJson<Plan>(`/${D.ad}/dogrula`, {}, "Planı doğrula");
++  });
++}
++
++function ac(bag: number): Promise<void> {
++  return istek(async () => {
++    const r = await D.K!.api.postJson<{ adres: string }>(`/${D.ad}/ac`, { bag }, `Aç: bağlama ${bag + 1}`);
++    D.K!.git(r.adres);
++  });
++}
++
++// ---------------------------------------------------------------- sahne
++
++function temizle(g: THREE.Group): void {
++  for (const c of [...g.children]) {
++    g.remove(c);
++    c.traverse((o) => {
++      const m = o as THREE.Mesh;
++      m.geometry?.dispose();
++      const mat = m.material as THREE.Material | THREE.Material[] | undefined;
++      if (Array.isArray(mat)) for (const x of mat) x.dispose();
++      else mat?.dispose();
++    });
++  }
++}
++
++function cizgi(noktalar: number[][], z: number, renk: number, kapali = true): THREE.Line {
++  const p = noktalar.map(([x, y]) => new THREE.Vector3(x, y, z));
++  const g = new THREE.BufferGeometry().setFromPoints(p);
++  const m = new THREE.LineBasicMaterial({ color: renk });
++  return kapali ? new THREE.LineLoop(g, m) : new THREE.Line(g, m);
++}
++
++function renk(oz: Ozellik): number {
++  if (oz.durum === "planlanamadi") return 0xe5484d;
++  return oz.adres === D.secili ? 0xffb224 : 0x5eb1ef;
++}
++
++async function sahneCiz(): Promise<void> {
++  const K = D.K!;
++  const g = K.sahne.katman(AD);
++  temizle(g);
++  const P = D.plan;
++  if (P === null) return;
++  if (P.tur === "freze") {
++    try {
++      const b = await K.api.getIkili(`/${P.ad}/ag`);
++      g.add(agMesh(b));
++    } catch {
++      // parçasız örnek (özellik kaydından plan): yalnız özellik geometrisi çizilir
++    }
++  }
++  ozellikCiz(g, P);
++}
++
++function agMesh(b: ArrayBuffer): THREE.Mesh {
++  const [nv, nt] = new Uint32Array(b, 0, 2);
++  const V = new Float32Array(b, 8, nv * 3);
++  const T = new Uint32Array(b, 8 + 12 * nv, nt * 3);
++  const geo = new THREE.BufferGeometry();
++  geo.setAttribute("position", new THREE.BufferAttribute(V, 3));
++  geo.setIndex(new THREE.BufferAttribute(T, 1));
++  geo.computeVertexNormals();
++  const mat = new THREE.MeshStandardMaterial({ color: 0x9aa4b2, transparent: true, opacity: 0.35 });
++  return new THREE.Mesh(geo, mat);
++}
++
++function ozellikCiz(g: THREE.Group, P: Plan): void {
++  const ust = new THREE.Group();
++  ust.name = "ozellikler";
++  for (const oz of P.ozellikler) {
++    const G = oz.geometri as Record<string, unknown>;
++    const r = renk(oz);
++    if (Array.isArray(G.dis)) {
++      const z = Number(G.z_alt);
++      ust.add(cizgi(G.dis as number[][], z, r));
++      ust.add(cizgi(G.dis as number[][], Number(G.z_ust), r));
++      for (const a of (G.adalar as number[][][]) ?? []) ust.add(cizgi(a, z, r));
++    } else if (Array.isArray(G.merkez)) {
++      const [x, y, z] = G.merkez as number[];
++      const [ax, ay, az] = G.eksen as number[];
++      const L = Number(G.derinlik);
++      const p = [new THREE.Vector3(x, y, z), new THREE.Vector3(x + ax * L, y + ay * L, z + az * L)];
++      ust.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(p), new THREE.LineBasicMaterial({ color: r })));
++      const n = 24;
++      const R = Number(G.D) / 2;
++      const daire = Array.from({ length: n }, (_, k) => [
++        x + R * Math.cos((2 * Math.PI * k) / n),
++        y + R * Math.sin((2 * Math.PI * k) / n),
++      ]);
++      ust.add(cizgi(daire, z, r));
++    } else if (Array.isArray(G.profil)) {
++      // torna: [x, z] → sahnede (z, x) yarı kesit
++      const p = (G.profil as number[][]).map(([xr, zz]) => [zz, xr]);
++      ust.add(cizgi(p, 0, r, false));
++    }
++  }
++  g.add(ust);
++}
++
++// ---------------------------------------------------------------- paneller
++
++function ozellikListesi(P: Plan): HTMLElement {
++  const liste = el("ol", { class: "plan-ozellikler" });
++  for (const oz of ozellikSirala(P.ozellikler)) {
++    const metin = oz.durum === "planlanamadi" && oz.kod ? gerekceMetni(oz.kod) : oz.islemler.join(", ");
++    const li = el(
++      "li",
++      { class: `plan-ozellik ${oz.durum}${oz.adres === D.secili ? " secili" : ""}`, "data-adres": oz.adres },
++      el("b", {}, oz.adres),
++      " ",
++      el("span", {}, metin),
++    );
++    li.addEventListener("click", () => sec(oz.adres));
++    liste.append(li);
++  }
++  return liste;
++}
++
++function takimListesi(P: Plan): HTMLElement {
++  const kutu = el("div", { class: "plan-takimlar" }, el("h3", {}, "Takımlar (Ne olurdu?)"));
++  for (const t of P.takimlar) {
++    const cb = el("input", { type: "checkbox", "data-takim": String(t.id) });
++    cb.checked = t.acik;
++    cb.disabled = D.mesgul;
++    cb.addEventListener("change", () => void takimDegistir(t));
++    const D_ = t.D === null ? "" : ` Ø${t.D}`;
++    kutu.append(el("label", { class: "plan-takim" }, cb, ` T${t.id} ${t.ad}${D_}`));
++  }
++  return kutu;
++}
++
++function farkPaneli(): HTMLElement | null {
++  if (D.fark === null) return null;
++  const kutu = el("div", { class: "plan-fark" }, el("h3", {}, "Fark"));
++  for (const r of farkRozetleri(D.fark)) {
++    kutu.append(el("span", { class: `rozet ${r.tur}`, "data-isaret": r.isaret }, r.metin));
++  }
++  return kutu;
++}
++
++function eylemler(P: Plan): HTMLElement {
++  const kutu = el("div", { class: "plan-eylemler" });
++  const dg = el("button", {}, P.dogrulama ? "Yeniden doğrula" : "Doğrula (simülasyon)");
++  dg.disabled = D.mesgul;
++  dg.addEventListener("click", () => void dogrula());
++  kutu.append(dg);
++  const hedef = P.tur === "torna" ? "Torna" : "Freze";
++  for (const b of P.baglamalar) {
++    const d = el("button", {}, `${hedef} ekranında aç: bağlama ${b.i + 1} (${b.wcs})`);
++    d.disabled = D.mesgul;
++    d.addEventListener("click", () => void ac(b.i));
++    kutu.append(d);
++  }
++  return kutu;
++}
++
++function ozet(P: Plan): HTMLElement {
++  const toplam = P.islemler.reduce((s, x) => s + x.sure, 0);
++  return el(
++    "p",
++    { class: "plan-ozet" },
++    `${P.islemler.length} işlem · ${sure(toplam)} · ${P.takim_degisimi} takım değişimi · ` +
++      `${P.planlanamayan.length} planlanamayan`,
++  );
++}
++
++function ciz(): void {
++  const { K, alan } = D;
++  if (K === null || alan === null) return;
++  alan.replaceChildren();
++  const secim = el("select", { class: "plan-ornek" });
++  for (const o of D.ornekler) {
++    const s = el("option", { value: o.ad }, o.hazir ? o.aciklama : `${o.aciklama} (${o.neden})`);
++    s.disabled = !o.hazir;
++    s.selected = o.ad === D.ad;
++    secim.append(s);
++  }
++  secim.addEventListener("change", () => void istek(() => yukle(secim.value)));
++  alan.append(secim);
++  if (D.hata) alan.append(el("p", { class: "hata" }, D.hata));
++  const P = D.plan;
++  if (P === null) return;
++  alan.append(ozet(P), ozellikListesi(P));
++  const muf = el("div", { class: "plan-mufettis" }, takimListesi(P));
++  const f = farkPaneli();
++  if (f) muf.append(f);
++  muf.append(eylemler(P));
++  K.mufettis(muf);
++  K.kanitlar(P.kontroller);
++  const uyari = P.kontroller.filter((k) => k.durum !== "tamam").length;
++  K.rozet(AD, uyari ? `${uyari} uyarı` : null);
++  K.kanca[AD] = { ad: D.ad, plan: P, fark: D.fark, mesgul: D.mesgul, hata: D.hata };
++  ozellikRenkleri();
++}
++
++function ozellikRenkleri(): void {
++  const P = D.plan;
++  const g = D.K?.sahne.katman(AD).getObjectByName("ozellikler");
++  if (!P || !g) return;
++  g.parent?.remove(g);
++  temizle(g as THREE.Group);
++  ozellikCiz(D.K!.sahne.katman(AD), P);
++}
++
++function sec(adres: string): void {
++  D.secili = D.secili === adres ? null : adres;
++  ciz();
++}
++
++function komutlar(): Komut[] {
++  const K: Komut[] = [
++    { kimlik: "plan.dogrula", baslik: "Planı doğrula", ekran: AD, calistir: () => dogrula() },
++    {
++      kimlik: "plan.rest",
++      baslik: "Kalan malzeme işlemlerini aç / kapat",
++      ekran: AD,
++      calistir: () => neOlurdu({ secenek: { rest: !(D.plan?.secenekler.rest ?? true) } }, "Kalan malzeme"),
++    },
++  ];
++  for (const o of D.ornekler.filter((x) => x.hazir)) {
++    K.push({ kimlik: `plan.ornek.${o.ad}`, baslik: `Plan: ${o.aciklama}`, ekran: AD, calistir: () => yukle(o.ad) });
++  }
++  return K;
++}
++
++const ekran: EkranModulu = {
++  ad: AD,
++  baslik: "Plan",
++  tus: "4",
++  async ac(alan: HTMLElement, kabuk: Kabuk, secim?: string): Promise<void> {
++    D.K = kabuk;
++    D.alan = alan;
++    const r = await kabuk.api.getJson<{ ornekler: Ornek[] }>("/ornekler");
++    D.ornekler = r.ornekler;
++    const istenen = new URLSearchParams(secim ?? "").get("ornek");
++    const ilk = D.ornekler.find((o) => o.ad === istenen && o.hazir) ?? D.ornekler.find((o) => o.hazir);
++    if (ilk) await yukle(ilk.ad);
++    else ciz();
++  },
++  kapat(): void {
++    if (D.K) {
++      temizle(D.K.sahne.katman(AD));
++      D.K.sahne.katmanBirak(AD);
++    }
++    D.alan?.replaceChildren();
++    D.K = null;
++    D.alan = null;
++  },
++  async tazele(): Promise<void> {
++    if (D.K && D.ad) await yukle(D.ad);
++  },
++  komutlar,
++  sec,
++};
++
++export default ekran;
+diff --git a/tezgah/arayuz/src/ekranlar/plan_yardim.ts b/tezgah/arayuz/src/ekranlar/plan_yardim.ts
+index 0e9ddc3..c865595 100644
+--- a/tezgah/arayuz/src/ekranlar/plan_yardim.ts
++++ b/tezgah/arayuz/src/ekranlar/plan_yardim.ts
+@@ -16,17 +16,58 @@ export interface Rozet {
+   metin: string;
+ }
+ 
++// SPEC 29 §1 kodlarının düz Türkçesi (sunucudaki GEREKCE_METNI / NOT_METNI ile aynı).
++const METIN: Readonly<Record<string, string>> = {
++  kesme_verisi_yok: "Bu türde, bu malzeme için kesme verisi olan takım yok",
++  takim_yok: "Uygun tür, çap ya da genişlikte takım yok",
++  takim_sigmiyor: "Aday takımların hiçbiri bölgeye sığmıyor",
++  kesici_boy_yetmez: "Sığan takımların kesici boyu derinliğe yetmiyor",
++  ustten_erisilemez: "Delik ekseni −Z değil: üstten erişilemez",
++  havsa_takimi_yok: "Havşa takımı yok: delik açılır, havşa açılmaz",
++  kilavuz_cevrimi_yok: "Kılavuz çevrimi (G84) yok: yalnız kılavuz matkabı deliği açılır",
++  baglama_carpismasi: "İşlem bağlama elemanına çarpıyor",
++  on_delik_yok: "Ham malzeme dolu: iç profil için ön delik yok",
++  genel_girinti: "Profilli kanal işlemi yok",
++  kose_artigi: "Köşede kalan malzeme",
++  yan_paso_kisildi: "Yan paso kısıldı",
++  delik_tasma_kisildi: "Delik taşması kısıldı",
++  ikinci_baglama: "Alt yüz için ikinci bağlama",
++};
++
+ /** SPEC 29 §1 gerekçe ve not kodu → düz Türkçe metin. Bilinmeyen kod → Error (sessiz yok). */
+-export function gerekceMetni(_kod: string): string {
+-  throw new Error("SPEC 47a: gerekceMetni uygulanmadı");
++export function gerekceMetni(kod: string): string {
++  if (!Object.hasOwn(METIN, kod)) throw new Error(`Bilinmeyen gerekçe / not kodu: ${JSON.stringify(kod)}`);
++  return METIN[kod];
++}
++
++function isaret(x: number): "+" | "−" | "0" {
++  return x > 0 ? "+" : x < 0 ? "−" : "0";
+ }
+ 
+ /** Fark → rozet listesi (sunucunun sayıları; işaret yalnız sayının işaretidir, 0 → "0"). */
+-export function farkRozetleri(_fark: Fark): Rozet[] {
+-  throw new Error("SPEC 47a: farkRozetleri uygulanmadı");
++export function farkRozetleri(fark: Fark): Rozet[] {
++  const r: Rozet[] = [];
++  for (const ad of fark.eklenen) r.push({ tur: "eklendi", isaret: "+", metin: `${ad} eklendi` });
++  for (const ad of fark.cikan) r.push({ tur: "cikti", isaret: "−", metin: `${ad} çıktı` });
++  for (const t of fark.takimi_degisen) {
++    r.push({ tur: "takim", isaret: "~", metin: `${t.adres}: T${t.once} → T${t.sonra}` });
++  }
++  for (const p of fark.yeni_planlanamayan) {
++    r.push({ tur: "planlanamadi", isaret: "−", metin: `${p.adres} planlanamadı: ${gerekceMetni(p.kod)}` });
++  }
++  for (const a of fark.kurtulan) r.push({ tur: "kurtuldu", isaret: "+", metin: `${a} artık planlanıyor` });
++  const s = fark.sure_farki;
++  r.push({ tur: "sure", isaret: isaret(s), metin: `Süre ${s > 0 ? "+" : s < 0 ? "−" : "±"}${Math.abs(s).toFixed(1)} s` });
++  const d = fark.takim_degisimi_farki;
++  r.push({
++    tur: "takim_degisimi",
++    isaret: isaret(d),
++    metin: `Takım değişimi ${d > 0 ? "+" : d < 0 ? "−" : "±"}${Math.abs(d)}`,
++  });
++  return r;
+ }
+ 
+ /** Özellik satırları: önce planlanamayanlar, sonra adres sırası (sunucu sırası korunur). */
+-export function ozellikSirala<T extends { adres: string; durum: string }>(_satirlar: T[]): T[] {
+-  throw new Error("SPEC 47a: ozellikSirala uygulanmadı");
++export function ozellikSirala<T extends { adres: string; durum: string }>(satirlar: T[]): T[] {
++  return [...satirlar.filter((s) => s.durum === "planlanamadi"), ...satirlar.filter((s) => s.durum !== "planlanamadi")];
+ }
+diff --git a/tezgah/ekranlar/_plan_kopru.py b/tezgah/ekranlar/_plan_kopru.py
+index 4142373..7578988 100644
+--- a/tezgah/ekranlar/_plan_kopru.py
++++ b/tezgah/ekranlar/_plan_kopru.py
+@@ -3,23 +3,48 @@ SPEC 47a — Plan ekranının köprüsü: SPEC 29 planı → `Plan` JSON, özell
+ 
+ Saf fonksiyonlar; FastAPI'siz test edilir. Ön yüz hesap yapmaz: buradaki her sayı SPEC 27 / 29 / 05 / 22
+ fonksiyonlarının çıktısıdır. Şema SPEC 47 "Ekran 1: Plan / Veri modeli".
++
++SPEC 29 modülleri işlev içinde import edilir: SPEC 29'suz kurulumda saf parçalar (fark, kontroller, ağ
++ikilisi) yine çalışır; ekran o durumda `hazir()` ile kapalıdır.
+ """
+ 
+ from __future__ import annotations
+ 
++import dataclasses
++import hashlib
++import json
++import math
++import re
+ from dataclasses import dataclass, field
+ from typing import TYPE_CHECKING, Any
+ 
++import numpy as np
++
++from cam.model import CamError, CylinderStock, Stock, ToolLibrary
++
+ if TYPE_CHECKING:
+     from cam.plan import MillPlan
+     from cam.plan_turn import TurnPlan
+     from cam.plan_verify import PlanCheck
+-
+-    from cam.library import ToolLibrary
++    from cam.profile import Profile
+     from tezgah.ekranlar._plan_ornekler import PlanGirdisi
+ 
+ SEMA = 1
+ 
++# SPEC 47 K5: doğrulama ızgarası [mm]
++HUCRE_FREZE = 0.5
++HUCRE_TORNA = 0.25
++
++# Torna G-code'unun kurulum bilgisi (SPEC 47 K2; SPEC 21 / 30 kuralı: zorunlu)
++TORNA_SPINDLE = "M3"
++TORNA_TAKIM_DEGISTIRME = (50.0, 80.0)
++
++# Çakma hacmi sayısal gürültü sınırı [mm³] (SPEC 29 K12: gouge_volume ≤ 1e-9)
++CAKMA_TOL = 1e-9
++
++# Parça ağının kiriş sapması [mm]
++AG_TOL = 0.05
++
+ # SPEC 29 §1 gerekçe ve not kodlarının düz Türkçesi (ön yüz yalnız bunu gösterir).
+ GEREKCE_METNI: dict[str, str] = {
+     "kesme_verisi_yok": "Bu türde, bu malzeme için kesme verisi olan takım yok",
+@@ -40,25 +65,259 @@ NOT_METNI: dict[str, str] = {
+     "ikinci_baglama": "Alt yüz için ikinci bağlama",
+ }
+ 
++_GRUP = re.compile(r"^([a-z_]+)\[(\d+(?:,\d+)*)\]$")
++
++
++# ---------------------------------------------------------------- özellikler
++
++
++def _torna_mu(plan: MillPlan | TurnPlan) -> bool:
++    return not hasattr(plan, "features")
++
++
++def _spec27_adresleri(plan: MillPlan | TurnPlan) -> list[str]:
++    """SPEC 29 §1 adresleri: freze faces, opens, pockets, holes; torna alin, dis, ic, grooves, recesses."""
++    if not _torna_mu(plan):
++        f = plan.features
++        return [
++            *(f"faces[{i}]" for i in range(len(f.faces))),
++            *(f"opens[{i}]" for i in range(len(f.opens))),
++            *(f"pockets[{i}]" for i in range(len(f.pockets))),
++            *(f"holes[{i}]" for i in range(len(f.holes))),
++        ]
++    tf = plan.outer
++    out = ["alin"] if tf.z_face is not None else []
++    out.append("dis")
++    if plan.inner is not None:
++        out.append("ic")
++    out += [f"grooves[{i}]" for i in range(len(tf.grooves))]
++    out += [f"recesses[{i}]" for i in range(len(tf.recesses))]
++    return out
++
+ 
+ def ozellik_adresleri(plan: MillPlan | TurnPlan) -> list[str]:
+-    """SPEC 27 sonucundaki her özelliğin adresi, SPEC 29 §1 sırasıyla ("faces[0]", "holes[3]", ...)."""
+-    raise NotImplementedError("SPEC 47a: ozellik_adresleri")
++    """SPEC 27 sonucundaki her özelliğin adresi, SPEC 29 §1 sırasıyla ("faces[0]", "holes[3]", ...).
++
++    SPEC 27 kaydında olmayıp plandan gelen adresler (ör. ikinci bağlamanın "alt_yuz"'ü) ilk görüldükleri
++    sırayla sona eklenir: işlem ya da gerekçe taşıyan hiçbir adres listeden düşmez.
++    """
++    out = _spec27_adresleri(plan)
++    gorulen = set(out)
++    for a in [x for op in plan.ops for x in grup_ac(op.feature)] + [u.feature for u in plan.unplanned]:
++        if a not in gorulen:
++            gorulen.add(a)
++            out.append(a)
++    return out
+ 
+ 
+ def grup_ac(feature: str) -> list[str]:
+     """İşlemin `feature` alanını tek adreslere açar: "holes[1,4]" → ["holes[1]", "holes[4]"]."""
+-    raise NotImplementedError("SPEC 47a: grup_ac")
++    m = _GRUP.match(feature)
++    if m is None:
++        return [feature]
++    return [f"{m.group(1)}[{i}]" for i in m.group(2).split(",")]
++
++
++def _tur(adres: str) -> str:
++    return adres.split("[")[0]
++
++
++def _profil_noktalari(p: Profile, n_yay: int = 16) -> list[list[float]]:
++    """Profilin köşe noktaları; yaylar `n_yay` parçaya bölünür (yalnız çizim için)."""
++    pts: list[list[float]] = []
++    for s in p.segments:
++        n = n_yay if hasattr(s, "center") else 1
++        ts = range(n + 1) if not pts else range(1, n + 1)
++        pts += [[float(v) for v in s.point(k / n)[:2]] for k in ts]
++    return pts
++
++
++def _freze_geometrisi(plan: MillPlan, adres: str) -> dict:
++    """Özellik kaydının kendi geometrisi (SPEC 47 `geometri`)."""
++    f = plan.features
++    m = _GRUP.match(adres)
++    if m is None:
++        return {}
++    tur, i = m.group(1), int(m.group(2))
++    if tur == "faces":
++        ff = f.faces[i]
++        return {"z_ust": ff.z + ff.depth, "z_alt": ff.z, "dis": _profil_noktalari(ff.boundary), "adalar": []}
++    if tur == "opens":
++        o = f.opens[i]
++        adalar = [_profil_noktalari(a) for a in o.islands]
++        return {"z_ust": o.z_top, "z_alt": o.z_bottom, "dis": _profil_noktalari(o.boundary), "adalar": adalar}
++    if tur == "pockets":
++        c = f.pockets[i]
++        adalar = [_profil_noktalari(a) for a in c.region.holes]
++        return {
++            "z_ust": c.z_top,
++            "z_alt": c.z_bottom,
++            "dis": _profil_noktalari(c.region.outer),
++            "adalar": adalar,
++        }
++    if tur == "holes":
++        h = f.holes[i].hole
++        return {
++            "merkez": [float(v) for v in h.origin],
++            "eksen": [float(v) for v in h.axis],
++            "D": float(h.d),
++            "derinlik": float(h.depth),
++        }
++    return {}
++
++
++def _zx(p: Profile) -> list[list[float]]:
++    """Torna profili (u, v) = (z, x) → [[x, z]]."""
++    return [[x, z] for z, x in _profil_noktalari(p)]
++
++
++def _torna_geometrisi(plan: TurnPlan, adres: str) -> dict:
++    tf = plan.outer
++    if adres == "alin":
++        R = plan.setup.stock.D / 2 if isinstance(plan.setup.stock, CylinderStock) else 0.0
++        return {"profil": [[0.0, tf.z_face], [float(R), tf.z_face]]}
++    if adres == "dis":
++        return {"profil": _zx(tf.finish)}
++    if adres == "ic" and plan.inner is not None:
++        return {"profil": _zx(plan.inner.finish)}
++    m = _GRUP.match(adres)
++    if m is None:
++        return {}
++    tur, i = m.group(1), int(m.group(2))
++    if tur == "grooves" and i < len(tf.grooves):
++        g = tf.grooves[i]
++        return {
++            "profil": [
++                [g.x_top, g.z_left],
++                [g.x_bottom, g.z_left],
++                [g.x_bottom, g.z_right],
++                [g.x_top, g.z_right],
++            ]
++        }
++    if tur == "recesses" and i < len(tf.recesses):
++        return {"profil": _zx(tf.recesses[i].profile)}
++    return {}
+ 
+ 
+ def ozellik_eslemesi(plan: MillPlan | TurnPlan) -> list[dict]:
+-    """`Ozellik` kayıtları: her adres tam bir kez, `planlandi` (işlem adlarıyla) ya da `planlanamadi`."""
+-    raise NotImplementedError("SPEC 47a: ozellik_eslemesi")
++    """`Ozellik` kayıtları: her adres tam bir kez, `planlandi` (işlem adlarıyla) ya da `planlanamadi`.
++
++    Gerekçesi olan adres `planlanamadi`dır (kod: ilk gerekçe); işlem taşıyorsa (ör. havşasız delik) adları
++    yine listelenir. Ne işlemi ne gerekçesi olan adres `planlandi` ve işlemsiz kalır: `sessiz_atlama` onu
++    `hata` sayar (SPEC 29'a aykırılık gizlenmez).
++    """
++    tasiyan: dict[str, list[str]] = {}
++    for op in plan.ops:
++        for a in grup_ac(op.feature):
++            tasiyan.setdefault(a, []).append(op.name)
++    kod: dict[str, str] = {}
++    for u in plan.unplanned:
++        kod.setdefault(u.feature, u.code)
++    geo = _torna_geometrisi if _torna_mu(plan) else _freze_geometrisi
++    out = []
++    for a in ozellik_adresleri(plan):
++        oz: dict[str, Any] = {"adres": a, "tur": _tur(a), "islemler": tasiyan.get(a, [])}
++        if a in kod:
++            oz.update(durum="planlanamadi", kod=kod[a])
++        else:
++            oz["durum"] = "planlandi"
++        oz["geometri"] = geo(plan, a)
++        out.append(oz)
++    return out
++
++
++# ---------------------------------------------------------------- süre
++
++
++def _yol_suresi(tp, torna: bool) -> float:
++    from cam.sim import Machine, lathe_move_time, move_time
++
++    makine = Machine()
++    t, p = 0.0, tp.start
++    for m in tp.moves:
++        if torna:
++            t += lathe_move_time(p, m.end, m, tp, makine)
++        else:
++            t += move_time(p, m.end, m, tp.plane, makine)
++        p = m.end
++    return float(t)
+ 
+ 
+ def islem_sureleri(plan: MillPlan | TurnPlan) -> list[float]:
+-    """İşlem başına süre [s]: freze SPEC 05 süre tahmini, torna SPEC 22 süre fonksiyonu."""
+-    raise NotImplementedError("SPEC 47a: islem_sureleri")
++    """İşlem başına süre [s]: freze SPEC 05 süre tahmini, torna SPEC 22 süre fonksiyonu.
++
++    Delik işlemi kanonik açılımıyla (`DrillOp.to_toolpath(GRBL)`, SPEC 24 köprüsüyle aynı). Takım değişimi
++    süresi yok (SPEC 05 kuralı).
++    """
++    from cam.gcode import GRBL, DrillOp
++
++    torna = _torna_mu(plan)
++    out = []
++    for op in plan.ops:
++        tp = op.op.to_toolpath(GRBL) if isinstance(op.op, DrillOp) else op.op
++        out.append(_yol_suresi(tp, torna))
++    return out
++
++
++# ---------------------------------------------------------------- Plan sözlüğü
++
++
++def _stok(s: Stock | CylinderStock) -> dict:
++    if isinstance(s, Stock):
++        return {"x0": s.xmin, "x1": s.xmax, "y0": s.ymin, "y1": s.ymax, "z0": s.zmin, "z1": s.zmax}
++    return s.to_dict()
++
++
++def _baglama(i: int, s) -> dict:
++    return {"i": i, "wcs": s.wcs.code, "stok": _stok(s.stock), "fiksturler": [_stok(f) for f in s.fixtures]}
++
++
++def _takim(t, acik: bool) -> dict:
++    D = getattr(t, "D", None)
++    return {
++        "id": t.id,
++        "ad": t.name,
++        "tur": getattr(t.kind, "value", str(t.kind)),
++        "D": None if D is None else float(D),
++        "acik": acik,
++    }
++
++
++def _secenek_alanlari(torna: bool) -> list[dataclasses.Field]:
++    if torna:
++        from cam.plan_turn import TurnOptions as Opt
++    else:
++        from cam.plan import MillOptions as Opt
++    return list(dataclasses.fields(Opt))
++
++
++def _secenek_tumu(torna: bool, secenekler: dict[str, Any] | None) -> dict[str, Any]:
++    """Seçeneklerin hepsi: verilen değer, yoksa dataclass varsayılanı (zorunlu ve verilmemiş → None)."""
++    s = secenekler or {}
++    out = {}
++    for f in _secenek_alanlari(torna):
++        if f.name in s:
++            out[f.name] = s[f.name]
++        elif f.default is not dataclasses.MISSING:
++            out[f.name] = f.default
++        else:
++            out[f.name] = None
++    return out
++
++
++def _takim_degisimi(plan: MillPlan | TurnPlan) -> int:
++    if hasattr(plan, "tool_changes"):
++        return int(plan.tool_changes())
++    ids = [op.tool_id for op in plan.ops]
++    return sum(1 for i, t in enumerate(ids) if i == 0 or t != ids[i - 1])
++
++
++def _gcode(plan: MillPlan | TurnPlan, lib: ToolLibrary) -> list[list[str]]:
++    if _torna_mu(plan):
++        return [plan.gcode(spindle=TORNA_SPINDLE, tool_change=TORNA_TAKIM_DEGISTIRME).splitlines()]
++    from cam.gcode import GRBL
++
++    return [p.splitlines() for p in plan.gcode(lib, GRBL, program_no=1)]
+ 
+ 
+ def plan_json(
+@@ -69,55 +328,355 @@ def plan_json(
+     secenekler: dict[str, Any] | None = None,
+     dogrulama: PlanCheck | None = None,
+ ) -> dict:
+-    """`Plan` sözlüğü (SPEC 47 şeması; `islemler` = `summary()` + süre, `gcode` bağlama başına)."""
+-    raise NotImplementedError("SPEC 47a: plan_json")
++    """`Plan` sözlüğü (SPEC 47 şeması; `islemler` = `summary()` + süre, `gcode` bağlama başına).
++
++    `lib`: örneğin tam kütüphanesi (kapatılanlar dahil); `kapali` takımlar `acik = False` listelenir. G-code
++    takım boyları için tam kütüphane kullanılır (kapalı takım planda zaten yoktur).
++    """
++    torna = _torna_mu(plan)
++    setups = (plan.setup,) if torna else plan.setups
++    sure = islem_sureleri(plan)
++    P = {
++        "sema": SEMA,
++        "ad": ad,
++        "tur": "torna" if torna else "freze",
++        "malzeme": plan.material,
++        "baglamalar": [_baglama(i, s) for i, s in enumerate(setups)],
++        "ozellikler": ozellik_eslemesi(plan),
++        "islemler": [{**satir, "sure": t} for satir, t in zip(plan.summary(), sure, strict=True)],
++        "planlanamayan": [
++            {"adres": u.feature, "kod": u.code, "detay": u.detail, "metin": GEREKCE_METNI[u.code]}
++            for u in plan.unplanned
++        ],
++        "notlar": [
++            {
++                "adres": n.feature,
++                "kod": n.code,
++                "deger": n.value,
++                "detay": n.detail,
++                "metin": NOT_METNI[n.code],
++            }
++            for n in plan.notes
++        ],
++        "takim_degisimi": _takim_degisimi(plan),
++        "takimlar": [_takim(t, t.id not in kapali) for t in lib.tools],
++        "secenekler": _secenek_tumu(torna, secenekler),
++        "dogrulama": None if dogrulama is None else dogrulama_sozlugu(dogrulama),
++        "gcode": _gcode(plan, lib),
++    }
++    P["kontroller"] = kontroller(P)
++    return P
++
++
++# ---------------------------------------------------------------- fark
++
++
++def _ciftler(P: dict) -> dict[tuple[str, str], list[dict]]:
++    out: dict[tuple[str, str], list[dict]] = {}
++    for s in P["islemler"]:
++        out.setdefault((s["feature"], s["kind"]), []).append(s)
++    return out
+ 
+ 
+ def plan_farki(eski: dict, yeni: dict) -> dict:
+-    """İki `Plan` sözlüğünün `Fark`'ı; işlemler `(feature, kind)` çiftiyle eşlenir."""
+-    raise NotImplementedError("SPEC 47a: plan_farki")
++    """İki `Plan` sözlüğünün `Fark`'ı; işlemler `(feature, kind)` çiftiyle eşlenir (ad sıra numarası içerir).
++
++    eklenen / cikan       : yalnız bir planda olan çiftlerin işlem adları
++    takimi_degisen        : iki planda da olan çiftte farklı `tool_id` (çiftin ilk işlemine göre)
++    yeni_planlanamayan    : yeni planda olup eskide olmayan (adres, kod) gerekçeleri
++    kurtulan              : eskide gerekçesi olup yenide hiç gerekçesi olmayan adresler
++    sure_farki            : Σ yeni süre − Σ eski süre [s]
++    takim_degisimi_farki  : yeni − eski takım değişimi
++    """
++    E, Y = _ciftler(eski), _ciftler(yeni)
++    eklenen = [s["name"] for c, ss in Y.items() if c not in E for s in ss]
++    cikan = [s["name"] for c, ss in E.items() if c not in Y for s in ss]
++    takimi_degisen = [
++        {"adres": c[0], "once": E[c][0]["tool_id"], "sonra": Y[c][0]["tool_id"]}
++        for c in E
++        if c in Y and E[c][0]["tool_id"] != Y[c][0]["tool_id"]
++    ]
++    e_kod = {(p["adres"], p["kod"]) for p in eski["planlanamayan"]}
++    yeni_pl = []
++    for p in yeni["planlanamayan"]:
++        c = (p["adres"], p["kod"])
++        if c not in e_kod and {"adres": c[0], "kod": c[1]} not in yeni_pl:
++            yeni_pl.append({"adres": c[0], "kod": c[1]})
++    y_adres = {p["adres"] for p in yeni["planlanamayan"]}
++    kurtulan = list(dict.fromkeys(p["adres"] for p in eski["planlanamayan"] if p["adres"] not in y_adres))
++    return {
++        "eklenen": eklenen,
++        "cikan": cikan,
++        "takimi_degisen": takimi_degisen,
++        "yeni_planlanamayan": yeni_pl,
++        "kurtulan": kurtulan,
++        "sure_farki": sum(s["sure"] for s in yeni["islemler"]) - sum(s["sure"] for s in eski["islemler"]),
++        "takim_degisimi_farki": int(yeni["takim_degisimi"]) - int(eski["takim_degisimi"]),
++    }
++
++
++# ---------------------------------------------------------------- doğrulama ve kontroller
++
++
++def _carpisma(c) -> dict:
++    d = dataclasses.asdict(c) if dataclasses.is_dataclass(c) else dict(c)
++    return json.loads(json.dumps(d, default=float))
+ 
+ 
+ def dogrulama_sozlugu(check: PlanCheck) -> dict:
+     """`PlanCheck` → JSON sözlüğü (çarpışmalar dahil)."""
+-    raise NotImplementedError("SPEC 47a: dogrulama_sozlugu")
++    return {
++        "ok": bool(check.ok),
++        "collisions": [_carpisma(c) for c in check.collisions],
++        "removed_volume": float(check.removed_volume),
++        "rest_volume": float(check.rest_volume),
++        "gouge_volume": float(check.gouge_volume),
++        "expected_rest": float(check.expected_rest),
++        "total_time": float(check.total_time),
++    }
++
++
++def _kontrol(kimlik, baslik, deger, birim, durum, aciklama, spec) -> dict:
++    return {
++        "kimlik": kimlik,
++        "baslik": baslik,
++        "deger": deger,
++        "birim": birim,
++        "durum": durum,
++        "aciklama": aciklama,
++        "spec": spec,
++    }
++
++
++def _cevre(noktalar: list) -> float:
++    if len(noktalar) < 2:
++        return 0.0
++    p = np.asarray(noktalar, dtype=float)
++    return float(np.linalg.norm(np.diff(np.vstack([p, p[:1]]), axis=0), axis=1).sum())
++
++
++def izgara_siniri(P: dict) -> float:
++    """SPEC 29 §7 ızgara hata sınırı Σ P·Δ·H [mm³], `ozellikler` geometrisinden.
++
++    Freze: alan özelliklerinde (dış + ada çevreleri)·(z_ust − z_alt), deliklerde π·D·derinlik; Δ = 0.5.
++    Torna: profil yüzeyi Σ 2π·x̄·ℓ (dönel yüzey alanı); Δ = 0.25.
++    """
++    torna = P["tur"] == "torna"
++    D = HUCRE_TORNA if torna else HUCRE_FREZE
++    S = 0.0
++    for oz in P["ozellikler"]:
++        g = oz.get("geometri") or {}
++        if "profil" in g:
++            p = np.asarray(g["profil"], dtype=float)
++            if len(p) >= 2:
++                ell = np.linalg.norm(np.diff(p, axis=0), axis=1)
++                S += float((2 * math.pi * 0.5 * (p[1:, 0] + p[:-1, 0]) * ell).sum()) * D
++        elif "dis" in g:
++            H = g["z_ust"] - g["z_alt"]
++            S += (_cevre(g["dis"]) + sum(_cevre(a) for a in g["adalar"])) * D * H
++        elif "D" in g:
++            S += math.pi * g["D"] * D * g["derinlik"]
++    return S
++
++
++def _sessiz_atlama(P: dict) -> dict:
++    adresler = [oz["adres"] for oz in P["ozellikler"]]
++    kodlar = {p["adres"]: p["kod"] for p in P["planlanamayan"]}
++    gerekli = {a for s in P["islemler"] for a in grup_ac(s["feature"])} | set(kodlar)
++    sorun = sorted(gerekli - set(adresler))
++    sorun += sorted({a for a in adresler if adresler.count(a) > 1})
++    for oz in P["ozellikler"]:
++        if oz["durum"] == "planlandi" and not oz["islemler"]:
++            sorun.append(oz["adres"])
++        elif oz["durum"] == "planlanamadi" and oz["adres"] not in kodlar:
++            sorun.append(oz["adres"])
++    if sorun:
++        aciklama = "Ne planlanan ne planlanamayan (ya da eşlemesi bozuk) özellik: " + ", ".join(sorun)
++        return _kontrol("sessiz_atlama", "Sessiz atlama", len(sorun), "adet", "hata", aciklama, "SPEC 29")
++    aciklama = f"{len(adresler)} özelliğin her biri planlandı ya da gerekçesiyle planlanamadı"
++    return _kontrol("sessiz_atlama", "Sessiz atlama", 0, "adet", "tamam", aciklama, "SPEC 29")
+ 
+ 
+ def kontroller(plan_sozluk: dict) -> list[dict]:
+-    """SPEC 47 Plan kontrolleri; `dogrulama` yoksa doğrulama kontrolleri listede yoktur."""
+-    raise NotImplementedError("SPEC 47a: kontroller")
++    """SPEC 47 Plan kontrolleri; doğrulama yoksa doğrulama kontrolleri listede yoktur (sahte "tamam" yok)."""
++    P = plan_sozluk
++    out = [_sessiz_atlama(P)]
++    n = len(P["planlanamayan"])
++    if n:
++        aciklama = ", ".join(f"{p['adres']}: {p['metin']}" for p in P["planlanamayan"])
++        out.append(_kontrol("planlanamayan", "Planlanamayan", n, "adet", "uyari", aciklama, "SPEC 29"))
++    else:
++        out.append(
++            _kontrol("planlanamayan", "Planlanamayan", 0, "adet", "tamam", "Hepsi planlandı", "SPEC 29")
++        )
++    d = P.get("dogrulama")
++    if d is not None:
++        c = len(d["collisions"])
++        out.append(
++            _kontrol(
++                "dogrulama_carpma",
++                "Simülasyon: çarpışma",
++                c,
++                "adet",
++                "hata" if c > 0 else "tamam",
++                f"{c} çarpışma kaydı" if c else "Çarpışma yok",
++                "SPEC 29",
++            )
++        )
++        g = d["gouge_volume"]
++        out.append(
++            _kontrol(
++                "dogrulama_cakma",
++                "Simülasyon: çakma",
++                g,
++                "mm³",
++                "hata" if g > CAKMA_TOL else "tamam",
++                f"Parçaya {g:.3f} mm³ çakma" if g > CAKMA_TOL else "Çakma yok",
++                "SPEC 29",
++            )
++        )
++        fark = d["rest_volume"] - d["expected_rest"]
++        sinir = izgara_siniri(P)
++        icinde = abs(fark) <= sinir
++        aciklama = f"Kalan − beklenen = {fark:.3f} mm³; ızgara sınırı {sinir:.3f} mm³"
++        if not icinde and P["planlanamayan"]:
++            aciklama += f" (planlanamayan {len(P['planlanamayan'])} özellik kalan malzemeye girer)"
++        out.append(
++            _kontrol(
++                "kalan_malzeme",
++                "Kalan malzeme",
++                fark,
++                "mm³",
++                "tamam" if icinde else "uyari",
++                aciklama,
++                "SPEC 29",
++            )
++        )
++    t = int(P["takim_degisimi"])
++    out.append(
++        _kontrol("takim_degisimi", "Takım değişimi", t, "adet", "tamam", f"{t} takım değişimi", "SPEC 29")
++    )
++    return out
++
++
++# ---------------------------------------------------------------- kütüphane ve ağ
+ 
+ 
+ def kutuphane_suz(lib: ToolLibrary, kapali: frozenset[int]) -> ToolLibrary:
+     """`kapali` kimlikli takımlar çıkarılmış yeni kütüphane; `lib` değişmez. Bilinmeyen kimlik → CamError."""
+-    raise NotImplementedError("SPEC 47a: kutuphane_suz")
++    ids = {t.id for t in lib.tools}
++    bilinmeyen = sorted(set(kapali) - ids)
++    if bilinmeyen:
++        raise CamError(f"Kütüphanede olmayan takım kimliği: {bilinmeyen}")
++    return ToolLibrary([t for t in lib.tools if t.id not in kapali])
+ 
+ 
+ def ag_ikili(V, T) -> bytes:
+     """Parça ağı (SPEC 25 biçimi): başlık `uint32` nv, nt; `float32[nv·3]`, `uint32[nt·3]`."""
+-    raise NotImplementedError("SPEC 47a: ag_ikili")
++    V = np.asarray(V, dtype="<f4").reshape(-1, 3)
++    T = np.asarray(T).reshape(-1, 3)
++    if len(T) and (T.min() < 0 or T.max() >= len(V)):
++        raise CamError("Parça ağı: üçgen indisi köşe sayısının dışında")
++    baslik = np.array([len(V), len(T)], dtype="<u4")
++    return baslik.tobytes() + V.tobytes() + T.astype("<u4").tobytes()
+ 
+ 
+-def ag_coz(veri: bytes) -> tuple:
++def ag_coz(veri: bytes) -> tuple[np.ndarray, np.ndarray]:
+     """`ag_ikili`'nin tersi: (V (nv, 3) float32, T (nt, 3) uint32)."""
+-    raise NotImplementedError("SPEC 47a: ag_coz")
++    nv, nt = (int(x) for x in np.frombuffer(veri, dtype="<u4", count=2))
++    V = np.frombuffer(veri, dtype="<f4", count=3 * nv, offset=8).reshape(nv, 3).astype(np.float32)
++    T = np.frombuffer(veri, dtype="<u4", count=3 * nt, offset=8 + 12 * nv).reshape(nt, 3).astype(np.uint32)
++    return V, T
++
++
++def _ters_cevir(V: np.ndarray, T: np.ndarray, stok: Stock) -> tuple[np.ndarray, np.ndarray]:
++    """SPEC 29 §5 bağlama 2: stok merkezinden geçen X'e paralel eksen etrafında 180°."""
++    yc, zc = (stok.ymin + stok.ymax) / 2, (stok.zmin + stok.zmax) / 2
++    W = np.column_stack([V[:, 0], 2 * yc - V[:, 1], 2 * zc - V[:, 2]])
++    return W, T  # 180° dönme: yön korunur, üçgen sırası aynı
++
++
++# ---------------------------------------------------------------- oturum
++
++
++def _parametreler(op, lib: ToolLibrary) -> dict[str, float]:
++    p = {"D": float(lib.get(op.tool_id).D), "F": float(op.spindle.F), "rpm": float(op.spindle.n)}
++    if op.a_p is not None:
++        p["a_p"] = float(op.a_p)
++    if op.stepover is not None:
++        p["stepover"] = float(op.stepover)
++    return p
++
++
++def _parmak_izi(*parca) -> str:
++    return hashlib.sha256(json.dumps(parca, sort_keys=True, default=str).encode()).hexdigest()
+ 
+ 
+ @dataclass
+ class PlanOturumu:
+-    """Bir örneğin sunucudaki durumu: girdi, kapalı takımlar, seçenekler, önbellekli plan ve doğrulama."""
++    """Bir örneğin sunucudaki durumu: girdi, kapalı takımlar, seçenekler, önbellekli plan ve doğrulama.
++
++    `secenekler`: örnek seçeneklerinin üstüne yazılan değerler ("Ne olurdu?"). Plan ve doğrulama, girdinin
++    parmak izine (kapalı takımlar + seçenekler) göre bellekte tutulur.
++    """
+ 
+     girdi: PlanGirdisi
+     kapali: frozenset[int] = frozenset()
+     secenekler: dict[str, Any] = field(default_factory=dict)
++    _planlar: dict[str, Any] = field(default_factory=dict, init=False, repr=False)
++    _dogrulamalar: dict[str, Any] = field(default_factory=dict, init=False, repr=False)
++    _profil: Any = field(default=None, init=False, repr=False)
++
++    # ---- yardımcılar
++
++    def _etkin(self, secenekler: dict[str, Any] | None = None) -> dict[str, Any]:
++        s = self.secenekler if secenekler is None else secenekler
++        return {**self.girdi.secenekler, **s}
++
++    def _iz(self, kapali: frozenset[int], secenekler: dict[str, Any]) -> str:
++        return _parmak_izi(self.girdi.ad, sorted(kapali), self._etkin(secenekler))
++
++    def _planla(self, kapali: frozenset[int], secenekler: dict[str, Any]):
++        iz = self._iz(kapali, secenekler)
++        if iz in self._planlar:
++            return self._planlar[iz]
++        g = self.girdi
++        lib = kutuphane_suz(g.lib, kapali)
++        s = self._etkin(secenekler)
++        if g.tur == "torna":
++            from cam.plan_turn import TurnOptions, plan_turn
++
++            if self._profil is None:
++                from cam.turn_profile import turn_profile
++
++                self._profil = turn_profile(g.part)
++            tp = self._profil
++            plan = plan_turn(
++                tp.outer, g.stok, lib, g.malzeme, _secenek_nesnesi(TurnOptions, s), inner=tp.inner
++            )
++        else:
++            from cam.plan import MillOptions, plan_mill, plan_mill_features
++
++            opt = _secenek_nesnesi(MillOptions, s)
++            if g.part is None:
++                plan = plan_mill_features(g.features, g.part_zmin, g.stok, lib, g.malzeme, options=opt)
++            else:
++                plan = plan_mill(g.part, g.stok, lib, g.malzeme, options=opt)
++        self._planlar[iz] = plan
++        return plan
++
++    def _json(self, plan, dogrulama=None) -> dict:
++        return plan_json(self.girdi.ad, plan, self.girdi.lib, self.kapali, self._etkin(), dogrulama)
++
++    # ---- arayüz
+ 
+     def plan(self) -> MillPlan | TurnPlan:
+         """Güncel girdiyle plan (önbellekli; aynı girdi yeniden hesaplanmaz)."""
+-        raise NotImplementedError("SPEC 47a: PlanOturumu.plan")
++        return self._planla(self.kapali, self.secenekler)
+ 
+     def json(self) -> dict:
+-        """Güncel `Plan` sözlüğü."""
+-        raise NotImplementedError("SPEC 47a: PlanOturumu.json")
++        """Güncel `Plan` sözlüğü; bu girdi için doğrulama yapılmışsa `dogrulama` dolu."""
++        return self._json(self.plan(), self._dogrulamalar.get(self._iz(self.kapali, self.secenekler)))
+ 
+     def ne_olurdu(
+         self,
+@@ -126,12 +685,86 @@ class PlanOturumu:
+         secenek: dict[str, Any] | None = None,
+     ) -> dict:
+         """Durumu değiştirir, yeniden planlar: `{"plan": Plan, "fark": Fark}`. Hata → durum değişmez."""
+-        raise NotImplementedError("SPEC 47a: PlanOturumu.ne_olurdu")
++        kutuphane_suz(self.girdi.lib, frozenset(takim_ac))  # bilinmeyen kimlik → CamError
++        kapali = (self.kapali | frozenset(takim_kapat)) - frozenset(takim_ac)
++        secenekler = {**self.secenekler, **(secenek or {})}
++        eski = self.json()
++        self._planla(kapali, secenekler)  # hata → CamError, durum değişmedi
++        self.kapali, self.secenekler = kapali, secenekler
++        yeni = self.json()
++        return {"plan": yeni, "fark": plan_farki(eski, yeni)}
+ 
+     def dogrula(self) -> dict:
+         """`verify_mill` / `verify_turn` (parmak izine göre önbellekli); dönen `Plan`'da `dogrulama` dolu."""
+-        raise NotImplementedError("SPEC 47a: PlanOturumu.dogrula")
++        import cam.plan_verify as pv
++
++        plan = self.plan()
++        iz = self._iz(self.kapali, self.secenekler)
++        if iz not in self._dogrulamalar:
++            if self.girdi.tur == "torna":
++                self._dogrulamalar[iz] = pv.verify_turn(plan, cell=HUCRE_TORNA)
++            else:
++                if self.girdi.part is None:
++                    raise CamError(f"'{self.girdi.ad}': parça yok (özellik kaydından plan); doğrulanamaz")
++                self._dogrulamalar[iz] = pv.verify_mill(plan, self.girdi.part, cell=HUCRE_FREZE)
++        return self._json(plan, self._dogrulamalar[iz])
+ 
+     def isler(self, bag: int) -> tuple[str, Any]:
+         """Bağlama `bag`'ın iş adı ve SPEC 24 `IsTanimi`'si (torna: `TornaIsi`); bilinmeyen → CamError."""
+-        raise NotImplementedError("SPEC 47a: PlanOturumu.isler")
++        g, plan = self.girdi, self.plan()
++        torna = g.tur == "torna"
++        n = 1 if torna else len(plan.setups)
++        if isinstance(bag, bool) or not isinstance(bag, int) or not 0 <= bag < n:
++            raise CamError(f"'{g.ad}' planında bağlama {bag!r} yok (0..{n - 1})")
++        ad = f"{g.ad}-{bag + 1}"
++        ops = [op for op in plan.ops if torna or op.setup == bag]
++        if torna:
++            from tezgah import torna as tz
++
++            islemler = [
++                tz.TornaIslem(anahtar=op.kind, ad=op.name, op=op.op, parametreler=_torna_parametreleri(op))
++                for op in ops
++            ]
++            tanim = tz.TornaIsi(
++                ad=ad,
++                kurulum=plan.setup,
++                malzeme=g.malzeme,
++                islemler=islemler,
++                spindle=TORNA_SPINDLE,
++                tool_change=TORNA_TAKIM_DEGISTIRME,
++                parca=g.part,
++            )
++            return ad, tanim
++        from tezgah import kopru
++
++        islemler = [
++            kopru.Islem(anahtar=op.kind, ad=op.name, op=op.op, parametreler=_parametreler(op, g.lib))
++            for op in ops
++        ]
++        ag = None
++        if g.part is not None:
++            V, T = g.part.mesh(AG_TOL)
++            if bag == 1:
++                V, T = _ters_cevir(np.asarray(V, dtype=float), np.asarray(T), plan.setups[0].stock)
++            ag = (np.asarray(V, dtype=float), np.asarray(T))
++        tanim = kopru.IsTanimi(
++            ad=ad, kurulum=plan.setups[bag], malzeme=g.malzeme, islemler=islemler, parca_ag=ag
++        )
++        return ad, tanim
++
++
++def _torna_parametreleri(op) -> dict[str, float]:
++    sf = op.spindle
++    p = {} if sf is None else {"F": float(sf.F), "rpm": float(sf.n)}
++    if op.a_p is not None:
++        p["a_p"] = float(op.a_p)
++    return p
++
++
++def _secenek_nesnesi(Opt, s: dict[str, Any]):
++    """Seçenek dataclass'ı; bilinmeyen alan → CamError (çekirdeğin kendi doğrulaması dataclass'ta)."""
++    adlar = {f.name for f in dataclasses.fields(Opt)}
++    bilinmeyen = sorted(set(s) - adlar)
++    if bilinmeyen:
++        raise CamError(f"Bilinmeyen plan seçeneği: {bilinmeyen} (geçerli: {sorted(adlar)})")
++    return Opt(**s)
+diff --git a/tezgah/ekranlar/_plan_ornekler.py b/tezgah/ekranlar/_plan_ornekler.py
+index fc48d3b..aefac7f 100644
+--- a/tezgah/ekranlar/_plan_ornekler.py
++++ b/tezgah/ekranlar/_plan_ornekler.py
+@@ -4,16 +4,47 @@ SPEC 47a — Plan ekranının uydurma örnekleri (gizlilik kuralı).
+ plan_blogu  : SPEC 29 K12 parçası (OCCT), freze, iki bağlama
+ plan_engelli: elle kurulmuş `Features` (SPEC 29 K6 delikleri + K3 keskin köşeli cep), OCCT'siz
+ plan_mili   : SPEC 27 K10 profilinden döndürülmüş mil (OCCT, SPEC 28 `turn_profile`), torna
++
++Takımlar SPEC 29 Ek A; GRBL takım boyu ofsetleri için freze takımlarına ortak tutucu (`gauge_length = 60`) ve
++`stickout = flute_length + 10` verilir (SPEC 29 testlerinin Ek A kuralıyla aynı). Torna takımlarına SPEC 22
++simülasyonunun istediği kesici kenar boyu (`edge_len`) eklenir (Ek A tablosunda yok; uydurma değerler).
+ """
+ 
+ from __future__ import annotations
+ 
++import importlib.util
++import math
+ from collections.abc import Callable
+ from dataclasses import dataclass, field
+ from typing import Any
+ 
++import numpy as np
++
++from cam.model import (
++    CuttingData,
++    CylinderStock,
++    LatheTool,
++    LatheToolKind,
++    Stock,
++    Tool,
++    ToolHolder,
++    ToolKind,
++    ToolLibrary,
++)
++
+ ORNEKLER: tuple[str, ...] = ("plan_blogu", "plan_engelli", "plan_mili")
+ 
++MALZEME = "al"
++TUTUCU = ToolHolder("tutucu-ek-a", gauge_length=60.0, profile=((0.0, 20.0), (40.0, 20.0)))
++# Örnek kurulmadan listelenen bilgiler (OCCT yokken de)
++TUR = {"plan_blogu": "freze", "plan_engelli": "freze", "plan_mili": "torna"}
++ACIKLAMA = {
++    "plan_blogu": "Cepli ve delikli blok: iki bağlama (alt yüz), kalan malzeme işlemleri",
++    "plan_engelli": "Planlanamayan özellikler: havşa, kılavuz, eğik delik, eksik takım ve köşe artığı",
++    "plan_mili": "Omuzlu ve kanallı mil: alın, kaba, finiş ve kanal",
++}
++OCCT_NEDENI = 'OCCT (build123d) kurulu değil: pip install -e ".[cad]"'
++
+ 
+ @dataclass(frozen=True)
+ class PlanGirdisi:
+@@ -32,16 +63,144 @@ class PlanGirdisi:
+     gerektirir: tuple[str, ...] = ()  # "occt"
+ 
+ 
++# ---------------------------------------------------------------- SPEC 29 Ek A takımları
++
++
++def _freze(id: int, ad: str, kind: ToolKind, D: float, L: float, z: int, **cd) -> Tool:
++    return Tool(
++        id=id,
++        name=ad,
++        kind=kind,
++        D=D,
++        flute_length=L,
++        flutes=z,
++        stickout=L + 10.0,
++        holder=TUTUCU,
++        cutting={MALZEME: CuttingData(**cd)},
++    )
++
++
++def freze_lib() -> ToolLibrary:
++    F, M = ToolKind.FLAT, ToolKind.DRILL
++    return ToolLibrary(
++        [
++            _freze(1, "freze16", F, 16, 30, 3, Vc=300, fz=0.08, ap=4, ae=6),
++            _freze(2, "freze10", F, 10, 25, 3, Vc=250, fz=0.05, ap=3, ae=4),
++            _freze(3, "freze6", F, 6, 18, 3, Vc=200, fz=0.04, ap=2, ae=2.5),
++            _freze(4, "freze4", F, 4, 12, 2, Vc=150, fz=0.03, ap=1, ae=1.5),
++            _freze(5, "freze3-veri-yok", F, 3, 8, 2, Vc=120, fz=0.02),
++            _freze(11, "matkap8", M, 8, 40, 2, Vc=80, fz=0.1),
++            _freze(12, "matkap6.6", M, 6.6, 35, 2, Vc=80, fz=0.08),
++            _freze(13, "matkap6.8", M, 6.8, 35, 2, Vc=80, fz=0.08),
++            _freze(14, "matkap4", M, 4, 25, 2, Vc=70, fz=0.05),
++        ]
++    )
++
++
++def torna_lib() -> ToolLibrary:
++    def cd(**k):
++        return {MALZEME: CuttingData(**k)}
++
++    K = LatheToolKind
++    return ToolLibrary(
++        [
++            LatheTool(
++                21, "dis-kaba", K.TURN, 0.8, 3, 93, 80, cutting=cd(Vc=250, fn=0.25, ap=2), edge_len=8.0
++            ),
++            LatheTool(22, "dis-finis", K.TURN, 0.4, 3, 93, 55, cutting=cd(Vc=300, fn=0.1), edge_len=6.0),
++            LatheTool(
++                23, "kanal3", K.GROOVE, 0.2, 3, 90, 90, width=3, cutting=cd(Vc=150, fn=0.05), edge_len=5.0
++            ),
++            LatheTool(24, "ic-kaba", K.BORE, 0.4, 2, 95, 80, cutting=cd(Vc=200, fn=0.15, ap=1), edge_len=6.0),
++        ]
++    )
++
++
++# ---------------------------------------------------------------- örnekler
++
++
++def _oteleme(dz: float) -> np.ndarray:
++    T = np.eye(4)
++    T[2, 3] = dz
++    return T
++
++
+ def plan_blogu() -> PlanGirdisi:
+-    raise NotImplementedError("SPEC 47a: plan_blogu")
++    """SPEC 29 K12: 100×60×20 blok, 40×30 cep (r = 5, [12, 20]), iç cep 16×12 × 4 ([8, 12]), iki Ø8 boydan."""
++    from geometry.features import block, hole, pocket
++
++    p = pocket(block(100, 60, 20), 50, 30, 40, 30, 8, r=5)
++    p = pocket(p, 50, 30, 16, 12, 12)  # üstten 12: [8, 20]; [12, 20] zaten boş → iç cep [8, 12]
++    p = hole(hole(p, 10, 50, 8), 90, 10, 8)
++    return PlanGirdisi(
++        ad="plan_blogu",
++        tur="freze",
++        aciklama=ACIKLAMA["plan_blogu"],
++        malzeme=MALZEME,
++        stok=Stock(-2, -2, -3, 102, 62, 22),
++        lib=freze_lib(),
++        part=p,
++        gerektirir=("occt",),
++    )
+ 
+ 
+ def plan_engelli() -> PlanGirdisi:
+-    raise NotImplementedError("SPEC 47a: plan_engelli")
++    """Elle kurulmuş özellikler: SPEC 29 K6 delik kümesi + K3 keskin köşeli cep; tek bağlama (stok altı 0)."""
++    from cam.features import FaceFeature, Features, HoleFeature, PocketFeature
++    from cam.profile import Profile, Region
++    from geometry.part import Hole
++
++    asagi = (0.0, 0.0, -1.0)
++
++    def delik(x, y, d, depth, through, axis=asagi, **kw) -> HoleFeature:
++        return HoleFeature(
++            Hole(origin=(x, y, 20.0), axis=axis, d=d, depth=depth, through=through, **kw), "kayit"
++        )
++
++    s, c = math.sin(math.radians(30)), math.cos(math.radians(30))
++    features = Features(
++        faces=(FaceFeature(z=20.0, depth=2.0, boundary=Profile.rectangle(0, 0, 100, 60)),),
++        pockets=(PocketFeature(Region(Profile.rectangle(42, 24, 16, 12)), 12.0, 8.0, 0.0),),
++        opens=(),
++        holes=(
++            delik(15, 15, 8, 20, True),  # kayıtlı Ø8 boydan → T11
++            delik(85, 15, 4, 15, False),  # Ø4 × 15 kör → G83
++            delik(15, 45, 6.6, 20, True, cbore_d=11.0, cbore_depth=6.4),  # lambalı
++            delik(85, 45, 6.6, 20, True, csk_d=12.0, csk_angle=90.0),  # havşalı → havsa_takimi_yok
++            delik(28, 30, 6.8, 15, False, thread="M8", thread_d=8.0, pitch=1.25, thread_depth=12.0),
++            delik(72, 30, 8, 10, False, axis=(s, 0.0, -c)),  # eğimli → ustten_erisilemez
++            delik(50, 52, 5, 10, False),  # Ø5: kütüphanede yok → takim_yok
++        ),
++    )
++    return PlanGirdisi(
++        ad="plan_engelli",
++        tur="freze",
++        aciklama=ACIKLAMA["plan_engelli"],
++        malzeme=MALZEME,
++        stok=Stock(-2, -2, 0, 102, 62, 22),
++        lib=freze_lib(),
++        features=features,
++        part_zmin=0.0,
++    )
+ 
+ 
+ def plan_mili() -> PlanGirdisi:
+-    raise NotImplementedError("SPEC 47a: plan_mili")
++    """SPEC 27 K10: Ø30 × 20 omuz + Ø20 × 40 mil, z ∈ [34, 40]'ta Ø16'ya kanal; stok Ø32, z ∈ [−10, 62]."""
++    from geometry.features import cylinder
++
++    govde = cylinder(15, 20).fuse(cylinder(10, 40).moved(_oteleme(20.0)))
++    kanal = cylinder(11, 6).cut(cylinder(8, 6)).moved(_oteleme(34.0))
++    return PlanGirdisi(
++        ad="plan_mili",
++        tur="torna",
++        aciklama=ACIKLAMA["plan_mili"],
++        malzeme=MALZEME,
++        stok=CylinderStock(D=32.0, zmin=-10.0, zmax=62.0),
++        lib=torna_lib(),
++        part=govde.cut(kanal),
++        secenekler={"rpm_max": 3000.0},
++        gerektirir=("occt",),
++    )
+ 
+ 
+ KURUCULAR: dict[str, Callable[[], PlanGirdisi]] = {
+@@ -49,13 +208,24 @@ KURUCULAR: dict[str, Callable[[], PlanGirdisi]] = {
+     "plan_engelli": plan_engelli,
+     "plan_mili": plan_mili,
+ }
++GEREKTIRIR: dict[str, tuple[str, ...]] = {"plan_blogu": ("occt",), "plan_engelli": (), "plan_mili": ("occt",)}
++
++_kurulan: dict[str, PlanGirdisi] = {}
+ 
+ 
+ def ornek(ad: str) -> PlanGirdisi:
+-    """Adıyla örnek. Bilinmeyen ad → KeyError (uçta 404)."""
+-    raise NotImplementedError("SPEC 47a: ornek")
++    """Adıyla örnek (bir kez kurulur). Bilinmeyen ad → KeyError (uçta 404)."""
++    if ad not in KURUCULAR:
++        raise KeyError(f"Bilinmeyen plan örneği: {ad!r}")
++    if ad not in _kurulan:
++        _kurulan[ad] = KURUCULAR[ad]()
++    return _kurulan[ad]
+ 
+ 
+ def hazir(ad: str) -> str | None:
+     """None → örnek bu kurulumda çalışır; metin → neden (ör. "OCCT kurulu değil: pip install -e .[cad]")."""
+-    raise NotImplementedError("SPEC 47a: hazir")
++    if ad not in KURUCULAR:
++        raise KeyError(f"Bilinmeyen plan örneği: {ad!r}")
++    if "occt" in GEREKTIRIR[ad] and importlib.util.find_spec("build123d") is None:
++        return OCCT_NEDENI
++    return None
+diff --git a/tezgah/ekranlar/plan.py b/tezgah/ekranlar/plan.py
+index bd82152..acfb8b1 100644
+--- a/tezgah/ekranlar/plan.py
++++ b/tezgah/ekranlar/plan.py
+@@ -13,62 +13,107 @@ Bilinmeyen örnek → 404; çekirdek hataları kabuğun ortak işleyicisiyle 422
+ 
+ from __future__ import annotations
+ 
+-from fastapi import APIRouter
++import importlib.util
++import threading
++from typing import Any
++
++from fastapi import APIRouter, HTTPException, Response
+ from pydantic import BaseModel
+ 
+-from tezgah.ekranlar import Ekran
++from tezgah.ekranlar import Ekran, is_kaydet
++from tezgah.ekranlar._plan_kopru import SEMA, PlanOturumu, ag_ikili
++from tezgah.ekranlar._plan_ornekler import ACIKLAMA, KURUCULAR, ORNEKLER, TUR, hazir, ornek
+ 
+ router = APIRouter()
+ 
++_kilit = threading.RLock()
++_oturumlar: dict[str, PlanOturumu] = {}
++_aglar: dict[str, bytes] = {}
++
+ 
+ class NeOlurdu(BaseModel):
+     takim_kapat: list[int] = []
+     takim_ac: list[int] = []
+-    secenek: dict[str, float | bool | None] = {}
++    secenek: dict[str, Any] = {}  # JSON türü korunur: çekirdeğin hata metni girdinin kendisini yazar
+ 
+ 
+ class Ac(BaseModel):
+     bag: int
+ 
+ 
++def _oturum(ad: str) -> PlanOturumu:
++    """Örneğin oturumu; bilinmeyen örnek → 404, bu kurulumda çalışmayan örnek → 503 (neden metni)."""
++    if ad not in KURUCULAR:
++        raise HTTPException(404, f"Bilinmeyen plan örneği: {ad!r}")
++    neden = hazir(ad)
++    if neden is not None:
++        raise HTTPException(503, neden)
++    if ad not in _oturumlar:
++        _oturumlar[ad] = PlanOturumu(ornek(ad))
++    return _oturumlar[ad]
++
++
+ @router.get("/ornekler")
+ def ornekler() -> dict:
+-    raise NotImplementedError("SPEC 47a: GET /ornekler")
++    satirlar = []
++    for ad in ORNEKLER:
++        neden = hazir(ad)
++        satir = {"ad": ad, "tur": TUR[ad], "aciklama": ACIKLAMA[ad], "hazir": neden is None, "neden": neden}
++        satirlar.append(satir)
++    return {"sema": SEMA, "ornekler": satirlar}
+ 
+ 
+ @router.get("/{ad}")
+ def plan(ad: str) -> dict:
+-    raise NotImplementedError("SPEC 47a: GET /{ad}")
++    with _kilit:
++        return _oturum(ad).json()
+ 
+ 
+ @router.get("/{ad}/ag")
+-def ag(ad: str):
+-    raise NotImplementedError("SPEC 47a: GET /{ad}/ag")
++def ag(ad: str) -> Response:
++    with _kilit:
++        g = _oturum(ad).girdi
++        if g.part is None:
++            raise HTTPException(404, f"'{ad}' örneğinde parça yok (özellik kaydından plan)")
++        if ad not in _aglar:
++            _aglar[ad] = ag_ikili(*g.part.mesh(0.05))
++        return Response(_aglar[ad], media_type="application/octet-stream")
+ 
+ 
+ @router.post("/{ad}/ne_olurdu")
+ def ne_olurdu(ad: str, g: NeOlurdu) -> dict:
+-    raise NotImplementedError("SPEC 47a: POST /{ad}/ne_olurdu")
++    with _kilit:
++        return _oturum(ad).ne_olurdu(takim_kapat=g.takim_kapat, takim_ac=g.takim_ac, secenek=g.secenek)
+ 
+ 
+ @router.post("/{ad}/dogrula")
+ def dogrula(ad: str) -> dict:
+-    raise NotImplementedError("SPEC 47a: POST /{ad}/dogrula")
++    with _kilit:
++        return _oturum(ad).dogrula()
+ 
+ 
+ @router.post("/{ad}/ac")
+ def ac(ad: str, g: Ac) -> dict:
+-    raise NotImplementedError("SPEC 47a: POST /{ad}/ac")
++    with _kilit:
++        oturum = _oturum(ad)
++        is_ad, tanim = oturum.isler(g.bag)
++        is_kaydet(is_ad, tanim)
++        ekran = "torna" if oturum.girdi.tur == "torna" else "freze"
++        return {"adres": f"#/{ekran}?is={is_ad}"}
+ 
+ 
+ def _hazir() -> str | None:
+     """SPEC 29 kodu yoksa neden metni."""
+-    raise NotImplementedError("SPEC 47a: hazir")
++    for m in ("cam.plan", "cam.plan_verify"):
++        if importlib.util.find_spec(m) is None:
++            return f"SPEC 29 ({m}) bu kurulumda yok: otomatik işlem planı kullanılamaz"
++    return None
+ 
+ 
+ def _sifirla() -> None:
+     """Bütün örnek oturumlarını başlangıca döndürür (kapalı takım yok, seçenekler örnek varsayılanı)."""
+-    raise NotImplementedError("SPEC 47a: sifirla")
++    with _kilit:
++        _oturumlar.clear()
+ 
+ 
+ EKRAN = Ekran(

@@ -1,0 +1,153 @@
+# fark.py gövdeleri (taslak). Ek importlar: hashlib, json, math, numpy as np, ModelError, DrillOp, GRBL,
+# Move, MoveType, Plane, Toolpath, move_time
+
+
+def anahtarlar(plan: MillPlan) -> list[str]:
+    """plan.ops sırasıyla işlem anahtarları (tekrarda "#2", "#3" …)."""
+    sayac: dict[str, int] = {}
+    sonuc = []
+    for o in plan.ops:
+        a = f"{o.feature}|{o.kind}"
+        sayac[a] = sayac.get(a, 0) + 1
+        sonuc.append(a if sayac[a] == 1 else f"{a}#{sayac[a]}")
+    return sonuc
+
+
+def _sayi(v):
+    return None if v is None else round(float(v), 9)
+
+
+def _nokta(p) -> list:
+    return [_sayi(v) for v in p]
+
+
+def _yol_verisi(op) -> dict:
+    if isinstance(op, DrillOp):
+        return {
+            "delik": [_nokta(h) for h in op.holes],
+            "start": _nokta(op.start),
+            "z": _sayi(op.z),
+            "r": _sayi(op.r),
+            "kind": op.kind,
+            "q": _sayi(op.q),
+            "retract": op.retract,
+        }
+    return {
+        "start": _nokta(op.start),
+        "moves": [
+            [m.type.name, _nokta(m.end), _sayi(m.feed), None if m.center is None else _nokta(m.center)]
+            for m in op.moves
+        ],
+    }
+
+
+def yol_ozeti(op: PlannedOp) -> str:
+    """İşlemin yol geometrisinin kanonik özeti (SHA-256, onaltılık): hareketler ya da delik noktaları ve
+    çevrim parametreleri. Aynı yol → aynı özet."""
+    metin = json.dumps(_yol_verisi(op.op), sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(metin.encode()).hexdigest()
+
+
+def islem_sureleri(plan: MillPlan, machine: Machine | None = None) -> list[float]:
+    """72 öncesi süre modeli: işlem başına SPEC 05 hareket süreleri + takım değişimi [s], plan.ops sırasıyla.
+    machine None → cam.sim.Machine()."""
+    if machine is None:
+        machine = Machine()
+    t = [0.0] * len(plan.ops)
+    for s in range(len(plan.setups)):
+        # cam.sim.simulate ile aynı döngü: bağlama başına konum ve takım sıfırlanır
+        pos: np.ndarray | None = None
+        onceki: int | None = None
+        for i, po in enumerate(plan.ops):
+            if po.setup != s:
+                continue
+            tp = po.op.to_toolpath(GRBL) if isinstance(po.op, DrillOp) else po.op
+            if onceki is not None and tp.tool.id != onceki:
+                t[i] += machine.tool_change
+            onceki = tp.tool.id
+            p_bas = np.array(tp.start, dtype=float)
+            if pos is not None and not np.array_equal(pos, p_bas):
+                t[i] += move_time(pos, tp.start, Move(MoveType.RAPID, tp.start), Plane.XY, machine)
+            pos = p_bas
+            for m in tp.moves:
+                t[i] += move_time(pos, m.end, m, Plane.XY, machine)
+                pos = np.array(m.end, dtype=float)
+    return t
+
+
+def _sureler(plan: MillPlan, sure: Sequence[float], ad: str) -> list[float]:
+    s = [float(v) for v in sure]
+    if len(s) != len(plan.ops):
+        raise ModelError(f"{ad}: {len(s)} süre, plan {len(plan.ops)} işlem")
+    if not all(math.isfinite(v) for v in s):
+        raise ModelError(f"{ad}: sonlu olmayan süre")
+    return s
+
+
+def _alanlar(a: PlannedOp, b: PlannedOp) -> list[str]:
+    farkli = []
+    for ad in KARSILASTIRILAN:
+        if ad == "yol":
+            esit = yol_ozeti(a) == yol_ozeti(b)
+        elif ad in ("n", "F"):
+            esit = getattr(a.spindle, ad) == getattr(b.spindle, ad)
+        else:
+            esit = getattr(a, ad) == getattr(b, ad)
+        if not esit:
+            farkli.append(ad)
+    return farkli
+
+
+def plan_farki(eski, yeni, sure_eski, sure_yeni, maliyet=None) -> dict:
+    t_e = _sureler(eski, sure_eski, "sure_eski")
+    t_y = _sureler(yeni, sure_yeni, "sure_yeni")
+    a_e, a_y = anahtarlar(eski), anahtarlar(yeni)
+    i_e = {a: i for i, a in enumerate(a_e)}
+    i_y = {a: i for i, a in enumerate(a_y)}
+    islemler = []
+    for j, a in enumerate(a_y):
+        y = yeni.ops[j]
+        i = i_e.get(a)
+        if i is None:
+            ayr = {"ad_eski": None, "ad_yeni": y.name, "sira_eski": None, "sira_yeni": j, "alanlar": []}
+            islemler.append(IslemFarki(a, "eklendi", t_y[j], ayr))
+            continue
+        e = eski.ops[i]
+        alanlar = _alanlar(e, y)
+        ayr = {"ad_eski": e.name, "ad_yeni": y.name, "sira_eski": i, "sira_yeni": j, "alanlar": alanlar}
+        islemler.append(IslemFarki(a, "degisti" if alanlar else "ayni", t_y[j] - t_e[i], ayr))
+    for i, a in enumerate(a_e):
+        if a not in i_y:
+            e = eski.ops[i]
+            ayr = {"ad_eski": e.name, "ad_yeni": None, "sira_eski": i, "sira_yeni": None, "alanlar": []}
+            islemler.append(IslemFarki(a, "kalkti", -t_e[i], ayr))
+    ortak_e = [a for a in a_e if a in i_y]
+    ortak_y = [a for a in a_y if a in i_e]
+    u_e = {(u.feature, u.code) for u in eski.unplanned}
+    u_y = {(u.feature, u.code) for u in yeni.unplanned}
+    return {
+        "islemler": islemler,
+        "dt": sum(t_y) - sum(t_e),
+        "dmaliyet": None if maliyet is None else float(maliyet[1]) - float(maliyet[0]),
+        "planlanamayan": {
+            "yeni": [u for u in yeni.unplanned if (u.feature, u.code) not in u_e],
+            "giden": [u for u in eski.unplanned if (u.feature, u.code) not in u_y],
+        },
+        "sira_degisti": ortak_e != ortak_y,
+    }
+
+
+def fark_json(fark: dict) -> dict:
+    def u(x):
+        return {"feature": x.feature, "code": x.code, "detail": x.detail}
+
+    return {
+        "islemler": [
+            {"anahtar": f.anahtar, "durum": f.durum, "dt": f.dt, "ayrinti": dict(f.ayrinti)}
+            for f in fark["islemler"]
+        ],
+        "dt": fark["dt"],
+        "dmaliyet": fark["dmaliyet"],
+        "planlanamayan": {k: [u(x) for x in v] for k, v in fark["planlanamayan"].items()},
+        "sira_degisti": fark["sira_degisti"],
+    }

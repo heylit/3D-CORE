@@ -1,0 +1,131 @@
+# SPEC 65b — Tezgah'ta gerçekçi malzeme görünümü (PBR) (Dalga 7, A9)
+
+> Durum: **onaylı** (kullanıcı, 2026-10-18 16:19, önerilen cevaplarla; mesaj cmsg_01DTo5iWYb5RBUWgjk6xu1sGJGTUdh2rjZ3topbRjRQuit). Kullanıcı kararı (2026-10-18 11:00): tarayıcıda basit PBR olacak, ışın izleme yok.
+> Bağımlılık: SPEC 24/47 Tezgah sahnesi (`tezgah/arayuz/src/sahne.ts`, three.js 0.170), B2 + 66 malzeme kaydı,
+> `Component.material`.
+
+## Amaç
+Tezgah sahnesinde parçalar bugün sabit renkli `MeshStandardMaterial` ile çiziliyor. Malzemeden ve yüzey işleminden haberi
+yok. Kullanıcı "şaşırtıcı, profesyonel" bir görünüm istedi (Dalga 6/7 kararları). Bu SPEC şunları ekler:
+- Parçanın görünümü malzemesinden gelir: C45 koyu çelik, 6061 açık alüminyum, POM-C mat beyaz.
+- Yüz başına **yüzey bitimi** (ham, frezelenmiş, taşlanmış, parlatılmış, eloksal, boyalı) tanımlanabilir.
+- Ortam ışığı ve yansıma harici dosya olmadan üretilir, böylece metal metal gibi görünür.
+- Analiz renk haritası (SPEC 47 von Mises, sıcaklık) ve CAM simülasyon renkleri aynı sahnede bozulmadan çalışır.
+
+## Teori
+three.js `MeshPhysicalMaterial` metal/pürüzlülük iş akışını kullanır:
+- `color` temel renktir; metalde yansıma rengidir.
+- `metalness ∈ {0, 1}` (ara değerler yalnız kir ve oksit için).
+- `roughness ∈ [0, 1]`.
+- `clearcoat` boya ve eloksal katmanıdır.
+- Fırçalanmış ve taşlanmış metalde yön izlenimi için `anisotropy`.
+
+Ortam: `PMREMGenerator.fromScene(new RoomEnvironment())`. Bu, three.js'in kendi örnek sahnesidir; dosya indirmez ve
+çevrimdışı çalışır (Tezgah yerel bir uygulamadır). Diğer ayarlar:
+- Ton eşleme `ACESFilmicToneMapping`, çıkış renk uzayı `SRGBColorSpace`.
+- Gölge isteğe bağlıdır: tek yönlü ışık, `PCFSoftShadowMap`, varsayılan kapalı (performans).
+
+Görünüm verisi fiziksel ölçüm değildir, görsel bir **ön ayardır**. Bu yüzden B2 malzeme kaydına girmez ve "uydurma veri
+yasağı"nın konusu değildir. Ön ayarlar ayrı bir tabloda durur ve kullanıcı değiştirebilir.
+
+Çözümleme sırası (ilk bulunan kazanır):
+1. yüz bitimi
+2. bileşen görünüm geçersiz kılma
+3. malzeme id ön ayarı
+4. malzeme grubu ön ayarı
+5. varsayılan gri
+
+## Dosyalar
+- **Yeni:**
+  - `tezgah/gorunum.py`: ön ayar tablosu ve çözümleme, saf Python
+  - `tezgah/gorunum.json`: grup ve id ön ayarları
+  - `tezgah/arayuz/src/gorunum.ts`: ön ayardan `MeshPhysicalMaterial` üretir, ortam haritası ve ton eşleme kurar
+  - `tests/tezgah/test_gorunum.py`, `tezgah/arayuz/tests/gorunum.spec.ts` (Playwright)
+  - `specs/65b-pbr-gorunum.md`, `durum/65b-pbr-gorunum.md`
+- **Değişecek:**
+  - `tezgah/arayuz/src/sahne.ts`: parça malzemesi `gorunum.ts`'ten gelir; ışık kurulumu ortam haritasına uyarlanır
+  - `tezgah/sunucu.py` ya da ilgili ekran modülü: `/api/gorunum` uç noktası. Sahibi "Tezgah uygulaması" thread'idir;
+    yalnız uç nokta eklenir.
+- **Dokunulmayacak:** `malzeme/` (B2/66), `geometry/`, analiz ve CAM renk haritası işlevleri (`isi()` aynı kalır).
+
+## Arayüz
+```python
+# tezgah/gorunum.py
+BITIMLER = ("ham", "frezelenmis", "taslanmis", "parlatilmis", "eloksal", "boyali", "kumlanmis")
+
+@dataclass(frozen=True)
+class Gorunum:
+    renk: str            # "#rrggbb"
+    metalness: float     # [0, 1]
+    roughness: float     # [0, 1]
+    clearcoat: float = 0.0
+    anisotropy: float = 0.0
+    def to_dict(self) -> dict: ...
+
+def on_ayarlar(yol: Path | None = None) -> Mapping[str, Gorunum]: ...   # "grup:celik", "id:EN-AW-6061-T6", "bitim:eloksal"
+def coz(malzeme: Malzeme | None, bitim: str | None = None,
+        gecersiz: Gorunum | None = None, *, tablo=None) -> Gorunum: ...
+def bitim_uygula(temel: Gorunum, bitim: str) -> Gorunum: ...
+    # ham: roughness 0.6; frezelenmis 0.35 + anizotropi 0.3; taslanmis 0.2 + anizotropi 0.6; parlatilmis 0.05;
+    # eloksal: metalness 0.6, clearcoat 1, renk eloksal rengi; boyali: metalness 0, clearcoat 0.5; kumlanmis 0.8
+```
+- `GET /api/gorunum?montaj=…` her bileşen ve yüz için `Gorunum` sözlüğü döndürür. Yüz bitimi bileşen JSON'unda
+  `gorunum: {"bitim": {FaceRef: bitim}}` olarak durur. Bu, proje dosyası (37) ekidir ve şema değişikliğini 37 sahibi yapar.
+- TS: `malzemeOlustur(g: Gorunum): THREE.MeshPhysicalMaterial` (önbellekli, aynı `Gorunum` → aynı nesne),
+  `ortamKur(renderer, sahne)`, `gorunumModu(mod: "gercekci" | "teknik" | "analiz")`.
+  - `teknik`: bugünkü düz görünüm.
+  - `analiz`: renk haritası; bu modda PBR kapalıdır, renkler değer okumayı bozmaz.
+
+## Kabul kriterleri
+- [ ] **K1** Ön ayar tablosu (`test_gorunum.py`):
+  - B2'nin her `GRUPLAR` üyesi için bir grup ön ayarı var.
+  - Her değer aralıkta (`metalness`, `roughness`, `clearcoat`, `anisotropy` ∈ [0, 1]; renk 7 karakterli onaltılık).
+  - `metal` grupları (`celik`, `paslanmaz`, `dokme_demir`, `aluminyum`, `bakir`, `titanyum`, `nikel`) için
+    `metalness = 1`; `plastik` için `0`.
+- [ ] **K2** Çözümleme sırası:
+  - Malzemesiz bileşen varsayılan gri olur.
+  - Grup ön ayarını id ön ayarı ezer.
+  - Bileşen geçersiz kılması ikisini de ezer.
+  - Yüz bitimi en son uygulanır.
+  - Bilinmeyen bitim (`"krom"`) `ModelError` verir.
+  - Kullanıcı tablosu (`yol`) yerleşik tabloyu anahtar bazında ezer, eksik anahtarlar yerleşikten gelir.
+- [ ] **K3** Bitim dönüşümleri belirlenimcidir: `bitim_uygula(çelik, "taslanmis").roughness < bitim_uygula(çelik, "frezelenmis").roughness < bitim_uygula(çelik, "ham").roughness`,
+  `parlatilmis` en düşüktür ve `eloksal` `clearcoat = 1` verir. Aynı girdi her zaman aynı sonucu verir (`==`).
+- [ ] **K4** API: `/api/gorunum` iki bileşenli örnek montajda (C45 gövde, 6061 kapak; kapağın bir yüzü eloksal) doğru
+  sözlüğü döndürür. JSON şeması OpenAPI'de görünür (Dalga 7 MES tipi üretimiyle uyumlu).
+- [ ] **K5** Playwright (`gorunum.spec.ts`), örnek montaj Tezgah'ta açılınca:
+  - Gövde ağının malzemesi `MeshPhysicalMaterial`, `metalness = 1`.
+  - Kapağın eloksal yüzü ayrı bir malzeme grubundadır ve `clearcoat = 1`.
+  - `scene.environment` doludur, `renderer.toneMapping === ACESFilmicToneMapping`.
+  - Okuma `window.__tezgah` test kancasından yapılır (`kanca.ts` deseni).
+- [ ] **K6** Mod geçişi:
+  - `gercekci → analiz → gercekci` geçişinde analiz modunda parça malzemesi vertex renkli olur ve PBR kapanır.
+  - Geri dönünce aynı `Gorunum` nesneleri kullanılır (önbellek, sızıntı yok: `renderer.info.programs` sayısı ikinci
+    turda artmaz).
+- [ ] **K7** Görsel duman testi:
+  - Canvas ekran görüntüsünde parçanın piksellerinin %95'inden fazlası arka plan rengi değildir (parça çizildi).
+  - Metal gövdenin piksel parlaklık standart sapması mat POM bloğundan büyüktür (yansıma var).
+  - Kesin piksel eşitliği aranmaz, çünkü GPU sürücüleri farklıdır.
+- [ ] **K8** Çevrimdışı: Playwright ağ isteklerinde `127.0.0.1` dışına istek yoktur (ortam haritası üretilir, indirilmez).
+- [ ] **K9** Performans (bilgi amaçlı, kırmızı yapmaz): 200 bin üçgenli sahnede ortalama kare süresi `durum/`
+  dosyasına yazılır. Gölge kapalıyken hedef 33 ms altıdır.
+- [ ] **K10** `ruff`, `tsc --noEmit`, `npm run lint` (varsa) temiz; Python testleri OCCT gerektirmez.
+
+## Bağımlılık
+- SPEC 24/47: Tezgah sahnesi (birleşti).
+- B2 ve 66: malzeme ve grup. 66'dan önce yalnız grup ön ayarı ve varsayılan gri çalışır.
+- 37: yüz bitimi alanı.
+- 65a gerekmez ama serbest yüzeyler en çok burada güzel görünür.
+
+## Kararlar (kullanıcı onayı 2026-10-18 16:19; önerilen cevaplar kabul edildi)
+1. **Yüz bitimi görünüme ek olarak teknik resme (16) yüzey pürüzlülüğü sembolü olarak da yazılsın mı?** Karar: evet,
+   ama ayrı bir 16 ekinde. Bitim bir imalat bilgisidir; `Ra` değeri ileride iş föyüne de girer.
+2. **HDR ortam haritası dosyası eklensin mi?** Karar: hayır. Dosya boyutu ve lisans sorunu getirir. `RoomEnvironment`
+   yeterlidir.
+3. **Doku (texture) kullanılsın mı (fırça izi, döküm pürüzü)?** Karar: hayır. Anizotropi ve pürüzlülük ilk sürüm için
+   yeterlidir.
+
+## Kapsam dışı
+- Işın izleme ve yol izleme render, fotogerçekçi çıktı dosyası.
+- Doku ve UV açma, çıkartma (decal), logo.
+- Animasyonlu sunum ve render kuyruğu.

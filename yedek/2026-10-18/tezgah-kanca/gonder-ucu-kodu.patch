@@ -1,0 +1,74 @@
+diff --git a/tezgah/ekranlar/freze.py b/tezgah/ekranlar/freze.py
+index 9ba8f05..e886166 100644
+--- a/tezgah/ekranlar/freze.py
++++ b/tezgah/ekranlar/freze.py
+@@ -9,13 +9,16 @@ proje dosyasına girmez.
+ 
+ from __future__ import annotations
+ 
++import json
+ from collections.abc import Mapping
++from datetime import UTC, datetime
+ from pathlib import Path
+ 
+-from fastapi import APIRouter
++from fastapi import APIRouter, HTTPException
+ from pydantic import BaseModel
+ 
+-from tezgah import SEMA, depo
++from cam.model import MachineProfile
++from tezgah import SEMA, depo, kopru
+ from tezgah.ekranlar import Ekran
+ 
+ router = APIRouter()
+@@ -43,7 +46,49 @@ def gonder(ad: str, g: Gonder) -> dict:
+     Bilinmeyen iş → 404. Tanımsız tezgâh / dosya yok → 422 "dnc-hedefleri.json'da <ad> yok".
+     Ön koşul ya da üzerine yazma hatası (CamError) → 422, metin aynen. Başarı → {"yol", "sonuc", "kayit"}.
+     """
+-    raise NotImplementedError("SPEC 63 K8: gönder ucu uygulanmadı")
++    from atolye import dnc
++    from cam.post import post
++
++    if not depo.var_mi(ad):
++        raise HTTPException(404, f"Bilinmeyen iş: {ad!r}")
++    hedef = _hedef(g.tezgah)
++    m = _profil(hedef["profil"])
++    tanim = depo.al(ad)
++    ops = [isl.op for isl in tanim.islemler]
++    metin = post(ops, m, tanim.kurulum, program_no=g.program_no, safe_z=tanim.safe_z)
++    zaman = g.zaman or datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
++    sonuc = dnc.gonder(
++        metin,
++        m,
++        kopru._yollar(tanim),
++        kopru.kontroller(tanim),
++        hedef=hedef["klasor"],
++        operator=g.operator,
++        zaman=zaman,
++        program_no=g.program_no,
++        ad=g.ad,
++        ezme=g.ezme,
++        gerekce=g.gerekce,
++        kayit_dosyasi=KAYIT,
++    )
++    return {"yol": str(sonuc.yol), "sonuc": sonuc.sonuc, "kayit": sonuc.kayit}
++
++
++def _hedef(tezgah: str) -> dict:
++    """`HEDEFLER`'deki tezgâh satırı {"klasor", "profil"}; dosya ya da ad yoksa 422."""
++    try:
++        satir = json.loads(HEDEFLER.read_text(encoding="utf-8"))["tezgahlar"][tezgah]
++    except (OSError, KeyError, TypeError, ValueError):
++        raise HTTPException(422, f"dnc-hedefleri.json'da {tezgah} yok") from None
++    return satir
++
++
++def _profil(profil: str) -> MachineProfile:
++    """Hazır profil adı (builtin_machines) ya da profil JSON dosyasının yolu."""
++    from cam.post import builtin_machines, load_machine
++
++    hazir = builtin_machines()
++    return hazir[profil] if profil in hazir else load_machine(profil)
+ 
+ 
+ def disa_aktar() -> dict:

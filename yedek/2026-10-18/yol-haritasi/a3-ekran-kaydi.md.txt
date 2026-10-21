@@ -1,0 +1,182 @@
+# A3 — Tezgah ekran kaydı (arayüz taslağı, onay bekliyor)
+
+Amaç: Tezgah'a yeni bir ekran eklemek **yalnızca yeni dosya eklemek** olsun; `sunucu.py`, `main.ts`,
+`paneller.ts`, `sahne.ts` değişmesin. Böylece 25 (torna + montaj), 26 (modelleme), 37 (proje dosyası, kabuk),
+47 (plan, çok eksen, analiz) birbirini ezmeden paralel yürür.
+
+Kod zamanı: 24, 25, 26 birleştikten sonra (ayrı arayüz PR'ı, ayrı test thread'i). Bu metin şimdi onaylanır.
+
+Sürüm 3: SPEC 37 (PR #70) ve SPEC 47 (PR #74) istekleri tek kayıtta birleştirildi; bölüm sahipliği koordinatör kararıyla.
+
+## 1. Python tarafı
+
+```
+tezgah/ekranlar/__init__.py   Ekran, ekranlar(), paylasilan_bolum(), is_kaydet()   (ortak arayüz; değişikliği ayrı PR + onay)
+tezgah/ekranlar/freze.py      SPEC 24'ün uçları buraya taşınır
+tezgah/ekranlar/<ad>.py       her yeni ekran (torna, montaj, model, plan, cok_eksen, analiz) ve kabuk (37)
+```
+
+```python
+@dataclass(frozen=True)
+class Ekran:
+    ad: str                               # küçük harf ascii kimlik (SPEC 47'de "kimlik")
+    baslik: str                           # sekmede görünen ad ("Freze")
+    sira: int = 100                       # sekme sırası (küçük önce, eşitse ad)
+    tus: str | None = None                # sekme kısayolu, tek rakam (bkz. §3)
+    router: APIRouter | None = None       # öneksiz yazılır; kabuk bağlar (bkz. URL kararı)
+    hazir: Callable[[], str | None] | None = None   # None döner: kullanılabilir; metin: neden (ör. "gmsh kurulu değil")
+    sifirla: Callable[[], None] | None = None       # POST /api/sifirla hepsini çağırır
+    bolum: str | None = None              # sahip olunan proje bölümü (yalnız bu ekran yazar)
+    bagimli: tuple[str, ...] = ()         # girdi alınan bölümler (paylasilan_bolum ile okunur)
+    disa_aktar: Callable[[], dict] | None = None
+    ice_aktar: Callable[[dict, Mapping[str, bytes]], None] | None = None
+    ozet: Callable[[], dict[str, float | str]] | None = None
+    onbellek: Callable[[], dict[str, bytes]] | None = None
+    kur: Callable[[FastAPI], None] | None = None    # uygulama kurulurken bir kez (kabuğun ara katmanı)
+
+def ekranlar() -> list[Ekran]:
+    """tezgah.ekranlar altındaki modülleri (pkgutil) bulur; her modül `EKRAN: Ekran` dışa verir.
+    Sıra: `sira`, sonra `ad`. Bir modülün importu hata verirse kabuk çökmez: o modül adıyla
+    `hazir` = hata metni dönen bir yer tutucu ekran listelenir (sekme kapalı, ipucu hata)."""
+
+def paylasilan_bolum(ad: str) -> dict:
+    """`ad` bölümünün sahibi ekranın güncel `disa_aktar()` belgesi (salt okunur kopya). Sahipsiz → KeyError."""
+
+def is_kaydet(ad: str, tanim: IsTanimi | TornaIsi) -> None:
+    """Dinamik işi SPEC 24/25 iş deposuna ekler (ör. otomatik CAM planından). İş /api/isler'de görünür,
+    #/freze?is=<ad> veya #/torna?is=<ad> ile açılır. Aynı ad varsa yerine geçer; geçersiz tanım → CamError."""
+```
+
+### URL kararı: `/api/ekran/<ad>/...`
+
+Yeni ekranların uçları `/api/ekran/<ad>/` altına bağlanır (SPEC 47'nin önerisi; 37'nin `/api/<ad>`'ı değil).
+Gerekçe: kabuğun kendi uçları da `/api/` altında (`/api/ekranlar`, `/api/sifirla`, `/api/isler`, `/api/is/…`,
+37'nin `/api/proje/…`'si). `/api/<ad>` ile bir ekran adı bunlarla çakışabilirdi (ör. "proje" ya da "isler" adlı
+ekran); ayrı ad alanında çakışma olamaz ve doğrulama gerektirmez.
+**İstisna:** SPEC 24'ün uçları (`/api/isler`, `/api/is/{ad}`, `/noktalar`, `/sim`, `/parametre`) olduğu gibi kalır;
+freze bunları kabuğun iş deposu uçları olarak verir. SPEC 25 tornası da aynı iş deposunu kullanır.
+
+### Ekran sözleşmesi (bölümü olan her ekran)
+
+- `disa_aktar()` → bölümün güncel belgesi: JSON'a çevrilebilir, `"sema"` alanı var, `nan`/`inf` yok.
+- `ice_aktar(belge, onbellek)` → belgeyi yükler, türetilmiş durumu (G-code, sim, girişim…) yeniden kurar.
+  **Atomik:** hata olursa ekranın durumu değişmez. `onbellek` boş olabilir (yeniden hesaplanır).
+  `ice_aktar(disa_aktar(), {})` gözlemlenebilir bir şey değiştirmez.
+- `ozet()` → etki kartı ölçüleri (ör. `sure_s`, `gcode_satir`, `girisim_mm3`); yalnız sonlu sayı veya metin.
+- `onbellek()` → isteğe bağlı ikili önbellek (ör. sim z-map); proje dosyasına yazılır, yüklenince `ice_aktar`'a gelir.
+- Bağımlı ekran girdisini yalnız `paylasilan_bolum()` ile okur; başka ekranın modülünü import etmez.
+
+Bölüm sahipliği (koordinatör kararı, 11:08): freze → `"isler"`, torna → `"torna_isleri"`,
+montaj → `"montajlar"` (`bagimli=("isler", "torna_isleri")`), model (26) → `"model"`.
+`is_kaydet` işi tanımın türüne göre freze ya da tornanın bölümüne yazar.
+
+### Doğrulama ve hata
+
+`ekranlar()` doğrulaması (sessiz hata yok, uygulama kurulurken ModelError): geçersiz `ad`, aynı `ad` iki kez,
+aynı `tus` iki kez ya da kabuğa ait tuş, bir bölümün iki sahibi, sahipsiz bölüme `bagimli`, bağımlılık
+döngüsü, bölüm sahibinde `disa_aktar`/`ice_aktar` eksik. (Import hatası bundan ayrıdır: yer tutucu ekran.)
+
+`sunucu.uygulama(dist=DIST, ekranlar=None)`:
+- `ekranlar=None` → `ekranlar()`; testler kendi listesini verebilir.
+- Her `router`'ı `/api/ekran/<ad>` önekiyle bağlar, her `kur`'u bir kez çağırır.
+- Tek hata işleyicisi, ekran uçları dahil: KeyError, CamError, ModelError, AssyError, GeometryError (ve
+  çekirdeğin diğer hata türleri) → 422 `detail=str(e)`. Kullanılamaz ekranın uçları → 503 `detail` = neden.
+- `GET /api/ekranlar` → `{"ekranlar": [{ad, baslik, sira, tus, hazir: bool, neden, bolum, bagimli}]}` (sıralı).
+- `POST /api/sifirla` → her ekranın `sifirla()`'sı ve iş deposu varsayılana döner (testler ve "yeni proje").
+- Statik dosya ve `/` davranışı SPEC 24 ile aynı. SPEC 24'ün tüm URL'leri ve yanıtları **değişmez**.
+
+## 2. Ön yüz tarafı
+
+```
+src/ekranlar/tip.ts        EkranModulu, Kabuk, Komut, Yama   (ortak arayüz)
+src/ekranlar/kayit.ts      import.meta.glob("./*.ts", {eager: true}) + ekranlariSirala() (saf fonksiyon)
+src/ekranlar/freze.ts      SPEC 24 ekranı (main.ts'deki freze'ye özgü kod buraya taşınır)
+src/ekranlar/<ad>.ts       her yeni ekran; `export default` bir EkranModulu
+```
+
+```ts
+export interface EkranModulu {
+  ad: string; baslik: string; tus?: string;                // ad = sunucudaki Ekran.ad
+  ac(alan: HTMLElement, kabuk: Kabuk, secim?: string): Promise<void>;  // sekmeye girince; secim: #/<ad>?is=…
+  kapat(): void;                           // sekmeden çıkınca: dinleyiciler ve sahne katmanı temizlenir
+  tazele?(): Promise<void>;                // sunucu durumu dışarıdan değişti (geri al, proje aç)
+  komutlar?(): Komut[];                    // Ctrl K paletine (ekran etkinken)
+  sec?(oge: string): void;                 // dışarıdan seçim (ör. etki kartından bir işleme git)
+  kare?(t: number): void;                  // animasyon karesi
+}
+export interface Kabuk {                   // ekranın kullanabileceği ortak parçalar
+  sahne: Sahne;                            // katman(ad): THREE.Group — ekran yalnız kendi grubuna çizer
+  serit: Serit;                            // zaman şeridi; altSerit(ad) ve olayIsareti(t, tur, metin) dahil
+  kanitlar(k: Kontrol[]): void;            // sağ paneldeki kontrol kartları (SPEC 24 biçimi)
+  mufettis(alan: HTMLElement): void;       // sağ paneli ekranın müfettişine ver
+  komut(k: Komut): void;                   // dinamik komut ekleme (ekran kapanınca kalkar)
+  git(adres: string): void;                // ör. "#/freze?is=plan-3"
+  rozet(ekran: string, metin: string | null): void;       // sekme rozeti (ör. "3 uyarı")
+  kanca: Record<string, unknown>;          // window.__tezgah.<ad> (e2e)
+  api: {                                   // ekranın kendi /api/ekran/<ad>/ altına göre yol; 422 → SunucuHatasi
+    getJson<T>(yol: string): Promise<T>;
+    getIkili(yol: string): Promise<ArrayBuffer>;
+    postJson<T>(yol: string, govde: unknown, etiket?: string): Promise<T>;
+  };
+}
+export interface Komut {
+  kimlik: string; baslik: string;
+  anahtar_kelimeler?: string[]; ekran?: string; kisayol?: string;
+  desen?: string;                          // ör. "L <sayı>": yazılan sayı calistir/yama'ya gelir
+  calistir(sayi?: number): void | Promise<void>;
+  yama?(sayi: number): Yama[];             // önizleme / geri al için: hangi değer değişecek
+}
+export interface Yama { bolum: string; isaretci: string; deger: unknown }   // isaretci: JSON Pointer
+```
+
+`api.ts` (SPEC 37 için): `postJson` ve diğer durum değiştiren istekler `X-Tezgah-Etiket` başlığı taşır
+(geri al listesindeki ad; ör. "Cep: D 10 → 8"). `degisiklikSonrasi(cb)`: başarılı her değiştiren istekten sonra
+çağrılır; kabuk etki kartını ve diğer ekranların `tazele()`'sini buradan sürer.
+
+## 3. Kısayollar
+
+- Kabuğun (dokunulamaz): Ctrl K, Ctrl Z, Ctrl Shift Z, Ctrl Y, Ctrl S, Ctrl Shift S, Ctrl O.
+- Sekme tuşları (`tus`): 1 freze, 2 torna, 3 montaj, 4 plan, 5 çok eksen, 6 analiz, 7 model. Metin kutusu
+  odaktayken çalışmaz.
+- Ekranın kendi kısayolları yalnız o ekran etkinken çalışır. Kabuğa ait tuşu kaydetmeye çalışan ekran için
+  `kayit.ts` yüklemede Error fırlatır (sessiz yok sayma yok).
+
+## 4. Kabuk davranışı
+
+- `main.ts` yalnız kabuktur: üst sekmeler `/api/ekranlar` ile `kayit.ts`'in kesişiminden çizilir. `hazir`
+  olmayan ya da ön yüzü olmayan ekran kapalı sekmedir (ipucu neden); ön yüzü olup sunucuda olmayan
+  gösterilmez, konsola uyarı yazılır.
+- Adres: `#/<ad>` sekmeyi seçer, `?is=<ad>` gibi ek `secim` olarak `ac`'a gider; yenileyince aynı ekran açılır.
+- `sahne.ts` ve `paneller.ts` genel yardımcılara iner (kamera, ızgara, takım modeli, katman; kaydırıcı,
+  kontrol kartı, hata kutusu). Freze'ye özgü çizim `ekranlar/freze.ts`'e taşınır.
+
+## 5. Kabul kriterleri (test thread'i için)
+
+- K1 `ekranlar()`: modülleri bulur, sıralar; §1'deki her geçersiz durum → ModelError (her biri ayrı test);
+  import hatası veren modül → kapalı yer tutucu, diğer ekranlar çalışır.
+- K2 `/api/ekranlar`: sıralı liste, alanlar tam; verilen sahte ekran listesiyle de çalışır; `hazir` metni → `neden`.
+- K3 Yalıtım: iki sahte ekranın aynı yolu (`/x`) `/api/ekran/<ad>/x` altında ayrı yanıt verir; kullanılamaz
+  ekranın ucu 503.
+- K4 Hata eşlemesi ekrandan bağımsız: sahte ekranda her çekirdek hata türü → 422 `detail=str(e)`.
+- K5 Sözleşme (bölümü olan her gerçek ekran için parametreli test): `disa_aktar()` JSON'a döner, `sema` var,
+  `nan`/`inf` yok; `ice_aktar(disa_aktar(), {})` sonrası `disa_aktar()` ve `ozet()` aynı; bozuk belgeyle
+  `ice_aktar` hata verir ve sonrasında `disa_aktar()` öncekiyle aynı (atomiklik); `ozet()` değerleri sonlu.
+- K6 `paylasilan_bolum`: sahibin güncel belgesi; dönen kopyayı değiştirmek sahibi değiştirmez; sahipsiz → KeyError.
+- K7 `is_kaydet`: iş `/api/isler`'de görünür, `/api/is/<ad>` SPEC 24 biçiminde döner; geçersiz tanım → CamError
+  ve depo değişmez; `POST /api/sifirla` dinamik işleri siler.
+- K8 Geriye uyum: SPEC 24'ün `tests/tezgah/` testleri değişmeden geçer.
+- K9 vitest: `ekranlariSirala` (sıra, sonra ad; sunucu ∩ ön yüz; kullanılamaz ekran kapalı); kabuk tuşu ya da
+  çift sekme tuşu → Error; `X-Tezgah-Etiket` değiştiren isteklerde var, GET'te yok; `degisiklikSonrasi` yalnız
+  başarılı değiştiren istekten sonra çağrılır.
+- K10 e2e: sekmeler `/api/ekranlar` sırasıyla çizilir; `#/freze` ve `1` tuşu freze'yi açar; sekme değişince
+  önceki ekranın sahne katmanı kalkar (`__tezgah.katmanlar()`); konsolda hata yok.
+
+## 6. Sahiplik
+
+`tezgah/ekranlar/__init__.py`, `src/ekranlar/tip.ts`, `kayit.ts`, `main.ts`, `sunucu.py`, `api.ts`:
+"Tezgah uygulaması" thread'i. Diğer SPEC'ler yalnız kendi `ekranlar/<ad>.py` ve `ekranlar/<ad>.ts`
+dosyalarına yazar. Ortak yardımcı (`sahne.ts`, `paneller.ts`) gerekirse küçük ayrı PR.
+
+## 7. Açık sorular
+
+1. Görünüm durumu (kamera, açık sekme) proje dosyasına girmez; girmesi istenirse kabuğun `"gorunum"` bölümü olur.

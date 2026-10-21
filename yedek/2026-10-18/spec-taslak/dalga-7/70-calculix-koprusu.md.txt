@@ -1,0 +1,186 @@
+# SPEC 70 — CalculiX köprüsü: temas, plastisite, büyük şekil değişimi (Dalga 7, A12)
+
+> Durum: **onaylı** (kullanıcı, 2026-10-18 16:19, önerilen cevaplarla; mesaj cmsg_01DTo5iWYb5RBUWgjk6xu1sGJGTUdh2rjZ3topbRjRQuit). Kullanıcı kararı (2026-10-18 11:07): doğrusal olmayan analiz kendi çözücümüzde
+> yapılmayacak; CalculiX'te çözülecek ve sonuç Tezgah'ta gösterilecek.
+> Bağımlılık: SPEC 13 (`fileio/calculix.py`), 67a/67b (tet10, `PartMesh`, `FaceRef` yükleri), B2/66 (`Rp02`, `Rm`, `A`).
+
+## Amaç
+Kendi çözücümüz doğrusal kalır (öğrenme ve doğrulama amacı). Atölyenin sık sorduğu şu doğrusal olmayan problemler
+CalculiX'e (ccx) yaptırılır:
+- **Temas:** sıkı geçme (mil–göbek), mengene ve bağlama çenesi baskısı, cıvatalı birleşimde parçalar arası basınç
+- **Plastisite:** kalıcı eğilme, akma sonrası taşıma, bükme
+- **Büyük şekil değişimi:** ince ve uzun parçalarda geometrik doğrusalsızlık
+
+Köprünün işleri:
+1. Ağı ve yükleri (67b dili) `.inp` olarak yazar.
+2. `ccx`'i alt süreç olarak çalıştırır.
+3. `.frd` ve `.dat` sonuçlarını okuyup bizim düğüm numaralarımıza eşler.
+4. Sonucu 67b'nin raporuyla aynı biçimde (yer değiştirme, düğüm gerilmesi, emniyet) Tezgah'a verir.
+
+ccx yeni bir **Python** bağımlılığı değildir; dış bir programdır. SPEC 13'ten beri testlerde isteğe bağlı olarak
+kullanılıyor (`tests/reference/`, `ccx` yoksa testler atlanır).
+
+## Teori
+
+### Eşlemeler (SPEC 13 tablosunun genişlemesi)
+| Bizde | CalculiX |
+|---|---|
+| tet10 (C3D10 sırası, 67a) | `C3D10` |
+| Montajda parça `i` | ayrı `*NSET`/`*ELSET` `P_i`, ayrı `*SOLID SECTION` ve malzeme |
+| Temas çifti `(FaceRef_a, FaceRef_b)` | `*SURFACE` (eleman yüzü tabanlı `S1..S4`), `*CONTACT PAIR, INTERACTION=…, TYPE=SURFACE TO SURFACE`, `*SURFACE INTERACTION`, `*SURFACE BEHAVIOR, PRESSURE-OVERCLOSURE=LINEAR`, `*FRICTION` |
+| Sıkı geçme | geometrik girişim; `*CONTACT PAIR, ADJUST=0` yok, ilk adımda girişim çözülür |
+| Elasto-plastik malzeme | `*ELASTIC` + `*PLASTIC` (gerçek gerilme, plastik gerinme tablosu) |
+| Büyük şekil değişimi | `*STEP, NLGEOM, INC=…` + `*STATIC` artım kontrolü |
+| Sonuç | `*NODE FILE U`, `*EL FILE S, PEEQ`, `*CONTACT FILE CDIS, CSTR` → `.frd` |
+
+Yüz tabanlı yüzeyde bizim sınır üçgenimiz (67b `face_tris`) eleman yüz numarasına çevrilir. C3D10 yüz numaraları
+ccx kılavuzundaki tabloyla eşlenir ve testle sabitlenir.
+
+### Plastisite eğrisi (B2 alanlarından, iki doğrulu)
+Mühendislik değerleri `Rp0.2`, `Rm` ve kopma uzaması `A` (%) kullanılır:
+- akma noktası: `(σ = Rp0.2, ε_p = 0)`
+- ikinci nokta: `σ_müh = Rm`, `ε_müh ≈ A_g`. Düzgün uzama `A_g` kayıtta yoktur; kullanıcı verir. Verilmezse
+  muhafazakâr olarak **mükemmel plastik** (`σ = Rp0.2` sabit) kullanılır ve rapor bunu yazar.
+- gerçek gerilmeye çevrim: `σ_t = σ (1 + ε)`, `ε_t = ln(1 + ε)`, `ε_p = ε_t − σ_t/E`
+
+Gerçek kesme verisi olmadığı için sertleşme eğrisi uydurulmaz.
+
+### Kapalı formüllü referanslar
+1. **Sıkı geçme (Lamé):** dolu mil, yarıçap `b`; göbek dış yarıçapı `c`; aynı `E`; radyal girişim `δ`.
+   - `p = E δ (c² − b²) / (2 b c²)`
+   - Örnek: `E = 210000`, `b = 10`, `c = 30`, `δ = 0.01` için `p = 93.33` MPa.
+   - Göbek iç yüzünde teğetsel gerilme `σ_θ = p (c² + b²)/(c² − b²) = 1.25 p`.
+2. **Tek eksenli plastisite:** çubuk, yer değiştirme kontrollü çekme.
+   - Mükemmel plastikte `ε > Rp/E` için `σ = Rp` olur, tepki kuvveti `Rp·A0` (küçük gerinme).
+   - Boşaltınca kalıcı uzama `ε_p = ε − Rp/E`.
+3. **Plastik limit (konsol):** dikdörtgen kesit `b × h`, mükemmel plastik.
+   - `P_lim = σ_y b h² / (4L)`
+   - FEM yük–sehim eğrisi bu değere yakınsar.
+4. **Büyük sehim (elastika, Bisshopp–Drucker 1945):** konsol, uç düşey kuvvet, `P L² / (EI) = 1`.
+   - `δ_düşey / L = 0.3017`
+   - `δ_yatay / L = 0.0564`
+   - Doğrusal teori `1/3 = 0.3333` verir; fark %10'dur ve testle görülür.
+
+Kaynak: CalculiX CrunchiX User's Manual 2.21 (*CONTACT PAIR, *PLASTIC, NLGEOM, .frd biçimi); Budynas–Nisbett bölüm 3-16
+(sıkı geçme); Bisshopp, Drucker, "Large deflection of cantilever beams", *Q. Appl. Math.* 3 (1945); Lubliner,
+*Plasticity Theory* (limit yük).
+
+## Dosyalar
+- **Yeni:**
+  - `fileio/calculix_frd.py`: `.frd` okuyucu (ASCII)
+  - `analiz/calculix_kopru.py`: kurulum, çalıştırma, eşleme
+  - `tests/reference/test_ccx_temas.py`, `tests/reference/test_ccx_plastik.py`, `tests/reference/test_ccx_nlgeom.py`
+  - `tests/unit/test_frd_okuyucu.py`: ccx'siz, örnek `.frd` dosyası `tests/veri/` altında; uydurma küçük model, ccx çıktısı
+    bir kez üretilip saklanır
+  - `specs/70-calculix-koprusu.md`, `durum/70-calculix-koprusu.md`
+- **Değişecek:**
+  - `fileio/calculix.py`: C3D10 (67a ekler); `*SURFACE`, `*CONTACT PAIR`, `*PLASTIC`, `NLGEOM` yazımı
+  - `analiz/__init__.py`
+- **Dokunulmayacak:** `core/` (kendi çözücümüz doğrusal kalır), `mesh/` (67b `PartMesh` kullanılır).
+- **Tezgah tarafı:** analiz ekranında "CalculiX ile çöz" düğmesi ve ilerleme göstergesi 47 ekidir; ayrı bir thread yapar.
+  Bu SPEC yalnız Python API'sini verir.
+
+## Arayüz
+```python
+@dataclass(frozen=True)
+class Temas:
+    a: tuple[str, FaceRef]           # (bileşen adı, yüz)
+    b: tuple[str, FaceRef]
+    mu: float = 0.0                  # Coulomb sürtünme, ≥ 0
+    rijitlik: float | None = None    # ceza rijitliği N/mm³; None → ccx önerisi (E·10/h_ort)
+
+@dataclass(frozen=True)
+class Plastik:
+    mukemmel: bool = True
+    A_g: float | None = None         # % düzgün uzama; verilirse iki doğrulu sertleşme
+
+@dataclass(frozen=True)
+class CcxAyar:
+    yol: str | None = None           # None → PATH'te ccx / ccx_2.21; yoksa ModelError("ccx bulunamadı: …")
+    is_parcacigi: int = 1            # OMP_NUM_THREADS
+    zaman_asimi: float = 600.0       # s
+    nlgeom: bool = False
+    artim: tuple[float, float, float, float] = (0.1, 1.0, 1e-5, 0.25)   # ilk, toplam, en küçük, en büyük
+
+@dataclass(frozen=True)
+class CcxSonuc:
+    model: Model                      # birleşik ağ (bütün bileşenler, düğüm id'leri bizim)
+    u: np.ndarray                     # (n_dof,) son artım
+    sigma_vM: np.ndarray              # (n,) düğüm
+    peeq: np.ndarray | None           # (n,) eşdeğer plastik gerinme
+    temas_basinci: Mapping[str, np.ndarray] | None   # temas adı → (k,) düğüm basıncı
+    artimlar: np.ndarray              # (s,) yük oranı geçmişi
+    tepki: np.ndarray                 # (s, 3) mesnet tepkisi toplamı
+    log: str                          # ccx standart çıktısının son 200 satırı
+
+def coz_ccx(parcalar: Mapping[str, tuple[Part, Malzeme, np.ndarray]],   # ad → (parça, malzeme, T)
+            h: float, *, sabit, yukler, temaslar: Sequence[Temas] = (),
+            plastik: Plastik | None = None, ayar: CcxAyar = CcxAyar(), calisma_klasoru: Path | None = None) -> CcxSonuc: ...
+```
+- `.inp`, `.frd` ve `.dat` dosyaları `calisma_klasoru`'nda kalır (inceleme için). Bu klasör `None` ise geçici klasör
+  kullanılır ve silinir.
+- Hatalar (`ModelError`):
+  - ccx bulunamadı
+  - zaman aşımı (süreç öldürülür)
+  - ccx yakınsamadı: `*ERROR` ya da "increment size smaller than minimum". `log`'un ilgili satırı mesajdadır, sonuç
+    sessizce kısmi dönmez.
+  - `.frd` beklenen bloğu içermiyor
+  - temas yüzü bulunamadı
+  - malzemede `Rp02` yok ama `plastik` istendi
+
+## Kabul kriterleri
+`tests/reference/` testleri ccx yoksa atlanır (SPEC 13 kuralı). Bulut ortamında ccx kurulu olduğu için CI'da koşarlar.
+10 s'yi aşanlar `slow` ile işaretlenir.
+
+- [ ] **K1** `.frd` okuyucu (ccx'siz):
+  - Saklanmış örnek dosyadan düğüm yer değiştirmesi ve gerilmesi doğru düğüme eşlenir.
+  - Eksik blok `ModelError` verir.
+  - Bilinmeyen düğüm `ModelError` verir.
+  - Artım sayısı doğru.
+- [ ] **K2** Doğrusal eşdeğerlik: temassız, plastiksiz ve `nlgeom=False` tek parça, 67b'nin doğrusal çözümüyle aynı ağda
+  yer değiştirme göreli 1e-6 içinde eşittir (köprünün eşlemesini doğrular).
+- [ ] **K3** Sıkı geçme (çeyrek simetri, `b = 10`, `c = 30`, boy 20, `δ = 0.01`, `μ = 0`):
+  - temas basıncı orta kesitte `93.33` MPa'ya %5 içinde
+  - göbek iç yüzü `σ_θ` `116.7` MPa'ya %5 içinde
+- [ ] **K4** Tek eksenli plastisite (çubuk `10 × 10 × 100`, mükemmel plastik `Rp = 355`, uç yer değiştirmesi
+  `0 → 0.5 → 0` mm):
+  - en büyük tepki `35 500` N'a göreli %1 içinde
+  - boşaltma sonrası kalıcı uzama `0.5 − 355·100/210000 = 0.33095` mm'ye %1 içinde
+- [ ] **K5** Plastik limit (konsol `10 × 10 × 100`, `σ_y = 355`, tet10, yük kontrollü artım): yük–sehim eğrisi
+  `P_lim = 355·10·100/400 = 887.5` N'a %5 içinde yakınsar (son artımda teğet rijitlik başlangıcın %2'sinin altına iner).
+- [ ] **K6** Büyük sehim (konsol `10 × 10 × 200`, `PL²/EI = 1`, `nlgeom=True`):
+  - `δ_düşey/L = 0.3017` ve `δ_yatay/L = 0.0564`, %1 içinde
+  - aynı model `nlgeom=False` ile `1/3`'e %1 içinde
+- [ ] **K7** Sürtünmeli temas duman testi: K3 geçmesine eksenel çekme verilir (`μ = 0.15`).
+  - Mil kaymadan önce taşınan en büyük kuvvet `μ · p · 2π b L`'ye %10 içinde.
+  - Bu test yaklaşık bir kontroldür ve öyle belgelenir.
+- [ ] **K8** Hatalar:
+  - `ayar.yol = "/yok/ccx"` → `ModelError`
+  - `zaman_asimi = 0.01` → `ModelError`, ccx süreci kalmaz (`psutil` olmadan, `Popen.poll()` ile)
+  - kasıtlı yakınsamayan model (çok büyük ilk artım ve `en küçük = en büyük`) → `ModelError`, mesajda ccx satırı geçer
+- [ ] **K9** Çıktı uyumu: `CcxSonuc`'tan 67b `emniyet()` çağrılabilir. `n_min` K4'te yüklemenin en büyük anında
+  `Rp/σ_vM ≈ 1.0` olur (%1).
+- [ ] **K10** `ruff` temiz; köprü yeni Python bağımlılığı eklemez (`subprocess`, `shutil`, numpy).
+
+## Bağımlılık
+- 13 (birleşti).
+- 67a (C3D10 yazımı).
+- 67b (`PartMesh`, `FaceRef` yük ve mesnet dili, `emniyet`).
+- B2/66 (malzeme).
+- 55 (Windows kurulumu, açık soru 1).
+
+## Kararlar (kullanıcı onayı 2026-10-18 16:19; önerilen cevaplar kabul edildi)
+1. **ccx Windows kurulumu (55) ile birlikte dağıtılsın mı?** Karar: hayır. ccx GPL lisanslıdır; uygulamaya gömmek lisans
+   yükü getirir. Kurulum betiği kullanıcıya resmî ikili dosyanın yolunu sorar ya da PATH'te arar; Tezgah ccx yoksa düğmeyi
+   pasif gösterir ve nedenini yazar.
+2. **Montajda temas çiftleri otomatik bulunsun mu (SPEC 09 girişim ve yakınlık)?** Karar: evet, öneri olarak: 09'un
+   `distance` ölçüsü `≤ tol` olan yüz çiftleri listelenir, kullanıcı onaylar. Bu SPEC'te el ile verilir; otomatik öneri
+   ayrı küçük bir ektir.
+3. **Cıvata ön yükü (`*PRE-TENSION SECTION`)?** Karar: sonraki ek. Standart parçalar (35) cıvatası ile birlikte daha
+   anlamlı olur.
+
+## Kapsam dışı
+- Kendi doğrusal olmayan çözücümüz.
+- Açık dinamik (çarpma), kırılma ve hasar, sürünme (creep).
+- Doğrusal olmayan ısıl (ccx yapabilir; ilk sürümde yalnız mekanik).
+- ccx'in paralel ya da dağıtık çalıştırılması (PaStiX, MPI).
