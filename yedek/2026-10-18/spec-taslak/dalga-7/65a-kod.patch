@@ -1,0 +1,808 @@
+diff --git a/geometry/agac.py b/geometry/agac.py
+index ab52dff..615e75a 100644
+--- a/geometry/agac.py
++++ b/geometry/agac.py
+@@ -33,6 +33,7 @@ from OCP.ShapeUpgrade import ShapeUpgrade_UnifySameDomain
+ from OCP.TopAbs import TopAbs_FACE, TopAbs_SOLID
+ from OCP.TopoDS import TopoDS
+ 
++from geometry import serbest
+ from geometry.desen import ayna, dairesel, dogrusal, donustur_hole
+ from geometry.dondur import dondur_arac, kenarlar, profil_yuzleri, uretilen, yuzler
+ from geometry.features import DV_MIN, PAY, block, cylinder, hole
+@@ -323,7 +324,6 @@ _TURLER = (
+     Sweep,
+     BSplineYuzey,
+ )
+-_SERBEST = (Loft, Sweep, BSplineYuzey)
+ _DESEN_KAYNAGI = (Ekstruzyon, Dondurme, Delik)
+ TOL_DUZLEM = 1e-6  # mm: yüze bağlı eskizde parçaların eş düzlemliliği
+ ASAGI = np.array([0.0, 0.0, -1.0])
+@@ -982,16 +982,45 @@ def _ayna(d: _Durum, oz: Ayna) -> None:
+ # --- SPEC 65a: serbest yüzey (OCCT çağrıları geometry/serbest.py'de) ---------------------------------------
+ 
+ 
++_SERBEST_ISLEM = {"ekle": "ekle", "cikar": "kes", "yeni": "yeni"}
++
++
++def _serbest_islem(oz) -> str:
++    if oz.islem not in _SERBEST_ISLEM:
++        raise GeometryError(f"'{oz.kimlik}': islem geçersiz ({oz.islem})")
++    return _SERBEST_ISLEM[oz.islem]
++
++
+ def _loft(d: _Durum, oz: Loft) -> None:
+-    raise NotImplementedError
++    islem = _serbest_islem(oz)
++    govde, yerel = serbest.loft_govde([d.profiller[p] for p in oz.profiller], ruled=bool(oz.ruled))
++    _arac_uygula(d, govde, yerel, islem, oz.kimlik)
+ 
+ 
+ def _sweep(d: _Durum, oz: Sweep) -> None:
+-    raise NotImplementedError
++    islem = _serbest_islem(oz)
++    plane, bolgeler = d.profiller[oz.profil]
++    govde, yerel = serbest.sweep_govde(plane, bolgeler, oz.yol, oz.yonlendirme, oz.yardimci)
++    _arac_uygula(d, govde, yerel, islem, oz.kimlik)
+ 
+ 
+ def _bspline(d: _Durum, oz: BSplineYuzey) -> None:
+-    raise NotImplementedError
++    yuzey = serbest.bspline_yuzey(oz.noktalar, oz.tol)
++    if oz.kullanim == "kalinlastir":
++        govde, yerel = serbest.kalinlastir(yuzey, oz.kalinlik)
++        _arac_uygula(d, govde, yerel, "yeni" if d.shape is None else "ekle", oz.kimlik)
++        return
++    if oz.kullanim != "kes":
++        raise GeometryError(f"'{oz.kimlik}': kullanim geçersiz ({oz.kullanim!r})")
++    if d.shape is None:
++        raise GeometryError(f"'{oz.kimlik}': yüzeyle kesme için önce bir gövde gerekli")
++    kati, kesit, op = serbest.yuzle_kes_gecmis(d.shape, yuzey, oz.sakla)
++    adlar = _gecir(d.adlar, op, kati)
++    if kesit:
++        adlar[(oz.kimlik, "kesit")] = kesit
++    d.shape, d.adlar = _birlestir_alanlar(kati, adlar)
++    d.shape = _tek_kati(d.shape, oz.kimlik)
++    d.adlar = _gecir(d.adlar, _Yok(), d.shape)
+ 
+ 
+ def _uygula(d: _Durum, oz, coz: Coz | None) -> None:
+@@ -1112,6 +1141,39 @@ def _seg_oku(v: dict):
+     raise GeometryError(f"bilinmeyen kenar türü: {v['tur']}")
+ 
+ 
++def _liste_derin(v):
++    """İç içe tuple / ndarray → iç içe liste (JSON)."""
++    if isinstance(v, tuple | list | np.ndarray):
++        return [_liste_derin(x) for x in v]
++    return float(v)
++
++
++def _tuple_derin(v):
++    """İç içe liste → iç içe tuple, sayılar float (dataclass eşitliği için)."""
++    if isinstance(v, list | tuple):
++        return tuple(_tuple_derin(x) for x in v)
++    return float(v)
++
++
++def _yol_parca_sozluk(p) -> dict:
++    tur = {Cizgi: "cizgi", Yay: "yay", Spline: "spline"}.get(type(p))
++    if tur is None:
++        raise GeometryError(f"bilinmeyen yol parçası: {p!r}")
++    d = {"tur": tur}
++    for f in dataclasses.fields(p):
++        v = getattr(p, f.name)
++        d[f.name] = None if v is None else _liste_derin(v)
++    return d
++
++
++def _yol_parca_oku(v: dict):
++    turler = {"cizgi": Cizgi, "yay": Yay, "spline": Spline}
++    t = turler.get(v.get("tur"))
++    if t is None:
++        raise GeometryError(f"bilinmeyen yol parçası türü: {v.get('tur')!r}")
++    return t(**{k: None if x is None else _tuple_derin(x) for k, x in v.items() if k != "tur"})
++
++
+ def _deger(ad: str, v):
+     """Özellik alanını JSON değerine çevirir."""
+     if v is None:
+@@ -1130,6 +1192,10 @@ def _deger(ad: str, v):
+         return v.to_dict()
+     if ad == "kenarlar":
+         return [[str(e.a), str(e.b)] for e in v]
++    if ad == "yol":
++        return {"parcalar": [_yol_parca_sozluk(p) for p in v.parcalar]}
++    if ad == "noktalar":
++        return _liste_derin(v)
+     if isinstance(v, tuple):
+         return [list(x) if isinstance(x, tuple) else x for x in v]
+     if isinstance(v, np.ndarray):
+@@ -1154,11 +1220,13 @@ def _oku(ad: str, v):
+         return Sketch.from_dict(v)
+     if ad == "kenarlar":
+         return tuple(EdgeRef(FaceRef.parse(a), FaceRef.parse(b)) for a, b in v)
+-    if ad in ("noktalar",):
+-        return tuple(tuple(float(x) for x in p) for p in v)
+-    if ad in ("eksen_p", "eksen_y", "e1", "e2"):
++    if ad == "noktalar":
++        return _tuple_derin(v)
++    if ad == "yol":
++        return Yol(tuple(_yol_parca_oku(p) for p in v["parcalar"]))
++    if ad in ("eksen_p", "eksen_y", "e1", "e2", "yardimci"):
+         return tuple(float(x) for x in v)
+-    if ad in ("bolge_sec", "ozellikler"):
++    if ad in ("bolge_sec", "ozellikler", "profiller"):
+         return tuple(v)
+     return v
+ 
+@@ -1166,8 +1234,6 @@ def _oku(ad: str, v):
+ def _oz_sozluk(oz) -> dict:
+     if not isinstance(oz, _TURLER):
+         raise GeometryError(f"bilinmeyen özellik türü: {type(oz).__name__}")
+-    if isinstance(oz, _SERBEST):  # SPEC 65a: yol / nokta ağı JSON'u
+-        raise NotImplementedError
+     d = {"tur": type(oz).__name__}
+     for f in dataclasses.fields(oz):
+         d[f.name] = _deger(f.name, getattr(oz, f.name))
+@@ -1191,8 +1257,6 @@ def from_dict(d: dict) -> Agac:
+         t = turler.get(o.get("tur"))
+         if t is None:
+             raise GeometryError(f"bilinmeyen özellik türü: {o.get('tur')!r}")
+-        if t in _SERBEST:  # SPEC 65a: yol / nokta ağı JSON'u
+-            raise NotImplementedError
+         alanlar = {f.name for f in dataclasses.fields(t)}
+         try:
+             ozellikler.append(t(**{k: _oku(k, v) for k, v in o.items() if k != "tur" and k in alanlar}))
+diff --git a/geometry/serbest.py b/geometry/serbest.py
+index 94774b3..4f52935 100644
+--- a/geometry/serbest.py
++++ b/geometry/serbest.py
+@@ -6,7 +6,7 @@ matematiğini biz yazmıyoruz; OCCT'nin şu algoritmaları kullanılır:
+ - Loft: `BRepOffsetAPI_ThruSections` (ruled = regle yüzeyler, aksi tek B-spline yan yüz, G1)
+ - Sweep: `BRepOffsetAPI_MakePipeShell` (frenet / sabit / yardımcı yön)
+ - B-spline yüzey: `GeomAPI_PointsToBSplineSurface` (derece 3, `tol` içinde noktalardan geçer);
+-  katıya `BRepOffsetAPI_MakeThickSolid` (kalınlaştır) ya da `BRepAlgoAPI_Splitter` (yüzeyle kes) ile girer.
++  katiya `BRepOffsetAPI_MakeThickSolid` (kalınlaştır) ya da `BRepAlgoAPI_Splitter` (yüzeyle kes) ile girer.
+ 
+ Hatalar `geometry.part.GeometryError` (ValueError; SPEC metnindeki ModelError'ın geometri paketindeki
+ karşılığı, SPEC 18 ile aynı). Ağaç içinde hata → özellik "hata", bağımlıları "atlandi" (S1).
+@@ -15,14 +15,39 @@ Birimler: mm, radyan (iç hesap).
+ 
+ from __future__ import annotations
+ 
++import math
+ from collections.abc import Sequence
+ from dataclasses import dataclass
+ 
+ import build123d as bd
+-
++import numpy as np
++from OCP.BRepAlgoAPI import BRepAlgoAPI_Splitter
++from OCP.BRepBuilderAPI import (
++    BRepBuilderAPI_MakeFace,
++    BRepBuilderAPI_MakeSolid,
++    BRepBuilderAPI_Sewing,
++    BRepBuilderAPI_TransitionMode,
++)
++from OCP.BRepFill import BRepFill
++from OCP.BRepOffsetAPI import BRepOffsetAPI_MakePipeShell, BRepOffsetAPI_ThruSections
++from OCP.BRepTools import BRepTools_WireExplorer
++from OCP.Geom import Geom_OffsetSurface
++from OCP.GeomAbs import GeomAbs_C2
++from OCP.GeomAPI import GeomAPI_PointsToBSplineSurface, GeomAPI_ProjectPointOnSurf
++from OCP.GeomLProp import GeomLProp_SLProps
++from OCP.gp import gp_Ax2, gp_Dir, gp_Pnt
++from OCP.OCP.collections import Array2_gp_Pnt, List_TopoDS_Shape
++from OCP.TopAbs import TopAbs_FACE, TopAbs_SHELL, TopAbs_SOLID
++from OCP.TopExp import TopExp_Explorer
++from OCP.TopoDS import TopoDS
++
++from geometry.dondur import kenarlar, profil_yuzleri, yuzler
++from geometry.part import GeometryError
+ from sketch.model import Plane, SketchRegion
+ 
+ TOL_TEGET = 1e-6  # rad: sweep yolunda ardışık parçaların teğet açısı farkı sınırı
++TOL_UC = 1e-6  # mm: ardışık yol parçalarının uçları çakışık sayılır
++TOL_OCC = 1e-6  # mm: OCCT yapım toleransı
+ 
+ 
+ # --- Sweep yolu --------------------------------------------------------------------------------------------
+@@ -64,30 +89,213 @@ class Yol:
+     parcalar: tuple[YolParcasi, ...]
+ 
+ 
+-# --- OCCT çağrıları ----------------------------------------------------------------------------------------
++# --- Yardımcılar -------------------------------------------------------------------------------------------
++
++
++def _v(p, ad: str) -> np.ndarray:
++    a = np.array(p, dtype=float).reshape(-1)
++    if a.shape != (3,) or not np.all(np.isfinite(a)):
++        raise GeometryError(f"{ad}: sonlu 3B nokta bekleniyor ({p!r})")
++    return a
++
++
++def _vec(v: bd.Vector) -> np.ndarray:
++    return np.array([v.X, v.Y, v.Z])
++
++
++def _ilk_kati(shape):
++    ex = TopExp_Explorer(shape, TopAbs_SOLID)
++    if not ex.More():
++        raise GeometryError("sonuç kati değil")
++    return TopoDS.Solid(ex.Current())
++
++
++def _yonlu_kati(solid):
++    """Hacmi negatif çıkan (içi dışa dönük) katiyı ters çevirir; hacim ≤ 0 → GeometryError."""
++    V = bd.Solid(solid).volume
++    if V < 0:
++        solid = TopoDS.Solid(solid.Reversed())
++        V = bd.Solid(solid).volume
++    if not V > 0:
++        raise GeometryError(f"sonuç katinın hacmi pozitif değil (V={V})")
++    return solid
++
++
++def _profil_teli(plane: Plane, bolgeler: Sequence[SketchRegion], islem: str) -> object:
++    """Tek, deliksiz bölgenin dış teli (TopoDS_Wire, dünya koordinatı)."""
++    bolgeler = list(bolgeler)
++    if len(bolgeler) != 1:
++        raise GeometryError(f"{islem}: profil tek bölge olmalı ({len(bolgeler)} bölge)")
++    if bolgeler[0].holes:
++        raise GeometryError(f"{islem}: delikli profil desteklenmiyor")
++    yuz_listesi, _ = profil_yuzleri(bolgeler, plane)  # açık / geçersiz profil → GeometryError
++    return yuz_listesi[0].outer_wire().wrapped
++
++
++def _tel_kenarlari(tel) -> list:
++    """Teldeki kenarlar, tel sırasıyla."""
++    sonuc = []
++    ex = BRepTools_WireExplorer(TopoDS.Wire(tel))
++    while ex.More():
++        sonuc.append(ex.Current())
++        ex.Next()
++    return sonuc
++
++
++def _uretilen(op, s) -> list:
++    return [TopoDS.Face(f) for f in op.Generated(s) if f.ShapeType() == TopAbs_FACE]
++
++
++# --- Sweep yolu --------------------------------------------------------------------------------------------
++
++
++def _parca_kenari(p: YolParcasi) -> bd.Edge:
++    try:
++        if isinstance(p, Cizgi):
++            a, b = _v(p.p0, "çizgi p0"), _v(p.p1, "çizgi p1")
++            if np.linalg.norm(b - a) <= TOL_UC:
++                raise GeometryError("yol: sıfır boylu çizgi")
++            return bd.Edge.make_line(bd.Vector(*a), bd.Vector(*b))
++        if isinstance(p, Yay):
++            q = [_v(x, "yay noktası") for x in (p.p0, p.p1, p.p2)]
++            if np.linalg.norm(np.cross(q[1] - q[0], q[2] - q[0])) <= TOL_UC**2:
++                raise GeometryError("yay: üç nokta doğrusal ya da çakışık")
++            return bd.Edge.make_three_point_arc(*(bd.Vector(*x) for x in q))
++        if isinstance(p, Spline):
++            q = [_v(x, "spline noktası") for x in p.noktalar]
++            if len(q) < 2:
++                raise GeometryError("spline: en az 2 nokta gerekli")
++            tegetler = None
++            if p.teget0 is not None or p.teget1 is not None:
++                if p.teget0 is None or p.teget1 is None:
++                    raise GeometryError("spline: teget0 ve teget1 birlikte verilmeli")
++                tegetler = [bd.Vector(*_v(p.teget0, "teget0")), bd.Vector(*_v(p.teget1, "teget1"))]
++            return bd.Edge.make_spline([bd.Vector(*x) for x in q], tangents=tegetler)
++    except GeometryError:
++        raise
++    except Exception as e:
++        raise GeometryError(f"yol parçası kurulamadı ({e})") from e
++    raise GeometryError(f"bilinmeyen yol parçası: {p!r}")
++
++
++def _kenarlar(yol: Yol) -> list[bd.Edge]:
++    if not isinstance(yol, Yol) or not yol.parcalar:
++        raise GeometryError("yol: en az bir parça gerekli")
++    es = [_parca_kenari(p) for p in yol.parcalar]
++    for i in range(len(es) - 1):
++        a, b = es[i], es[i + 1]
++        if np.linalg.norm(_vec(a.position_at(1)) - _vec(b.position_at(0))) > TOL_UC:
++            raise GeometryError(f"yol: {i + 1}. ve {i + 2}. parça uç uca değil")
++        t0, t1 = _vec(a.tangent_at(1)), _vec(b.tangent_at(0))
++        aci = math.acos(float(np.clip(t0 @ t1 / (np.linalg.norm(t0) * np.linalg.norm(t1)), -1.0, 1.0)))
++        if aci > TOL_TEGET:
++            raise GeometryError(f"yol: {i + 1}. ve {i + 2}. parça arasında köşe ({math.degrees(aci):.6g}°)")
++    return es
++
++
++def _ornekle(es: list[bd.Edge], adim: float) -> tuple[np.ndarray, np.ndarray]:
++    """Yol üzerinde noktalar ve yay boyu konumları (s)."""
++    P, S, s0 = [], [], 0.0
++    for e in es:
++        n = max(8, int(math.ceil(e.length / adim)))
++        for k in range(n + 1):
++            u = k / n
++            P.append(_vec(e.position_at(u)))
++            S.append(s0 + u * e.length)
++        s0 += e.length
++    return np.array(P), np.array(S)
++
++
++def _kendini_kesiyor(es: list[bd.Edge], rho: float) -> bool:
++    """Yol (rho = 0) ya da rho yarıçaplı tüp kendini kesiyor mu (örneklemeyle).
++
++    Yol boyunca s farkı 4·rho'dan büyük iki nokta 2·rho'dan yakınsa tüpler çakışır. rho = 0'da yolun
++    kendisi: farklı yerlerdeki iki nokta çakışık (TOL_UC · 10).
++    """
++    L = sum(e.length for e in es)
++    adim = max(min(rho / 2 if rho > 0 else L / 400, L / 50), L / 4000)
++    P, S = _ornekle(es, adim)
++    esik = 2 * rho if rho > 0 else 10 * TOL_UC + adim
++    ayrim = max(4 * rho, 3 * adim)
++    for i in range(len(P)):
++        uzak = np.abs(S - S[i]) > ayrim
++        if np.any(uzak) and float(np.min(np.linalg.norm(P[uzak] - P[i], axis=1))) < esik:
++            return True
++    return False
+ 
+ 
+ def yol_teli(yol: Yol) -> bd.Wire:
+     """Yolu tek tel yapar. Boş yol, kopuk uçlar, teğet süreksizliği (> TOL_TEGET rad) ya da kendini kesen
+     yol → GeometryError."""
+-    raise NotImplementedError
++    es = _kenarlar(yol)
++    if _kendini_kesiyor(es, 0.0):
++        raise GeometryError("yol kendini kesiyor")
++    try:
++        return bd.Wire(es)
++    except Exception as e:
++        raise GeometryError(f"yol teli kurulamadı ({e})") from e
+ 
+ 
+ def yol_boyu(yol: Yol) -> float:
+     """Yol boyu s [mm] (Pappus: V = A · s)."""
+-    raise NotImplementedError
++    return float(sum(e.length for e in _kenarlar(yol)))
++
++
++# --- Loft ---------------------------------------------------------------------------------------------------
+ 
+ 
+ def loft_govde(
+     kesitler: Sequence[tuple[Plane, Sequence[SketchRegion]]], ruled: bool = False
+ ) -> tuple[object, dict[str, list]]:
+-    """Kesitlerden katı (TopoDS_Solid) ve yerel yüz adları.
++    """Kesitlerden kati (TopoDS_Solid) ve yerel yüz adları.
+ 
+     Her kesit tek, deliksiz, kapalı bölgedir. Adlar: `bas`, `son`; ruled=False'ta `yan` (tek yüz),
+     ruled=True'da `yan_1..yan_k` (k = kesit sayısı − 1, kesit aralığı başına).
+     Kesit < 2, açık / delikli / çok bölgeli profil ya da OCCT eşleme hatası → GeometryError.
+     """
+-    raise NotImplementedError
++    kesitler = list(kesitler)
++    if len(kesitler) < 2:
++        raise GeometryError(f"loft: en az 2 profil gerekli ({len(kesitler)})")
++    teller = [_profil_teli(plane, bolgeler, "loft") for plane, bolgeler in kesitler]
++    try:
++        op = BRepOffsetAPI_ThruSections(True, bool(ruled), TOL_OCC)
++        for t in teller:
++            op.AddWire(TopoDS.Wire(t))
++        op.CheckCompatibility(True)
++        op.Build()
++        if not op.IsDone():
++            raise GeometryError("loft: OCCT ThruSections başarısız (kesitler eşlenemedi)")
++        govde = _yonlu_kati(_ilk_kati(op.Shape()))
++    except GeometryError:
++        raise
++    except Exception as e:
++        raise GeometryError(f"loft: OCCT ThruSections başarısız ({e})") from e
++    if not bd.Solid(govde).is_valid:
++        raise GeometryError("loft: geçersiz kati (kesitler kendini kesiyor olabilir)")
++    var = yuzler(govde)
++    adlar: dict[str, list] = {}
++    for ad, s in (("bas", op.FirstShape()), ("son", op.LastShape())):
++        fs = [f for f in yuzler(s) if any(f.IsSame(g) for g in var)]
++        if fs:
++            adlar[ad] = fs
++    kapak = [f for fs in adlar.values() for f in fs]
++    if ruled:
++        for i, t in enumerate(teller[:-1]):
++            fs = []
++            for e in _tel_kenarlari(t):
++                f = op.GeneratedFace(e)
++                if not f.IsNull() and any(f.IsSame(g) for g in var) and not any(f.IsSame(g) for g in fs):
++                    fs.append(TopoDS.Face(f))
++            if fs:
++                adlar[f"yan_{i + 1}"] = fs
++    else:
++        yan = [f for f in var if not any(f.IsSame(g) for g in kapak)]
++        if yan:
++            adlar["yan"] = yan
++    return govde, adlar
++
++
++# --- Sweep --------------------------------------------------------------------------------------------------
+ 
+ 
+ def sweep_govde(
+@@ -97,12 +305,104 @@ def sweep_govde(
+     yonlendirme: str = "frenet",
+     yardimci: tuple[float, float, float] | None = None,
+ ) -> tuple[object, dict[str, list]]:
+-    """Profili yol boyunca süpürür; katı ve yerel adlar `bas`, `son`, `yan_i` (i = profil kenarı, 1'den).
++    """Profili yol boyunca süpürür; kati ve yerel adlar `bas`, `son`, `yan_i` (i = profil kenarı, 1'den).
+ 
+     Profil eskiz düzleminde olduğu yerde kullanılır (taşınmaz). yonlendirme: "frenet" | "sabit" |
+     "yardimci" (yardimci yön vektörü zorunlu). Hatalı yol / yön / OCCT hatası → GeometryError.
+     """
+-    raise NotImplementedError
++    if yonlendirme not in ("frenet", "sabit", "yardimci"):
++        raise GeometryError(f"sweep: yonlendirme geçersiz ({yonlendirme!r})")
++    profil = _profil_teli(plane, bolgeler, "sweep")
++    es = _kenarlar(yol)
++    p0 = _vec(es[0].position_at(0))
++    # profilin yol başlangıcına en uzak noktası: tüp yarıçapı
++    rho = max(
++        float(np.linalg.norm(_vec(bd.Edge(e).position_at(u)) - p0))
++        for e in kenarlar(profil)
++        for u in np.linspace(0.0, 1.0, 9)
++    )
++    if _kendini_kesiyor(es, rho):
++        raise GeometryError("sweep: yol ya da süpürülen gövde kendini kesiyor")
++    tel = bd.Wire(es)
++    try:
++        op = BRepOffsetAPI_MakePipeShell(tel.wrapped)
++        if yonlendirme == "frenet":
++            op.SetMode(True)
++        elif yonlendirme == "sabit":
++            op.SetMode(gp_Ax2(gp_Pnt(*plane.origin), gp_Dir(*plane.normal), gp_Dir(*plane.xdir)))
++        else:
++            if yardimci is None:
++                raise GeometryError("sweep: 'yardimci' yönlendirmede yardimci vektör gerekli")
++            y = _v(yardimci, "yardimci")
++            if np.linalg.norm(y) <= 1e-12:
++                raise GeometryError("sweep: yardimci vektör sıfır")
++            op.SetMode(gp_Dir(*y))
++        op.Add(TopoDS.Wire(profil))
++        op.SetTransitionMode(BRepBuilderAPI_TransitionMode.BRepBuilderAPI_RoundCorner)
++        op.Build()
++        if not op.IsDone() or not op.MakeSolid():
++            raise GeometryError("sweep: OCCT MakePipeShell başarısız")
++        govde = _yonlu_kati(_ilk_kati(op.Shape()))
++    except GeometryError:
++        raise
++    except Exception as e:
++        raise GeometryError(f"sweep: OCCT MakePipeShell başarısız ({e})") from e
++    if not bd.Solid(govde).is_valid:
++        raise GeometryError("sweep: geçersiz kati")
++    var = yuzler(govde)
++    adlar: dict[str, list] = {}
++    for ad, s in (("bas", op.FirstShape()), ("son", op.LastShape())):
++        fs = [f for f in yuzler(s) if any(f.IsSame(g) for g in var)]
++        if fs:
++            adlar[ad] = fs
++    for i, e in enumerate(_tel_kenarlari(profil)):
++        fs = [f for f in _uretilen(op, e) if any(f.IsSame(g) for g in var)]
++        if fs:
++            adlar[f"yan_{i + 1}"] = fs
++    return govde, adlar
++
++
++# --- B-spline yüzey -----------------------------------------------------------------------------------------
++
++
++def _ag(noktalar) -> np.ndarray:
++    try:
++        satirlar = [list(r) for r in noktalar]
++    except TypeError as e:
++        raise GeometryError("nokta ağı: satır listesi bekleniyor") from e
++    m = len(satirlar)
++    n = len(satirlar[0]) if m else 0
++    if m < 4 or n < 4:
++        raise GeometryError(f"nokta ağı en az 4 × 4 olmalı ({m} × {n})")
++    if any(len(r) != n for r in satirlar):
++        raise GeometryError("nokta ağı düzensiz (satır uzunlukları farklı)")
++    return np.array([[_v(p, "ağ noktası") for p in r] for r in satirlar])
++
++
++def _yuzey(noktalar, tol: float):
++    """Geom_BSplineSurface ve nokta ağı (m, n, 3)."""
++    if not (isinstance(tol, int | float) and math.isfinite(tol) and tol > 0):
++        raise GeometryError(f"tol > 0 olmalı ({tol!r})")
++    A = _ag(noktalar)
++    m, n, _ = A.shape
++    arr = Array2_gp_Pnt(1, m, 1, n)
++    for i in range(m):
++        for j in range(n):
++            arr.SetValue(i + 1, j + 1, gp_Pnt(*A[i, j]))
++    try:
++        api = GeomAPI_PointsToBSplineSurface(arr, 3, 3, GeomAbs_C2, float(tol))
++        if not api.IsDone():
++            raise GeometryError("B-spline yüzey kurulamadı")
++        S = api.Surface()
++    except GeometryError:
++        raise
++    except Exception as e:
++        raise GeometryError(f"B-spline yüzey kurulamadı ({e})") from e
++    for p in A.reshape(-1, 3):
++        pr = GeomAPI_ProjectPointOnSurf(gp_Pnt(*p), S)
++        if pr.NbPoints() == 0 or pr.LowerDistance() > tol:
++            raise GeometryError(f"B-spline yüzey noktadan tol={tol} içinde geçmiyor")
++    return S, A
+ 
+ 
+ def bspline_yuzey(noktalar: Sequence[Sequence[Sequence[float]]], tol: float = 0.01) -> bd.Face:
+@@ -110,21 +410,139 @@ def bspline_yuzey(noktalar: Sequence[Sequence[Sequence[float]]], tol: float = 0.
+ 
+     Yüzey her noktadan tol içinde geçer. tol ≤ 0, düzensiz ağ, m veya n < 4 → GeometryError.
+     """
+-    raise NotImplementedError
++    S, _ = _yuzey(noktalar, tol)
++    return bd.Face(BRepBuilderAPI_MakeFace(S, TOL_OCC).Face())
++
++
++def _min_egrilik_yaricapi(S, k: int = 25) -> float:
++    """Yüzeyin örneklenen en küçük asal eğrilik yarıçapı ρ = 1 / max|κ| (düzlemde ∞)."""
++    u0, u1, v0, v1 = S.Bounds()
++    kmax = 0.0
++    for u in np.linspace(u0, u1, k):
++        for v in np.linspace(v0, v1, k):
++            pr = GeomLProp_SLProps(S, float(u), float(v), 2, TOL_OCC)
++            if pr.IsCurvatureDefined():
++                kmax = max(kmax, abs(pr.MaxCurvature()), abs(pr.MinCurvature()))
++    return math.inf if kmax == 0 else 1.0 / kmax
++
++
++def _yuzey_al(yuzey: bd.Face):
++    from OCP.BRep import BRep_Tool
++
++    return BRep_Tool.Surface_s(yuzey.wrapped)
+ 
+ 
+ def kalinlastir(yuzey: bd.Face, kalinlik: float) -> tuple[object, dict[str, list]]:
+-    """Yüzeyi kalınlaştırıp katı yapar; kalinlik > 0 yüzey normali yönünde, < 0 tersinde.
++    """Yüzeyi kalınlaştırıp kati yapar; kalinlik > 0 yüzey normali yönünde, < 0 tersinde.
+ 
+     Adlar: `ust` (normal tarafındaki yüz), `alt`, `kenar_i` (1'den). kalinlik = 0 ya da OCCT hatası
+     (ör. kalınlık eğrilik yarıçapından büyük) → GeometryError.
+     """
+-    raise NotImplementedError
++    t = kalinlik
++    if not (isinstance(t, int | float) and math.isfinite(t)) or t == 0:
++        raise GeometryError(f"kalınlık sıfırdan farklı sonlu sayı olmalı ({t!r})")
++    S = _yuzey_al(yuzey)
++    rho = _min_egrilik_yaricapi(S)
++    if abs(t) >= rho:
++        raise GeometryError(f"kalınlık |t|={abs(t)} eğrilik yarıçapından (ρ={rho:.6g}) küçük olmalı")
++    try:
++        f0 = TopoDS.Face(yuzey.wrapped)
++        f1 = BRepBuilderAPI_MakeFace(Geom_OffsetSurface(S, float(t)), TOL_OCC).Face()
++        e0, e1 = kenarlar(f0), kenarlar(f1)
++        if len(e0) != len(e1):
++            raise GeometryError("kalınlaştırma: ofset yüzey kenarları eşleşmiyor")
++        yanlar = []
++        for a in e0:
++            orta = _vec(bd.Edge(a).position_at(0.5))
++            b = min(e1, key=lambda b: float(np.linalg.norm(_vec(bd.Edge(b).position_at(0.5)) - orta)))
++            yanlar.append(BRepFill.Face_s(a, b))
++        sw = BRepBuilderAPI_Sewing(TOL_OCC)
++        for f in (f0, f1, *yanlar):
++            sw.Add(f)
++        sw.Perform()
++        ex = TopExp_Explorer(sw.SewedShape(), TopAbs_SHELL)
++        if not ex.More():
++            raise GeometryError("kalınlaştırma: kabuk kapanmadı")
++        ms = BRepBuilderAPI_MakeSolid(TopoDS.Shell(ex.Current()))
++        govde = _yonlu_kati(ms.Solid())
++    except GeometryError:
++        raise
++    except Exception as e:
++        raise GeometryError(f"kalınlaştırma: OCCT başarısız ({e})") from e
++    if not bd.Solid(govde).is_valid:
++        raise GeometryError("kalınlaştırma: geçersiz kati")
++    var = yuzler(govde)
++
++    def eslesen(f) -> list:
++        """Dikişten (Sewing.Modified tek şekil döndürür) geçen yüzün katıdaki karşılığı."""
++        g = sw.Modified(f) if sw.IsModified(f) else f
++        return [TopoDS.Face(g)] if any(g.IsSame(h) for h in var) else []
++
++    ust, alt = (f1, f0) if t > 0 else (f0, f1)
++    adlar: dict[str, list] = {"ust": eslesen(ust), "alt": eslesen(alt)}
++    for i, f in enumerate(yanlar):
++        adlar[f"kenar_{i + 1}"] = eslesen(f)
++    return govde, {k: v for k, v in adlar.items() if v}
++
++
++# --- Yüzeyle kesme ------------------------------------------------------------------------------------------
++
++
++def yuzle_kes_gecmis(govde, yuzey: bd.Face, sakla: str = "alt"):
++    """yuzle_kes + bölme işleminin OCCT geçmişi (ağaçta ad taşımak için). Dönüş: (kati, kesit, op)."""
++    if sakla not in ("ust", "alt"):
++        raise GeometryError(f"sakla 'ust' ya da 'alt' olmalı ({sakla!r})")
++    S = _yuzey_al(yuzey)
++    try:
++        op = BRepAlgoAPI_Splitter()
++        a, t = List_TopoDS_Shape(), List_TopoDS_Shape()
++        a.Append(govde)
++        t.Append(yuzey.wrapped)
++        op.SetArguments(a)
++        op.SetTools(t)
++        op.Build()
++        if not op.IsDone():
++            raise GeometryError("yüzeyle kesme: OCCT Splitter başarısız")
++        parcalar = []
++        ex = TopExp_Explorer(op.Shape(), TopAbs_SOLID)
++        while ex.More():
++            parcalar.append(TopoDS.Solid(ex.Current()))
++            ex.Next()
++    except GeometryError:
++        raise
++    except Exception as e:
++        raise GeometryError(f"yüzeyle kesme: OCCT Splitter başarısız ({e})") from e
++    if len(parcalar) < 2:
++        raise GeometryError("yüzeyle kesme: yüzey gövdeyi baştan başa kesmiyor")
++    isaret = 1.0 if sakla == "ust" else -1.0
++    kalan = []
++    for k in parcalar:
++        c = _vec(bd.Solid(k).center(bd.CenterOf.MASS))
++        pr = GeomAPI_ProjectPointOnSurf(gp_Pnt(*c), S)
++        if pr.NbPoints() == 0:
++            raise GeometryError("yüzeyle kesme: parça yüzeye izdüşürülemedi")
++        u, v = pr.LowerDistanceParameters()
++        lp = GeomLProp_SLProps(S, u, v, 1, TOL_OCC)
++        q, n = lp.Value(), lp.Normal()
++        taraf = (c[0] - q.X()) * n.X() + (c[1] - q.Y()) * n.Y() + (c[2] - q.Z()) * n.Z()
++        if taraf * isaret > 0:
++            kalan.append(k)
++    if len(kalan) != 1:
++        raise GeometryError(f"yüzeyle kesme: '{sakla}' tarafında tek kati kalmalı ({len(kalan)})")
++    kati = kalan[0]
++    var = yuzler(kati)
++    # yüzey bölünmediyse (gövdeyle aynı sınır) kendisi, bölündüyse parçaları (Modified)
++    adaylar = list(op.Modified(yuzey.wrapped)) or [yuzey.wrapped]
++    kesit = [g for g in var if any(g.IsSame(f) for f in adaylar)]
++    return kati, kesit, op
+ 
+ 
+ def yuzle_kes(govde, yuzey: bd.Face, sakla: str = "alt") -> tuple[object, list]:
+     """Gövdeyi yüzeyle böler; yüzey normaline göre "ust" ya da "alt" taraf kalır.
+ 
+-    Dönüş: kalan katı ve kesik yüzler (`kesit` adı için). Yüzey gövdeyi bölmüyorsa → GeometryError.
++    Dönüş: kalan kati ve kesik yüzler (`kesit` adı için). Yüzey gövdeyi bölmüyorsa → GeometryError.
+     """
+-    raise NotImplementedError
++    if isinstance(govde, bd.Shape):
++        govde = govde.wrapped
++    kati, kesit, _ = yuzle_kes_gecmis(govde, yuzey, sakla)
++    return kati, kesit
+diff --git a/examples/65_tutamak.json b/examples/65_tutamak.json
+new file mode 100644
+index 0000000..53ace82
+--- /dev/null
++++ b/examples/65_tutamak.json
+@@ -0,0 +1,120 @@
++{
++  "sema": 1,
++  "ozellikler": [
++    {
++      "tur": "Blok",
++      "kimlik": "govde",
++      "a": 100,
++      "b": 40,
++      "c": 20,
++      "bastir": false
++    },
++    {
++      "tur": "Profil",
++      "kimlik": "kesit",
++      "duzlem": {
++        "plane": {
++          "origin": [
++            20.0,
++            20.0,
++            15.0
++          ],
++          "normal": [
++            0.0,
++            0.0,
++            1.0
++          ],
++          "xdir": [
++            1.0,
++            0.0,
++            0.0
++          ]
++        }
++      },
++      "bolgeler": [
++        {
++          "outer": [
++            {
++              "tur": "yay",
++              "center": [
++                0.0,
++                0.0
++              ],
++              "r": 5.0,
++              "start": [
++                5.0,
++                0.0
++              ],
++              "end": [
++                5.0,
++                0.0
++              ],
++              "ccw": true,
++              "src": "c"
++            }
++          ],
++          "holes": []
++        }
++      ],
++      "eskiz": null,
++      "bastir": false
++    },
++    {
++      "tur": "Sweep",
++      "kimlik": "tutamak",
++      "profil": "kesit",
++      "yol": {
++        "parcalar": [
++          {
++            "tur": "cizgi",
++            "p0": [
++              20.0,
++              20.0,
++              15.0
++            ],
++            "p1": [
++              20.0,
++              20.0,
++              30.0
++            ]
++          },
++          {
++            "tur": "yay",
++            "p0": [
++              20.0,
++              20.0,
++              30.0
++            ],
++            "p1": [
++              50.0,
++              20.0,
++              60.0
++            ],
++            "p2": [
++              80.0,
++              20.0,
++              30.0
++            ]
++          },
++          {
++            "tur": "cizgi",
++            "p0": [
++              80.0,
++              20.0,
++              30.0
++            ],
++            "p1": [
++              80.0,
++              20.0,
++              15.0
++            ]
++          }
++        ]
++      },
++      "yonlendirme": "frenet",
++      "yardimci": null,
++      "islem": "ekle",
++      "bastir": false
++    }
++  ]
++}
+\ No newline at end of file

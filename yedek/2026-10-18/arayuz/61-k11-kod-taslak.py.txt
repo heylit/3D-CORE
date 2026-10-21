@@ -1,0 +1,25 @@
+ORNEK_KUTUPHANE = Path(__file__).resolve().parents[2] / "examples" / "takim_kutuphanesi.json"
+ORNEK_UYARI = "örnek kütüphaneyle denetlendi"
+
+
+def _kutuphane() -> tuple[ToolLibrary, bool]:
+    """(kütüphane, örnek mi). Tezgah'ta henüz seçili kütüphane yok: repodaki örnek (SPEC 61 Karar 2)."""
+    return load_library(ORNEK_KUTUPHANE), True
+
+
+def model_dfm() -> dict:
+    """Güncel modelin DFM raporu (SPEC 61 K11). Model kurulamazsa GeometryError → 422."""
+    from tezgah.modelleme import insa
+
+    p, r = insa(paylasilan_bolum("model"))
+    if p is None:
+        neden = f" ({r.hata.kimlik}: {r.hata.hata})" if r.hata is not None else ""
+        raise GeometryError(f"Modelde katı yok{neden}")
+    lib, ornek = _kutuphane()
+    rapor = denetle(p, lib)
+    return {
+        "bulgular": [asdict(b) for b in rapor.bulgular],
+        "tamam": rapor.tamam,
+        "sure_s": rapor.sure_s,
+        "uyarilar": [ORNEK_UYARI] if ornek else [],
+    }

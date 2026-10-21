@@ -1,0 +1,69 @@
+# ekranlar/komut.py ek (taslak). importlar: from cam.library import load_library; from cam.model import CamError,
+# Stock; from geometry.part import GeometryError (?); from tezgah import fark as _fark; from tezgah.artimli import
+# Onbellek, olcu_degistir; from tezgah.komut import yerlestir; from tezgah.ekranlar.model import EKRAN as MODEL
+
+_ONBELLEK = Onbellek()
+_KUTUPHANE = None
+
+
+def _kutuphane():
+    global _KUTUPHANE
+    if _KUTUPHANE is None:
+        _KUTUPHANE = load_library(KUTUPHANE)
+    return _KUTUPHANE
+
+
+def _stok(parca) -> Stock:
+    (x0, y0, z0), (x1, y1, z1) = parca.bbox
+    a = STOK_PAYI
+    return Stock(x0 - a, y0 - a, z0, x1 + a, y1 + a, z1 + a)
+
+
+def _plan(model: dict):
+    """Önbellekli insa + plan + süreler; kurulamazsa GeometryError / CamError."""
+    parca, _ = _ONBELLEK.insa(model)  # stok için parça kutusu
+    if parca is None:
+        raise GeometryError("Model katı üretmedi")
+    _, plan, _ = _ONBELLEK.insa_ve_planla(model, _stok(parca), _kutuphane(), MALZEME)
+    return plan, _fark.islem_sureleri(plan)
+
+
+def _fark_hesapla(eski: dict, yeni: dict) -> dict:
+    with _kilit_plan:
+        p_e, t_e = _plan(eski)
+        p_y, t_y = _plan(yeni)
+    return _fark.fark_json(_fark.plan_farki(p_e, p_y, t_e, t_y))
+
+
+def _model_al(model_adi: str) -> dict:
+    m = MODEL.disa_aktar()
+    if m.get("ad") != model_adi:
+        raise HTTPException(404, f"Güncel model {m.get('ad')!r}, istenen {model_adi!r}")
+    return m
+
+
+@router.post("/uygula")
+def uygula(i: UygulaIstek):
+    eski = _model_al(i.model_adi)
+    try:
+        yeni = copy.deepcopy(eski)
+        yeni.setdefault("adimlar", []).extend(yerlestir(i.adim, i.secim, eski))
+    except KomutError as e:
+        return _komut_hatasi(e)
+    try:
+        f = _fark_hesapla(eski, yeni)
+        MODEL.ice_aktar(yeni, {})
+    except (GeometryError, CamError, ModelError) as e:
+        raise HTTPException(422, str(e)) from None
+    return {"sema": SEMA, "model": MODEL.disa_aktar(), "fark": f}
+
+
+@router.post("/surukle")
+def surukle(i: SurukleIstek) -> dict:
+    eski = _model_al(i.model_adi)
+    try:
+        yeni = olcu_degistir(eski, i.adim, i.olcu, i.deger)
+        f = _fark_hesapla(eski, yeni)
+    except (GeometryError, CamError, ModelError) as e:
+        raise HTTPException(422, str(e)) from None
+    return {"sema": SEMA, "fark": f, "sira": i.sira}
